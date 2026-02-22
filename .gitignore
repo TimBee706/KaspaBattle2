@@ -1,24 +1,37 @@
 # Rust
 /target
 /target_v3
+**/target
+**/target_test_*
 build.rs
+debug/
+release/
 
 # IDEs
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+.classpath
 
 # Database
 *.db
 *.db-shm
 *.db-wal
 kaspabattle.db
+**/kaspabattle.db
 
-# Environment
+# Environment and Secrets
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
 
 # Build artifacts
 *.exe
@@ -27,23 +40,30 @@ kaspabattle.db
 *.so
 *.dylib
 *.dll
+*.lib
 
 # OS
 Thumbs.db
 .DS_Store
+ehthumbs.db
+Desktop.ini
+
+# Project Specific
+Docs/
+/Docs
 
 # SQLx
 .sqlx/
 
 # Cargo
-Cargo.lock
-# Note: In some workspaces Cargo.lock is committed, but for local dev with specific target dirs it can be ignored if preferred.
-# Here we keep it commented out by default if they want to share the lock, but many dev environments ignore it.
+# Cargo.lock is usually kept for binary crates, but some prefer to ignore it in workspaces if they want to always pull latest deps locally.
+# We'll leave it out of the ignore list to be safe (commit by default), but keep the reference here.
 # Cargo.lock
 
-# Logs
+# Logs and Temps
 *.log
-check_output.txt
-check_output_utf8.txt
-test_output_utf8.txt
+check_output*.txt
+test_output*.txt
 check_errors.txt
+tmp/
+temp/

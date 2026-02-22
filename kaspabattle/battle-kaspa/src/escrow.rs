@@ -13,7 +13,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use crate::rpc::KaspaRpc;
+use crate::rpc::{KaspaRpc, UtxoInfo};
 use crate::wallet::EscrowWallet;
 use battle_core::types::SOMPI_PER_KAS;
 

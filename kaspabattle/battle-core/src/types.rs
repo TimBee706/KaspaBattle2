@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 pub type MatchId = String;
 pub type KaspaAddress = String;
 
-/// 1 KAS = 100_000_000 Sompi (Kaspa unit analogous to Satoshi)
-pub const SOMPI_PER_KAS: u64 = 100_000_000;
+/// 1 KAS = 100_000 Sompi (Kaspa unit analogous to Satoshi)
+pub const SOMPI_PER_KAS: u64 = 100_000;
 pub const MIN_WAGER_KAS: u64 = 10; // 10 KAS minimum
 pub const MAX_WAGER_KAS: u64 = 10_000; // 10.000 KAS maximum
 pub const DEPOSIT_TIMEOUT_MINUTES: i64 = 30;
