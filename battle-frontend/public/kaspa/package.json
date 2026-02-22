@@ -1,0 +1,6 @@
+{
+    "name": "kaspa-wasm",
+    "version": "0.1.0",
+    "main": "kaspa-wasm.js",
+    "types": "kaspa-wasm.d.ts"
+}

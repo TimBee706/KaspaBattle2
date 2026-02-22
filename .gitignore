@@ -67,3 +67,17 @@ test_output*.txt
 check_errors.txt
 tmp/
 temp/
+
+# Frontend (battle-frontend)
+battle-frontend/node_modules/
+battle-frontend/dist/
+battle-frontend/dist-ssr/
+battle-frontend/*.local
+battle-frontend/.DS_Store
+battle-frontend/coverage/
+
+# Vite
+*.js.map
+*.css.map
+.vite/
+.eslintcache
