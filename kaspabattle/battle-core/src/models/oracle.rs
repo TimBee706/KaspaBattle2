@@ -19,15 +19,19 @@ impl OracleJobStatus {
             OracleJobStatus::Cancelled => "Cancelled",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for OracleJobStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Pending" => Some(OracleJobStatus::Pending),
-            "Processing" => Some(OracleJobStatus::Processing),
-            "Resolved" => Some(OracleJobStatus::Resolved),
-            "Failed" => Some(OracleJobStatus::Failed),
-            "Cancelled" => Some(OracleJobStatus::Cancelled),
-            _ => None,
+            "Pending" => Ok(OracleJobStatus::Pending),
+            "Processing" => Ok(OracleJobStatus::Processing),
+            "Resolved" => Ok(OracleJobStatus::Resolved),
+            "Failed" => Ok(OracleJobStatus::Failed),
+            "Cancelled" => Ok(OracleJobStatus::Cancelled),
+            _ => Err(()),
         }
     }
 }

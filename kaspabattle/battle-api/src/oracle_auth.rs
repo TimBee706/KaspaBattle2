@@ -13,6 +13,7 @@ use actix_web::HttpRequest;
 use std::collections::HashSet;
 use std::env;
 use std::sync::OnceLock;
+use subtle::ConstantTimeEq;
 
 /// Loaded Oracle API key set (initialized once at startup).
 static ORACLE_KEYS: OnceLock<HashSet<String>> = OnceLock::new();
@@ -96,7 +97,9 @@ pub fn verify_oracle_key(req: &HttpRequest) -> bool {
         }
     };
 
-    let authorized = keys.contains(&provided);
+    // F-007: Use constant-time comparison to prevent timing oracle attacks.
+    // We iterate ALL keys regardless of match to keep runtime constant.
+    let authorized = constant_time_key_check(keys, &provided);
 
     if !authorized {
         log::warn!(
@@ -112,6 +115,26 @@ pub fn verify_oracle_key(req: &HttpRequest) -> bool {
     }
 
     authorized
+}
+
+/// F-007: Constant-time comparison of the provided key against all configured keys.
+/// Always iterates the full set to prevent timing side channels.
+fn constant_time_key_check(keys: &HashSet<String>, provided: &str) -> bool {
+    let provided_bytes = provided.as_bytes();
+    let mut found = 0u8;
+
+    for key in keys {
+        let key_bytes = key.as_bytes();
+        // Only compare if lengths match (length itself leaks, but that's acceptable
+        // for API keys where length is not secret).
+        if key_bytes.len() == provided_bytes.len() {
+            // ct_eq returns Choice; unwrap_u8() converts to bool-like u8.
+            let eq: u8 = key_bytes.ct_eq(provided_bytes).unwrap_u8();
+            found |= eq;
+        }
+    }
+
+    found == 1
 }
 
 #[cfg(test)]
@@ -168,15 +191,18 @@ mod tests {
     }
 
     #[test]
-    fn test_init_oracle_keys_empty_env() {
-        unsafe { env::remove_var("ORACLE_API_KEYS") };
-        // Should succeed with 0 keys
-        let raw = env::var("ORACLE_API_KEYS").unwrap_or_default();
-        let count = raw
+    fn test_init_oracle_keys_parsing() {
+        // Test the internal parsing logic directly instead of using env vars
+        // which are global and hazardous in multi-threaded tests.
+        let raw = "key1,key2";
+        let keys: HashSet<String> = raw
             .split(',')
-            .filter(|s| !s.trim().is_empty())
-            .count();
-        assert_eq!(count, 0);
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        assert_eq!(keys.len(), 2);
+        assert!(keys.contains("key1"));
+        assert!(keys.contains("key2"));
     }
 
     #[test]

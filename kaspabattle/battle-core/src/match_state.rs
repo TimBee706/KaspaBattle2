@@ -43,7 +43,7 @@ impl MatchState {
     /// Returns true if payout is allowed in this state.
     /// F-009: Payouts are blocked when a dispute is active.
     pub fn allows_payout(&self) -> bool {
-        !matches!(self, MatchState::Disputed { .. } | MatchState::Cancelled { .. } | MatchState::Completed)
+        matches!(self, MatchState::Resolved { .. })
     }
 }
 

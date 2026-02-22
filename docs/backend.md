@@ -27,22 +27,40 @@ Handles the final step of the match cycle.
 - **Signing**: Uses Schnorr signatures with the match-specific private keys.
 - **Submission**: Sends the signed `RpcTransaction` to the node.
 
-### 3. Oracle Service
+### 4. Auth Service (`auth.rs`)
 
-Integrates with external APIs (like FACEIT) to verify match results.
+Handles user lifecycle and session management.
 
-- **Auth Guard**: Uses `X-Oracle-Key` to ensure only authorized resolvers can trigger payouts.
-- **Verification**: Validates game IDs and player IDs before resolving.
+- **Registration/Login**: Uses Argon2 for secure password hashing.
+- **Session Management**: Secure random token generation with expiry tracking.
+- **Identity**: Manages user profiles and linked Kaspa addresses.
 
-## API Endpoints
+### 5. FACEIT OAuth Service (`faceit_oauth.rs`)
+
+Integrates with FACEIT Identity Provider.
+
+- **PKCE Flow**: Implements Proof Key for Code Exchange (PKCE) for secure mobile/SPA auth.
+- **Token Management**: Handles access/refresh token lifecycle.
+- **Profile Linking**: Securely links KaspaBattle users to FACEIT player IDs.
+
+## API Endpoints (v1)
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/matches` | Create a new match |
-| `GET` | `/api/matches/{id}` | Get match status |
-| `POST` | `/api/matches/{id}/join` | Join an existing match |
-| `POST` | `/api/matches/{id}/resolve` | Resolve a match (Oracle Only) |
-| `POST` | `/api/matches/{id}/dispute` | Flag a match for manual review |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/register` | Create a new account |
+| `POST` | `/api/v1/auth/login` | Authenticate and get session |
+| `GET` | `/api/v1/auth/me` | Get current user profile |
+| `GET` | `/api/v1/faceit/link` | Start FACEIT OAuth flow |
+| `GET` | `/api/v1/faceit/status` | Get linked account status |
+
+## Database Schema
+
+The system uses SQLite (via SQLx) with the following core tables:
+
+- **`users`**: Stores user profiles, emails (hashed), and Kaspa addresses.
+- **`sessions`**: Manages active user sessions.
+- **`faceit_links`**: Maps internal users to verified FACEIT player identities.
+- **`matches`**: Tracks match state, escrow details, and payout status.
 
 ## Configuration
 
@@ -52,8 +70,9 @@ The backend is configured via environment variables:
 DATABASE_URL=sqlite://matches.db
 KASPA_NODE_URL=127.0.0.1:17110
 KASPA_NETWORK=testnet-10
-ORACLE_API_KEYS=your-secret-key
-TREASURY_ADDRESS=kaspatest:q...
+ORACLE_API_KEYS=key-alpha,key-beta
+FACEIT_CLIENT_ID=your-id
+FACEIT_CLIENT_SECRET=your-secret
 ```
 
 ## Running Locally
@@ -64,4 +83,4 @@ TREASURY_ADDRESS=kaspatest:q...
 4. Run tests: `cargo test --workspace`.
 
 ---
-[Architecture ←](architecture.md) | [Frontend →](frontend.md)
+[Architecture ←](architecture.md) | [Home ↑](../README.md) | [Frontend →](frontend.md)

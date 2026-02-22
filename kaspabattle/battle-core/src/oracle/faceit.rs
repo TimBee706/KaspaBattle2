@@ -42,7 +42,7 @@ pub struct FaceitOracleService {
 #[derive(Deserialize, Debug)]
 struct FaceitMatchResponse {
     status: String,
-    game: String,
+    _game: String,
     results: Option<FaceitMatchResults>,
     teams: std::collections::HashMap<String, FaceitTeam>,
     finished_at: Option<i64>,

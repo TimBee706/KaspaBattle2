@@ -8,13 +8,35 @@
 ///
 /// Uses `EscrowWallet` for key management and `Arc<dyn KaspaRpc>` for
 /// blockchain interaction.
+///
+/// # Security Notice — F-001 (CRITICAL)
+///
+/// **Current model**: Off-chain escrow. A centralized server holds BIP44-derived
+/// private keys for each escrow address. This is a custodial design — if the
+/// server is compromised, all escrowed funds are at risk.
+///
+/// **Whitepaper target**: Trustless on-chain escrow via Kasplex L2 smart contracts
+/// or native UTXO-script-based multi-sig escrow.
+///
+/// **Interim mitigations** (implemented):
+/// - Keys are zeroized on drop (F-003).
+/// - Deposits are per-address attributed (F-008).
+/// - Timeout refunds are automatic (F-006).
+///
+/// **Roadmap**:
+/// 1. Evaluate Kasplex L2 maturity for MatchEscrow contract deployment.
+/// 2. Alternatively, implement 2-of-2 multi-sig UTXO scripts as an interim
+///    trustless step (requires both server + user co-signature).
+/// 3. Migrate fund custody to on-chain mechanism before Mainnet launch.
+///
+/// TODO(F-001): Replace this off-chain custody model before production.
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
 use crate::errors::EscrowError;
-use crate::rpc::{KaspaRpc, UtxoInfo};
+use crate::rpc::KaspaRpc;
 use crate::wallet::EscrowWallet;
 use battle_core::types::SOMPI_PER_KAS;
 use kaspa_addresses::{Address, Version};
@@ -38,9 +60,14 @@ pub fn derive_escrow_address(
         ));
     }
 
+    log::info!(
+        "Generating escrow address for match: {}",
+        match_id
+    );
+
     let input = format!(
         "{}{}{}",
-        match_id.to_string(),
+        match_id,
         player_a_pubkey,
         player_b_pubkey
     );
@@ -321,8 +348,8 @@ impl EscrowService {
     pub async fn refund(
         &self,
         challenge_id: &str,
-        player_a_address: &str,
-        player_b_address: &str,
+        _player_a_address: &str,
+        _player_b_address: &str,
         escrow_address: &str,
         wager_per_player: u64,
     ) -> Result<RefundResult> {

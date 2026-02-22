@@ -14,10 +14,20 @@ pub enum MatchStatus {
 }
 
 impl MatchStatus {
-    /// F-009: Returns true only when a payout is permitted for this match status.
-    /// Prevents double-payouts and payouts on disputed/cancelled matches.
+    /// F-018: Returns true ONLY when a payout to the winner is permitted.
+    /// Only `Resolved` matches have a verified winner and can be paid out.
     pub fn allows_payout(&self) -> bool {
-        matches!(self, MatchStatus::Locked | MatchStatus::Resolved | MatchStatus::Funded)
+        matches!(self, MatchStatus::Resolved)
+    }
+
+    /// F-009: Returns true when a refund operation is permitted.
+    /// Refunds are allowed in pre-resolution states (deposits not yet locked
+    /// into a game) and when disputes are active.
+    pub fn allows_refund(&self) -> bool {
+        matches!(
+            self,
+            MatchStatus::Open | MatchStatus::Funded | MatchStatus::Locked | MatchStatus::Disputed
+        )
     }
 }
 

@@ -227,9 +227,9 @@ pub async fn create_match(
     body: web::Json<CreateMatchRequest>,
 ) -> impl Responder {
     // Validate game type
-    let game_type = match GameType::from_str(&body.game_type) {
-        Some(gt) => gt,
-        None => {
+    let game_type = match body.game_type.parse::<GameType>() {
+        Ok(gt) => gt,
+        Err(_) => {
             return HttpResponse::BadRequest().json(ErrorResponse {
                 error: format!("Unknown game type: {}", body.game_type),
             });

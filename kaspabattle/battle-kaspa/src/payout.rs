@@ -21,7 +21,7 @@ use kaspa_consensus_core::{
     },
     subnets::SUBNETWORK_ID_NATIVE,
     tx::{
-        PopulatedTransaction, ScriptPublicKey, Transaction, TransactionId, TransactionInput,
+        PopulatedTransaction, Transaction, TransactionId, TransactionInput,
         TransactionOutpoint, TransactionOutput, UtxoEntry,
     },
 };
@@ -259,11 +259,7 @@ impl PayoutService {
 
         // Pass 2: sign and insert signature scripts
         for (i, sighash) in sighashes.iter().enumerate() {
-            let msg = secp256k1::Message::from_digest(
-                sighash.as_bytes().try_into().map_err(|_| {
-                    PayoutError::TxBuildError("sighash wrong length".to_string())
-                })?,
-            );
+            let msg = secp256k1::Message::from_digest(sighash.as_bytes());
 
             let sig = secp.sign_schnorr(&msg, &keypair);
 
@@ -277,7 +273,7 @@ impl PayoutService {
 
         // Convert to RpcTransaction for submission
         let rpc_tx = transaction_to_rpc(tx);
-        let tx_id = rpc_tx.get_id();
+        let _tx_id = rpc_tx.get_id();
 
         let submitted_id = self
             .rpc_client
@@ -417,11 +413,7 @@ impl PayoutService {
 
         // Pass 2: sign and mutate
         for (i, sighash) in sighashes.iter().enumerate() {
-            let msg = secp256k1::Message::from_digest(
-                sighash.as_bytes().try_into().map_err(|_| {
-                    PayoutError::TxBuildError("sighash wrong length".to_string())
-                })?,
-            );
+            let msg = secp256k1::Message::from_digest(sighash.as_bytes());
             let sig = secp.sign_schnorr(&msg, &keypair);
             let mut script = Vec::with_capacity(66);
             script.push(0x41);

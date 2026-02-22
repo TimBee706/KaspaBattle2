@@ -14,6 +14,7 @@ chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 anyhow = "1"
 tracing = "0.1"
+log = "0.4"
 uuid = { version = "1", features = ["v4"] }
 
 # Kaspa ecosystem (v0.15)
@@ -32,7 +33,8 @@ wasm-bindgen = "=0.2.95"
 js-sys = "=0.3.72"
 web-sys = "=0.3.72"
 
-# Cryptography
+# Cryptography & Key Safety
+zeroize = { version = "1", features = ["derive"] }
 secp256k1 = { version = "0.29", features = ["global-context", "rand-std"] }
 reqwest = { version = "0.12", features = ["json"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }

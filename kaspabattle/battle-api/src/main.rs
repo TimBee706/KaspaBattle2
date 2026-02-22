@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use std::sync::Arc;
 use std::time::Duration;
@@ -56,9 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("✅ FaceitOAuthService bereit");
 
     // === Oracle Service (V2) ===
+    // F-015: FACEIT_API_KEY is mandatory — refuse to start without it.
+    let faceit_api_key = std::env::var("FACEIT_API_KEY")
+        .expect("FACEIT_API_KEY must be set. The oracle cannot function without it.");
     let oracle_signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
     let oracle = Arc::new(battle_core::oracle::faceit::FaceitOracleService::new(
-        std::env::var("FACEIT_API_KEY").unwrap_or_else(|_| "faceit_api_key".to_string()),
+        faceit_api_key,
         oracle_signing_key,
     ));
     log::info!("✅ FaceitOracleService bereit");
@@ -101,10 +105,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let watcher = Arc::new(BlockchainWatcher::new(kaspa.clone(), poll_interval));
 
     // === Payout Manager ===
+    // F-015: TREASURY_ADDRESS is mandatory — payouts to a dummy address lose funds.
+    let treasury_address = std::env::var("TREASURY_ADDRESS")
+        .expect("TREASURY_ADDRESS must be set. Cannot safely execute payouts without it.");
     let payout = Arc::new(PayoutService::new(
         kaspa.clone(),
-        std::env::var("TREASURY_ADDRESS")
-            .unwrap_or_else(|_| "kaspatest:qztreasurydummy123456789".to_string()),
+        treasury_address,
+        // F-016: Keys are registered dynamically by create_challenge_escrow after
+        // EscrowWallet derives each address. This HashMap starts empty and is
+        // populated at runtime.
         std::collections::HashMap::new(),
     ));
 
@@ -134,13 +143,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("🚀 HTTP-Server startet auf {}", bind_addr);
 
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header();
+        // F-005: Read allowed origins from ENV, no wildcard in production.
+        let cors = {
+            let env_mode = std::env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+            if env_mode == "production" {
+                let origins_raw = std::env::var("ALLOWED_ORIGINS")
+                    .unwrap_or_else(|_| "https://kaspabattle.com".to_string());
+                let mut cors = Cors::default()
+                    .allow_any_method()
+                    .allow_any_header();
+                for origin in origins_raw.split(',') {
+                    let o = origin.trim().to_string();
+                    if !o.is_empty() {
+                        cors = cors.allowed_origin(&o);
+                    }
+                }
+                cors
+            } else {
+                // Development: permissive for local testing
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+            }
+        };
+
+        // F-006: Rate limiting — 20 requests per 60 seconds per peer IP.
+        let governor_conf = GovernorConfigBuilder::default()
+            .per_second(3) // refill 1 token every 3 seconds
+            .burst_size(20) // max 20 tokens in bucket
+            .finish()
+            .unwrap();
 
         App::new()
             .wrap(cors)
+            .wrap(Governor::new(&governor_conf)) // F-006: rate limiting
             .wrap(middleware::Logger::default())
             .app_data(app_state.clone())
             .service(routes::health)

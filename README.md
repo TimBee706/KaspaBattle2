@@ -12,17 +12,18 @@ By leveraging Kaspa's high-throughput DAG architecture and real-time settlement,
 
 - **P2P Esports Wagers**: Challenge other players and wager KAS on match outcomes.
 - **Non-Custodial Escrow**: Funds are held in per-match escrow addresses. You keep control of your keys.
+- **User Accounts & FACEIT Linking**: Secure account system with FACEIT OAuth integration for verified player identities.
 - **Oracle-Based Verification**: Automatic match resolution via authorized Oracles (FACEIT API integration).
 - **Fast Settlements**: Instant payout as soon as the DAG confirms the Oracle resolve transaction.
-- **Secure Architecture**: Schnorr-signed transactions and multi-layer security protections.
+- **Secure Architecture**: Argon2 password hashing, PKCE for OAuth, and multi-layer security protections.
 - **Modern UI**: Clean React/TypeScript frontend with integrated Kaspa WASM wallet support.
 
 ## Project Structure
 
 - `kaspabattle/`: Rust workspace containing the backend services.
-  - `battle-api/`: Actix-Web REST API.
+  - `battle-api/`: Actix-Web REST API (v1 / v2 endpoints).
   - `battle-kaspa/`: Kaspa blockchain integration (RPC, Payouts, Watchers).
-  - `battle-core/`: Shared models and core match state machine.
+  - `battle-core/`: Shared models, authentication services, and core match state machine.
 - `battle-frontend/`: React + Vite frontend application.
 - `docs/`: Comprehensive project documentation.
 

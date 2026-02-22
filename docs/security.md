@@ -1,38 +1,64 @@
-# Security
+# Security Design & Roadmap
 
-Security is the highest priority for KaspaBattle. As a platform handling user funds (KAS), we implement rigorous protections at every layer.
+This document outlines the security architecture of the KaspaBattle MVP and the roadmap for transitioning to the fully trustless vision defined in the Whitepaper.
 
-## Non-Custodial Principles
+## Status Overview
 
-KaspaBattle follows the principle of **least trust**:
+The current implementation (v0.3.0) has been hardened against immediate vulnerabilities identified in the 2026 Audit. While some architectural components are currently centralized for MVP speed, clear paths to decentralization are established.
 
-- **Escrow Separation**: Funds for Match A are never co-mingled with Match B.
-- **Short-Lived Custody**: Escrow private keys are used only at the moment of payout/refund and are then purged from memory.
-- **Player-Controlled Wallets**: Users sign their own deposit transactions in their own browser wallet.
+## 1. Escrow Architecture (F-001)
 
-## Audit Fixes (v0.3.0)
+### Current Implementation: Off-Chain Custody
 
-A recent security audit identified several critical areas that have been fully addressed:
+- **Mechanism**: Every match has a unique Kaspa address derived from a master mnemonic using BIP44.
+- **Custody**: The server holds the derivation master key in memory (zeroized on drop). The server signs payouts once the Oracle resolves a match.
+- **Risk**: A total server compromise allows theft of current escrowed funds.
 
-- **F-001: Payout Tx Stub**: Replaced mock transaction IDs with real, Schnorr-signed Kaspa transactions.
-- **F-002: Resolve Match Auth**: Implemented API Key authentication for the Oracle endpoint.
-- **F-006: Timeout Refund**: Added automated refunds for deposits on expired/unjoined matches.
-- **F-008: Deposit Attribution**: Fixed a bug where one player could "double-fund" a match using two UTXOs. Now correctly verifies per-address contributions.
-- **F-009: Dispute State**: Introduced a `Disputed` state that immediately freezes payouts upon a player's report.
+### Roadmap to Trustless Escrow
 
-## Oracle Security
-
-The system relies on external game data. We secure this via:
-
-- **Authenticated Push**: Only authorized Oracle keys can call the resolve endpoint.
-- **Double Confirmation**: The Oracle fetches results twice from independent platform endpoints (where available) before signing.
-- **Roadmap**: Decentralized Oracle Federation where multiple signatures are required for a payout.
-
-## Wallet Security
-
-- **No Server-Side Mnemonics**: The backend never sees your personal wallet mnemonic or private key.
-- **Transport Security**: All API communication is encrypted via TLS.
-- **Secure Key Management**: Backend escrow keys are derived deterministically and handled using secure memory patterns.
+1. **Phase 2**: Implement 2-of-2 multi-sig UTXO scripts. Funds require both the Server signature AND the User signature to move.
+2. **Phase 3**: Migrate to **Kasplex L2** smart contracts for non-custodial holding of KAS, triggered by Oracle proofs.
 
 ---
-[Kaspa Integration ←](kaspa-integration.md) | [Contributing →](contributing.md)
+
+## 2. Oracle System (F-002)
+
+### Current Implementation: Single-Source Oracle
+
+- **Mechanism**: A single service fetches results from the FACEIT API.
+- **Auth**: Oracle endpoints require an API key verified in constant-time (F-007).
+- **Proof**: Results are signed with an Ed25519 key for on-chain verifiability.
+
+### Roadmap to Decentralized Oracle
+
+1. **Phase 2**: Multi-Node Consensus. Deploy ≥ 3 nodes. Payout is only triggered if 3/5 nodes report the same result.
+2. **Phase 3**: Economic Security. Implement staking/slashing. Oracle nodes must stake KAS to participate and lose stake if they report false data.
+
+---
+
+## 3. User Authentication Security (F-020)
+
+### Current Implementation: Secure Accounts
+
+- **Password Hashing**: Uses **Argon2id** (the winner of the Password Hashing Competition) with unique salts for every user.
+- **Session Security**: High-entropy session tokens stored securely in a relational database.
+- **OAuth Safety**: Implements **PKCE (Proof Key for Code Exchange)** for the FACEIT OAuth flow to prevent authorization code interception attacks.
+- **CSRF Protection**: State-based verification for all cross-origin authentication flows.
+
+---
+
+## 4. Implemented Security Controls
+
+| ID | Control | Purpose |
+| :--- | :--- | :--- |
+| **F-003** | Mnemonic Zeroization | Master keys are wiped from memory after initialization. |
+| **F-005** | CORS Hardening | Restricts API access to authorized frontend origins. |
+| **F-006** | Rate Limiting | Prevents DoS and brute-force attacks on the API. |
+| **F-007** | Constant-Time Auth | Prevents timing side-channel attacks on Oracle keys. |
+| **F-015** | Environment Enforcement | System refuses to start without critical security config (Treasury/Keys). |
+| **F-018** | State Machine Guard | Payouts represent an atomic end-state; blocked in any other state. |
+| **F-020** | Argon2id Hashing | Protects user passwords against GPU-based brute-force attacks. |
+| **F-021** | OAuth PKCE | Secures the FACEIT linking flow against intercept attacks. |
+
+---
+[Kaspa Integration ←](kaspa-integration.md) | [Home ↑](../README.md)

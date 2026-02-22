@@ -3,7 +3,12 @@
 /// Each challenge gets a unique derivation index, ensuring funds are isolated
 /// per-escrow. Private keys are held in memory behind Arc<Mutex<>> for signing
 /// payouts later.
+///
+/// F-003: The mnemonic phrase is wrapped in `Zeroizing<String>` so that it is
+///        automatically wiped from heap memory when the wallet is dropped.
+/// F-008: `Debug` is manually implemented to redact the mnemonic.
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
@@ -12,14 +17,18 @@ use kaspa_bip32::{
     secp256k1::SecretKey, DerivationPath, ExtendedPrivateKey, Language, Mnemonic, WordCount,
 };
 use sha2::{Digest, Sha256};
+use zeroize::Zeroizing;
 
 /// Kaspa BIP44 coin type (111111, NOT 111)
 const KASPA_COIN_TYPE: u32 = 111111;
 
 /// Stores the master key + derived key cache for escrow operations.
+///
+/// **Security**: `Debug` is manually implemented to never expose the mnemonic.
 pub struct EscrowWallet {
-    /// The mnemonic phrase (12 words)
-    mnemonic_phrase: String,
+    /// F-003: The mnemonic phrase (12 words), zeroized on drop.
+    #[allow(dead_code)]
+    mnemonic_phrase: Zeroizing<String>,
     /// Master extended private key
     master_xprv: ExtendedPrivateKey<SecretKey>,
     /// Network prefix for address generation
@@ -28,6 +37,16 @@ pub struct EscrowWallet {
     keys: Arc<Mutex<HashMap<String, [u8; 32]>>>,
     /// Map: challenge_id → derivation index (deterministic)
     index_map: Arc<Mutex<HashMap<String, u32>>>,
+}
+
+/// F-008: Safe Debug implementation that redacts the mnemonic phrase.
+impl fmt::Debug for EscrowWallet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EscrowWallet")
+            .field("mnemonic_phrase", &"[REDACTED]")
+            .field("prefix", &self.prefix)
+            .finish()
+    }
 }
 
 impl EscrowWallet {
@@ -44,12 +63,12 @@ impl EscrowWallet {
             Some(ref words) => {
                 let m = Mnemonic::new(words, Language::English)
                     .map_err(|e| anyhow!("Invalid mnemonic: {}", e))?;
-                (words.clone(), m)
+                (Zeroizing::new(words.clone()), m)
             }
             None => {
                 let m = Mnemonic::random(WordCount::Words12, Language::English)
                     .map_err(|e| anyhow!("Failed to generate mnemonic: {}", e))?;
-                let phrase = m.phrase().to_string();
+                let phrase = Zeroizing::new(m.phrase().to_string());
                 (phrase, m)
             }
         };
@@ -64,14 +83,11 @@ impl EscrowWallet {
             Prefix::Testnet
         };
 
-        tracing::info!(
+        // F-008: Use log:: (not tracing::) for consistency. Never log secrets.
+        log::info!(
             "EscrowWallet initialized (network: {}, mnemonic: {})",
             network,
-            if mnemonic.is_some() {
-                "imported"
-            } else {
-                "generated"
-            }
+            if mnemonic.is_some() { "imported" } else { "generated" }
         );
 
         Ok(Self {
@@ -83,10 +99,7 @@ impl EscrowWallet {
         })
     }
 
-    /// Returns the mnemonic phrase. **Never log or expose this!**
-    pub fn mnemonic_phrase(&self) -> &str {
-        &self.mnemonic_phrase
-    }
+
 
     /// Derives a deterministic escrow address for a challenge.
     ///
@@ -106,13 +119,41 @@ impl EscrowWallet {
                 .lock()
                 .map_err(|_| anyhow!("Lock poisoned"))?;
             if let Some(&idx) = index_map.get(challenge_id) {
-                let keys = self.keys.lock().map_err(|_| anyhow!("Lock poisoned"))?;
-                // Find the address for this index
-                for (addr_str, _) in keys.iter() {
-                    let addr = Address::try_from(addr_str.as_str())
-                        .map_err(|e| anyhow!("Address parse error: {}", e))?;
-                    return Ok((addr, idx));
-                }
+                // If we have the index, we need to reconstruct the address.
+                // The address is not stored directly in index_map or keys in a way
+                // that allows direct lookup by index.
+                // So, we re-derive the address using the stored index.
+                // This ensures consistency and avoids issues if `keys` map was cleared.
+                let path = format!("m/44'/{}'/{}'/{}/{}", KASPA_COIN_TYPE, 0, 0, idx);
+                let derivation_path = path
+                    .parse::<DerivationPath>()
+                    .map_err(|e| anyhow!("Invalid derivation path: {}", e))?;
+
+                let child_xprv = self
+                    .master_xprv
+                    .clone()
+                    .derive_path(&derivation_path)
+                    .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+
+                let secret_bytes = child_xprv.private_key().secret_bytes();
+
+                let secp = secp256k1::Secp256k1::new();
+                let sk = secp256k1::SecretKey::from_slice(&secret_bytes)
+                    .map_err(|e| anyhow!("Invalid secret key: {}", e))?;
+                let keypair = secp256k1::Keypair::from_secret_key(&secp, &sk);
+                let (xonly_pubkey, _parity) = keypair.x_only_public_key();
+                let pubkey_bytes = xonly_pubkey.serialize();
+
+                let address = Address::new(self.prefix, Version::PubKey, &pubkey_bytes);
+
+                // Ensure the private key is still in the `keys` map.
+                // If not, add it back. This handles cases where `keys` might be
+                // cleared or not fully consistent with `index_map`.
+                let addr_string = address.to_string();
+                let mut keys = self.keys.lock().map_err(|_| anyhow!("Lock poisoned"))?;
+                keys.entry(addr_string.clone()).or_insert(secret_bytes);
+
+                return Ok((address, idx));
             }
         }
 
@@ -198,20 +239,37 @@ mod tests {
     fn test_wallet_from_mnemonic() {
         let wallet = EscrowWallet::new(Some(TEST_MNEMONIC.to_string()), "testnet");
         assert!(wallet.is_ok());
+        // F-003: verify derivation works, do not assert mnemonic equality
         let w = wallet.unwrap();
-        assert_eq!(w.mnemonic_phrase(), TEST_MNEMONIC);
+        let (addr, _) = w.derive_escrow_address("test-init").unwrap();
+        assert!(!addr.to_string().is_empty());
     }
 
     #[test]
     fn test_wallet_generate_new() {
         let wallet = EscrowWallet::new(None, "testnet").unwrap();
+        // F-003: verify 12-word mnemonic was generated without exposing it
         let phrase = wallet.mnemonic_phrase();
-        // 12-word mnemonic
         let word_count = phrase.split_whitespace().count();
         assert_eq!(
             word_count, 12,
             "Mnemonic should be 12 words, got {}",
             word_count
+        );
+    }
+
+    #[test]
+    fn test_debug_does_not_leak_mnemonic() {
+        // F-008: ensure Debug output redacts mnemonic
+        let wallet = EscrowWallet::new(Some(TEST_MNEMONIC.to_string()), "testnet").unwrap();
+        let debug_output = format!("{:?}", wallet);
+        assert!(
+            !debug_output.contains("abandon"),
+            "Debug output must not contain mnemonic words"
+        );
+        assert!(
+            debug_output.contains("REDACTED"),
+            "Debug output must show REDACTED for mnemonic"
         );
     }
 

@@ -29,6 +29,10 @@ async-trait = "0.1"
 urlencoding = "2.1"
 ed25519-dalek = "2"
 rand = "0.8"
+# F-006: Rate limiting middleware
+actix-governor = "0.6"
+# F-007: Constant-time comparison for Oracle key auth
+subtle = "2"
 
 [dev-dependencies]
 wiremock = "0.6"

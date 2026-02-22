@@ -307,8 +307,8 @@ impl Database {
         let state_json = serde_json::to_string(new_state)
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
-        sqlx::query(
-            "UPDATE matches SET player_b_id = ?, player_b_addr = ?, player_b_name = ?, state = ?, state_json = ?, updated_at = datetime('now') WHERE match_id = ?"
+        let result = sqlx::query(
+            "UPDATE matches SET player_b_id = ?, player_b_addr = ?, player_b_name = ?, state = ?, state_json = ?, updated_at = datetime('now') WHERE match_id = ? AND state = 'WaitingForOpponent'"
         )
         .bind(player_b_id)
         .bind(player_b_addr)
@@ -318,6 +318,13 @@ impl Database {
         .bind(match_id)
         .execute(&self.pool)
         .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Match ist nicht mehr im Status WaitingForOpponent oder existiert nicht",
+            )));
+        }
 
         Ok(())
     }

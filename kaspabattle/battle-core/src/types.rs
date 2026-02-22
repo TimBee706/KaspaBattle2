@@ -35,13 +35,17 @@ impl GameType {
             GameType::Valorant => "valorant",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for GameType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "cs2" => Some(GameType::CounterStrike2),
-            "dota2" => Some(GameType::Dota2),
-            "valorant" => Some(GameType::Valorant),
-            _ => None,
+            "cs2" => Ok(GameType::CounterStrike2),
+            "dota2" => Ok(GameType::Dota2),
+            "valorant" => Ok(GameType::Valorant),
+            _ => Err(()),
         }
     }
 }

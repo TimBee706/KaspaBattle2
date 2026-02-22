@@ -7,14 +7,14 @@
 /// F-003: `submit_transaction` now calls the real Kaspa node RPC instead of
 /// always returning an error. `get_fee_estimate` was added to the trait.
 use async_trait::async_trait;
-use kaspa_consensus_core::tx::Transaction;
+
 use kaspa_rpc_core::model::tx::RpcTransaction;
 use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
+
 use tokio::sync::RwLock;
 
 // === Data Types ===

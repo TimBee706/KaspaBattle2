@@ -78,7 +78,10 @@ async fn timeout_cycle(
             escrow.timeout_at
         );
 
-        // Build a minimal BattleMatch for the payout service
+        // Build a minimal BattleMatch for the refund service.
+        // F-009: Use Cancelled status (semantically correct for timeout).
+        // Note: execute_refund() does NOT check allows_payout(), so this
+        // status is for documentation only — the refund runs regardless.
         let battle_match = BattleMatch {
             id: Uuid::parse_str(&escrow.match_id).unwrap_or_default(),
             player_a_kas_address: escrow.player_a_addr.clone().unwrap_or_default(),
@@ -88,9 +91,7 @@ async fn timeout_cycle(
             faceit_match_id: None,
             wager_amount_sompi: escrow.wager_sompi as u64,
             escrow_address: escrow.escrow_address.clone(),
-            // Must be a state that allows_payout() — we use Locked as a sentinel.
-            // The actual match state in DB will be updated to Cancelled below.
-            status: MatchStatus::Locked,
+            status: MatchStatus::Cancelled,
             winner_kas_address: None,
             payout_tx_hash: None,
             oracle_result_signature: None,

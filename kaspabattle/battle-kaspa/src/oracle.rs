@@ -6,6 +6,32 @@ use crate::faceit_api::FaceitApiClient;
 use battle_core::models::oracle::{OracleJob, OracleJobStatus};
 
 /// Service zur Verarbeitung von Oracle-Jobs
+///
+/// # Security Notice — F-002 (CRITICAL)
+///
+/// **Current model**: Single-source oracle. One FACEIT API client fetches match
+/// results. A single compromised `ORACLE_API_KEYS` value allows arbitrary match
+/// manipulation.
+///
+/// **Whitepaper target**: Decentralized oracle network with:
+/// - ≥ 3 independent oracle nodes querying multiple APIs (FACEIT, Steam, Riot).
+/// - Threshold consensus (e.g. 3-of-5 agreement).
+/// - Cryptographic proof per node (Ed25519 signatures — partially implemented).
+/// - Staking/slashing mechanism to economically penalize dishonest nodes.
+/// - 15-minute cooldown window after match end before result submission.
+///
+/// **Interim mitigations** (implemented):
+/// - Oracle API keys are verified with constant-time comparison (F-007).
+/// - Oracle endpoints require explicit authentication (F-002 previous fix).
+/// - Disputed state blocks payouts until manual review (F-009).
+///
+/// **Roadmap**:
+/// 1. Deploy ≥ 3 independent oracle-node instances with separate API keys.
+/// 2. Implement consensus aggregation: accept result only if ≥ 3 nodes agree.
+/// 3. Add a second data source (Steam Web API) for cross-validation.
+/// 4. Implement on-chain staking for oracle nodes (requires Kasplex L2).
+///
+/// TODO(F-002): Implement multi-oracle consensus before production.
 pub struct OracleService {
     job_store: Arc<dyn OracleJobStore>,
     faceit_client: Arc<FaceitApiClient>,
@@ -33,7 +59,7 @@ impl OracleService {
     }
 
     /// Verarbeitet einen einzelnen Job
-    pub async fn process_job(&self, mut job: OracleJob) -> Result<()> {
+    pub async fn process_job(&self, job: OracleJob) -> Result<()> {
         // Mark as Processing
         self.job_store
             .set_job_status(&job.job_id, OracleJobStatus::Processing, None)
