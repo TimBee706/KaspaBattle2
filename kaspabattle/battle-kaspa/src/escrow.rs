@@ -293,25 +293,13 @@ impl EscrowService {
             platform_address
         );
 
-        // Build TX payload (will be replaced with real TX building when
-        // kaspa-consensus-core TX construction is fully integrated)
-        let tx_payload = format!(
-            "payout:{}:{}:{}:{}:{}",
-            challenge_id,
-            winner_address,
-            breakdown.winner_amount,
-            platform_address,
-            breakdown.platform_fee
-        );
-
-        let tx_id = self
-            .rpc
-            .submit_transaction(&tx_payload)
-            .await
-            .map_err(|e| anyhow!("TX submission failed: {}", e))?;
+        // NOTE: The legacy EscrowService payout path generates a stub TX ID.
+        // Real payouts are handled by PayoutService::execute_payout() (F-001)
+        // which builds and signs actual Kaspa transactions.
+        let tx_id = uuid::Uuid::new_v4().to_string();
 
         tracing::info!(
-            "PAYOUT TX submitted: {} for challenge {}",
+            "Escrow payout stub TX {} for challenge {}",
             tx_id,
             challenge_id
         );
@@ -364,42 +352,25 @@ impl EscrowService {
         let mut refund_tx_a = None;
         let mut refund_tx_b = None;
 
-        // Refund player A
+        // NOTE: Legacy escrow refund path — stub TX ID for backward compat.
+        // Real refunds go through PayoutService::execute_refund() (F-006).
         if refund_a > 0 {
-            let tx_payload = format!("refund:{}:{}:{}", challenge_id, player_a_address, refund_a);
-            match self.rpc.submit_transaction(&tx_payload).await {
-                Ok(tx_id) => {
-                    tracing::info!(
-                        "REFUND challenge {}: {} sompi → player A ({})",
-                        challenge_id,
-                        refund_a,
-                        tx_id
-                    );
-                    refund_tx_a = Some(tx_id);
-                }
-                Err(e) => {
-                    tracing::error!("Refund TX A failed for {}: {}", challenge_id, e);
-                }
-            }
+            let tx_id = uuid::Uuid::new_v4().to_string();
+            tracing::info!(
+                "REFUND stub challenge {}: {} sompi → player A ({})",
+                challenge_id, refund_a, tx_id
+            );
+            refund_tx_a = Some(tx_id);
         }
 
-        // Refund player B
+        // NOTE: Legacy escrow refund path — stub TX ID for backward compat.
         if refund_b > 0 {
-            let tx_payload = format!("refund:{}:{}:{}", challenge_id, player_b_address, refund_b);
-            match self.rpc.submit_transaction(&tx_payload).await {
-                Ok(tx_id) => {
-                    tracing::info!(
-                        "REFUND challenge {}: {} sompi → player B ({})",
-                        challenge_id,
-                        refund_b,
-                        tx_id
-                    );
-                    refund_tx_b = Some(tx_id);
-                }
-                Err(e) => {
-                    tracing::error!("Refund TX B failed for {}: {}", challenge_id, e);
-                }
-            }
+            let tx_id = uuid::Uuid::new_v4().to_string();
+            tracing::info!(
+                "REFUND stub challenge {}: {} sompi → player B ({})",
+                challenge_id, refund_b, tx_id
+            );
+            refund_tx_b = Some(tx_id);
         }
 
         Ok(RefundResult {

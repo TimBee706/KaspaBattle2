@@ -1,5 +1,6 @@
 use crate::db::Database;
-use actix_web::{get, post, web, HttpResponse, Responder};
+use crate::oracle_auth::verify_oracle_key;
+use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use battle_core::match_state::{transition, MatchAction, MatchState};
 use battle_core::models::match_::{BattleMatch, MatchStatus};
 use battle_core::types::{
@@ -625,10 +626,17 @@ pub async fn get_escrow_status(
 
 #[post("/api/matches/{match_id}/resolve")]
 pub async fn resolve_match(
+    req: HttpRequest,
     state: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<ResolveMatchRequest>,
 ) -> impl Responder {
+    // F-002: Oracle authentication guard — only registered oracles may resolve matches.
+    if !verify_oracle_key(&req) {
+        return HttpResponse::Unauthorized().json(ErrorResponse {
+            error: "Unauthorized: valid X-Oracle-Key header required".to_string(),
+        });
+    }
     let match_id = path.into_inner();
 
     // Load match from DB
@@ -751,7 +759,7 @@ pub async fn resolve_match(
                     &match_id,
                     &body.winner_id,
                     &winner_address,
-                    &result.winner_tx_hash,
+                    &result.winner_tx_id,
                     result.winner_amount_sompi as i64,
                 )
                 .await
@@ -763,7 +771,7 @@ pub async fn resolve_match(
                 winner_amount_kas: result.winner_amount_sompi as f64 / SOMPI_PER_KAS as f64,
                 protocol_fee_kas: result.treasury_amount_sompi as f64 / SOMPI_PER_KAS as f64,
                 oracle_fee_kas: 0.0,
-                payout_tx_hash: result.winner_tx_hash.clone(),
+                payout_tx_hash: result.winner_tx_id.clone(),
             })
         }
         Err(e) => {
@@ -781,6 +789,101 @@ pub async fn resolve_match(
         state: new_state.state_name().to_string(),
         winner_id: body.winner_id.clone(),
         payout: payout_response,
+    })
+}
+
+// === Dispute Endpoint (F-009) ===
+
+#[derive(Debug, Deserialize)]
+pub struct DisputeMatchRequest {
+    /// The player ID initiating the dispute (must be a match participant).
+    pub player_id: String,
+    /// Human-readable reason for the dispute.
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DisputeMatchResponse {
+    pub match_id: String,
+    pub state: String,
+    pub disputed_by: String,
+    pub message: String,
+}
+
+/// F-009: Allow a match participant to dispute a resolved match outcome.
+///
+/// The match transitions to `Disputed` state, blocking any further payouts
+/// until the dispute is resolved by an admin or DAO process.
+#[post("/api/matches/{match_id}/dispute")]
+pub async fn dispute_match(
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<DisputeMatchRequest>,
+) -> impl Responder {
+    let match_id = path.into_inner();
+
+    let row = match state.db.get_match(&match_id).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return HttpResponse::NotFound().json(ErrorResponse {
+                error: "Match not found".to_string(),
+            });
+        }
+        Err(e) => {
+            log::error!("Failed to load match {}: {}", match_id, e);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "Failed to load match".to_string(),
+            });
+        }
+    };
+
+    let current_state: MatchState = match serde_json::from_str(&row.state_json) {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("Failed to deserialize match state for {}: {}", match_id, e);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "Invalid match state".to_string(),
+            });
+        }
+    };
+
+    let action = MatchAction::InitiateDispute {
+        player_id: body.player_id.clone(),
+        reason: body.reason.clone(),
+    };
+
+    let new_state = match transition(
+        &current_state,
+        &action,
+        &row.player_a_id,
+        row.player_b_id.as_deref(),
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            // State machine error: either wrong state or player not in match
+            return HttpResponse::BadRequest().json(ErrorResponse {
+                error: e.to_string(),
+            });
+        }
+    };
+
+    if let Err(e) = state.db.update_match_state(&match_id, &new_state).await {
+        log::error!("Failed to update match {} to Disputed: {}", match_id, e);
+        return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "Failed to record dispute".to_string(),
+        });
+    }
+
+    log::warn!(
+        "⚠️  Match {} disputed by player '{}': {}",
+        match_id, body.player_id, body.reason
+    );
+
+    HttpResponse::Ok().json(DisputeMatchResponse {
+        match_id,
+        state: new_state.state_name().to_string(),
+        disputed_by: body.player_id.clone(),
+        message: "Dispute recorded. Payouts are blocked until resolved by admin.".to_string(),
     })
 }
 

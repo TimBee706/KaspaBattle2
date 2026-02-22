@@ -110,12 +110,12 @@ pub async fn trigger_payout(
             let _ = sqlx::query(
                 "UPDATE matches SET state = 'Resolved', payout_tx_hash = ? WHERE match_id = ?",
             )
-            .bind(&payout.winner_tx_hash)
+            .bind(&payout.winner_tx_id)
             .bind(&match_id_str)
             .execute(state.db.pool())
             .await;
 
-            HttpResponse::Ok().json(payout.winner_tx_hash)
+            HttpResponse::Ok().json(payout.winner_tx_id)
         }
         Err(e) => HttpResponse::InternalServerError().json(format!("Payout failed: {}", e)),
     }

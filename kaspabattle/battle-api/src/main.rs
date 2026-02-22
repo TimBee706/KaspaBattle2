@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use battle_api::db;
+use battle_api::oracle_auth;
 use battle_api::routes;
 use battle_api::watcher_task;
 
@@ -19,6 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     log::info!("🎮 KaspaBattle Backend v0.3.0 (Real Testnet-10) startet...");
+
+    // F-002: Initialize Oracle API keys from ORACLE_API_KEYS env var
+    let key_count = oracle_auth::init_oracle_keys().unwrap_or(0);
+    log::info!("🔑 Oracle auth: {} key(s) configured", key_count);
 
     // === Database ===
     let database_url = std::env::var("DATABASE_URL")
@@ -104,8 +109,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     // === Start Watcher Background Task ===
-    let _watcher_handle =
-        watcher_task::start_watcher_task(db.clone(), watcher.clone(), poll_interval);
+    // F-006: payout service passed in for timeout refund
+    let _watcher_handle = watcher_task::start_watcher_task(
+        db.clone(),
+        watcher.clone(),
+        payout.clone(),
+        poll_interval,
+    );
 
     // === App State ===
     let app_state = web::Data::new(routes::AppState {
@@ -141,6 +151,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .service(routes::cancel_match)
             .service(routes::get_escrow_status)
             .service(routes::resolve_match)
+            .service(routes::dispute_match)
             .service(routes::node_status)
             .service(routes::create_challenge_escrow)
             .service(routes::get_challenge_deposits)

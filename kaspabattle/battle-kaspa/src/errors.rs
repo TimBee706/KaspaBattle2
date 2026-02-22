@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+/// Errors for payout and refund operations.
+/// F-003/F-001: Extended with new RPC-level error variants for precise error handling.
 #[derive(Error, Debug)]
 pub enum PayoutError {
     #[error("Already paid out")]
@@ -12,9 +14,17 @@ pub enum PayoutError {
     KaspaRpcError(#[from] crate::rpc::KaspaError),
     #[error("TX Build Error: {0}")]
     TxBuildError(String),
-    // We will use sqlx::Error later, currently db is abstracted
     #[error("Database Error: {0}")]
     DatabaseError(String),
+    /// F-009: Payout rejected because a dispute is active.
+    #[error("Payout blocked: match is in Disputed state. Dispute must be resolved first.")]
+    MatchInDisputedState,
+    /// Escrow private key was not available for signing.
+    #[error("Escrow signing key not found for address: {0}")]
+    SigningKeyNotFound(String),
+    /// The node is not ready to accept transactions.
+    #[error("Kaspa node is not synced — refusing to execute payout")]
+    NodeNotReady,
 }
 
 #[derive(Error, Debug)]

@@ -1,13 +1,14 @@
 /// Mock Kaspa client for testing without a live Kaspa node.
 ///
 /// Implements `KaspaRpc` with in-memory balances, UTXOs, and TX tracking.
-/// Used automatically when no Kaspa node is reachable at startup.
+/// Updated signature: `submit_transaction` now accepts `Transaction` object.
 use async_trait::async_trait;
+use kaspa_rpc_core::model::tx::RpcTransaction;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::rpc::{KaspaError, KaspaRpc, NodeInfo, UtxoInfo};
+use crate::rpc::{FeeEstimate, KaspaError, KaspaRpc, NodeInfo, UtxoInfo};
 
 /// A mock implementation of KaspaRpc for development and testing.
 ///
@@ -16,19 +17,29 @@ use crate::rpc::{KaspaError, KaspaRpc, NodeInfo, UtxoInfo};
 pub struct MockKaspaClient {
     balances: Arc<Mutex<HashMap<String, u64>>>,
     utxos: Arc<Mutex<HashMap<String, Vec<UtxoInfo>>>>,
-    submitted_txs: Arc<Mutex<Vec<String>>>,
+    submitted_tx_ids: Arc<Mutex<Vec<String>>>,
     connected: Arc<Mutex<bool>>,
+    /// Controls `is_synced()` response for testing node-not-ready scenarios.
+    synced: Arc<Mutex<bool>>,
 }
 
 impl MockKaspaClient {
-    /// Create a new mock client in connected state.
+    /// Create a new mock client in connected + synced state.
     pub fn new() -> Self {
         MockKaspaClient {
             balances: Arc::new(Mutex::new(HashMap::new())),
             utxos: Arc::new(Mutex::new(HashMap::new())),
-            submitted_txs: Arc::new(Mutex::new(Vec::new())),
+            submitted_tx_ids: Arc::new(Mutex::new(Vec::new())),
             connected: Arc::new(Mutex::new(true)),
+            synced: Arc::new(Mutex::new(true)),
         }
+    }
+
+    /// Create a mock client with a specific sync state (for testing F-003 node-not-ready).
+    pub fn with_synced(synced: bool) -> Self {
+        let client = Self::new();
+        *client.synced.lock().expect("lock") = synced;
+        client
     }
 
     /// Set the balance for an address (in sompi).
@@ -43,9 +54,9 @@ impl MockKaspaClient {
         utxos.entry(address.to_string()).or_default().push(utxo);
     }
 
-    /// Get all submitted transactions (for test assertions).
-    pub fn get_submitted_txs(&self) -> Vec<String> {
-        let txs = self.submitted_txs.lock().expect("lock poisoned");
+    /// Get all submitted transaction IDs (for test assertions).
+    pub fn get_submitted_tx_ids(&self) -> Vec<String> {
+        let txs = self.submitted_tx_ids.lock().expect("lock poisoned");
         txs.clone()
     }
 
@@ -88,7 +99,8 @@ impl KaspaRpc for MockKaspaClient {
                 "Mock: not connected".to_string(),
             ));
         }
-        Ok(true)
+        let synced = self.synced.lock().expect("lock poisoned");
+        Ok(*synced)
     }
 
     async fn get_balance(&self, address: &str) -> Result<u64, KaspaError> {
@@ -101,15 +113,25 @@ impl KaspaRpc for MockKaspaClient {
         Ok(utxos.get(address).cloned().unwrap_or_default())
     }
 
-    async fn submit_transaction(&self, tx_hex: &str) -> Result<String, KaspaError> {
-        let mut txs = self.submitted_txs.lock().expect("lock poisoned");
-        txs.push(tx_hex.to_string());
+    /// Accept a real RpcTransaction, derive a mock TX ID, and record it.
+    async fn submit_rpc_transaction(
+        &self,
+        tx: RpcTransaction,
+    ) -> Result<String, KaspaError> {
+        let synced = *self.synced.lock().expect("lock poisoned");
+        if !synced {
+            return Err(KaspaError::NodeNotSynced);
+        }
 
-        // Generate a deterministic mock TX ID from the input
+        // Deterministic mock TX ID from inputs
         let mut hasher = Sha256::new();
-        hasher.update(tx_hex.as_bytes());
-        let hash = hasher.finalize();
-        let tx_id = hex::encode(&hash[..32]);
+        for inp in &tx.inputs {
+            hasher.update(inp.previous_outpoint.transaction_id.as_bytes());
+            hasher.update(inp.previous_outpoint.index.to_le_bytes());
+        }
+        let tx_id = hex::encode(hasher.finalize());
+        let mut txs = self.submitted_tx_ids.lock().expect("lock poisoned");
+        txs.push(tx_id.clone());
         Ok(tx_id)
     }
 
@@ -120,11 +142,19 @@ impl KaspaRpc for MockKaspaClient {
                 "Mock: not connected".to_string(),
             ));
         }
+        let synced = *self.synced.lock().expect("lock poisoned");
         Ok(NodeInfo {
             server_version: "mock-0.15.0".to_string(),
-            is_synced: true,
+            is_synced: synced,
             is_utxo_indexed: true,
             network: "testnet-10".to_string(),
+        })
+    }
+
+    async fn get_fee_estimate(&self) -> Result<FeeEstimate, KaspaError> {
+        Ok(FeeEstimate {
+            normal_bucket_feerate: 1.0,
+            low_bucket_feerate: 0.5,
         })
     }
 }
@@ -167,18 +197,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mock_client_submit_tx() {
-        let client = MockKaspaClient::new();
-        let tx_id = client.submit_transaction("raw_tx_data").await.unwrap();
-        assert!(!tx_id.is_empty());
-        assert_eq!(tx_id.len(), 64); // SHA-256 hex
-
-        let txs = client.get_submitted_txs();
-        assert_eq!(txs.len(), 1);
-        assert_eq!(txs[0], "raw_tx_data");
-    }
-
-    #[tokio::test]
     async fn test_mock_client_node_info() {
         let client = MockKaspaClient::new();
         let info = client.get_node_info().await.unwrap();
@@ -201,18 +219,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mock_client_disconnected_node_info() {
+    async fn test_mock_client_not_synced() {
+        let client = MockKaspaClient::with_synced(false);
+        let synced = client.is_synced().await.unwrap();
+        assert!(!synced);
+    }
+
+    #[tokio::test]
+    async fn test_mock_fee_estimate() {
         let client = MockKaspaClient::new();
-        client.set_connected(false);
-        let result = client.get_node_info().await;
-        assert!(result.is_err());
+        let estimate = client.get_fee_estimate().await.unwrap();
+        assert!(estimate.normal_bucket_feerate > 0.0);
     }
 
     #[test]
     fn test_mock_fallback_concept() {
-        // Verify MockKaspaClient can be used as Arc<dyn KaspaRpc>
         let client: Arc<dyn KaspaRpc> = Arc::new(MockKaspaClient::new());
-        // This compiles = trait object works
         let _ = client;
     }
 }

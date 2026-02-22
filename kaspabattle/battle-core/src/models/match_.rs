@@ -13,6 +13,14 @@ pub enum MatchStatus {
     Cancelled,
 }
 
+impl MatchStatus {
+    /// F-009: Returns true only when a payout is permitted for this match status.
+    /// Prevents double-payouts and payouts on disputed/cancelled matches.
+    pub fn allows_payout(&self) -> bool {
+        matches!(self, MatchStatus::Locked | MatchStatus::Resolved | MatchStatus::Funded)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BattleMatch {
     pub id: Uuid,

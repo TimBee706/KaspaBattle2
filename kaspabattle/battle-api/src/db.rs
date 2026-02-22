@@ -51,10 +51,13 @@ pub struct ActiveEscrow {
     pub escrow_address: String,
     pub wager_sompi: i64,
     pub player_a_id: String,
+    pub player_a_addr: Option<String>,
     pub player_b_id: Option<String>,
+    pub player_b_addr: Option<String>,
     pub player_a_deposited: bool,
     pub player_b_deposited: bool,
     pub state_json: String,
+    pub timeout_at: Option<String>,
 }
 
 pub struct Database {
@@ -390,10 +393,47 @@ impl Database {
                 escrow_address: r.escrow_address,
                 wager_sompi: r.wager_sompi,
                 player_a_id: r.player_a_id,
+                player_a_addr: Some(r.player_a_addr),
                 player_b_id: r.player_b_id,
+                player_b_addr: r.player_b_addr,
                 player_a_deposited: r.player_a_deposited.unwrap_or(0) != 0,
                 player_b_deposited: r.player_b_deposited.unwrap_or(0) != 0,
                 state_json: r.state_json,
+                timeout_at: r.timeout_at,
+            })
+            .collect();
+
+        Ok(active)
+    }
+
+    /// F-006: Get all matches in WaitingForDeposits state where the deposit
+    /// timeout has expired. `now_str` should be an ISO 8601 datetime string
+    /// (e.g. from `chrono::Utc::now().naive_utc().to_string()`).
+    pub async fn get_timed_out_escrows(
+        &self,
+        now_str: &str,
+    ) -> Result<Vec<ActiveEscrow>, Box<dyn std::error::Error>> {
+        let rows = sqlx::query_as::<_, MatchRow>(
+            "SELECT * FROM matches WHERE state = 'WaitingForDeposits' AND timeout_at IS NOT NULL AND timeout_at < ?",
+        )
+        .bind(now_str)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let active: Vec<ActiveEscrow> = rows
+            .into_iter()
+            .map(|r| ActiveEscrow {
+                match_id: r.match_id,
+                escrow_address: r.escrow_address,
+                wager_sompi: r.wager_sompi,
+                player_a_id: r.player_a_id,
+                player_a_addr: Some(r.player_a_addr),
+                player_b_id: r.player_b_id,
+                player_b_addr: r.player_b_addr,
+                player_a_deposited: r.player_a_deposited.unwrap_or(0) != 0,
+                player_b_deposited: r.player_b_deposited.unwrap_or(0) != 0,
+                state_json: r.state_json,
+                timeout_at: r.timeout_at,
             })
             .collect();
 

@@ -3,7 +3,12 @@
 /// Defines `KaspaRpc` trait implemented by both `RealKaspaClient` (wRPC)
 /// and `MockKaspaClient` (testing). All blockchain-facing code consumes
 /// `Arc<dyn KaspaRpc>` so tests can swap in the mock transparently.
+///
+/// F-003: `submit_transaction` now calls the real Kaspa node RPC instead of
+/// always returning an error. `get_fee_estimate` was added to the trait.
 use async_trait::async_trait;
+use kaspa_consensus_core::tx::Transaction;
+use kaspa_rpc_core::model::tx::RpcTransaction;
 use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
@@ -36,6 +41,15 @@ pub struct NodeInfo {
     pub network: String,
 }
 
+/// Fee estimate from the network (in sompi per mass unit).
+#[derive(Debug, Clone, Serialize)]
+pub struct FeeEstimate {
+    /// Recommended fee rate in sompi per gram of mass.
+    pub normal_bucket_feerate: f64,
+    /// Low-priority fee rate (slower inclusion).
+    pub low_bucket_feerate: f64,
+}
+
 /// Error type for RPC operations.
 #[derive(Debug, Clone, Serialize)]
 pub enum KaspaError {
@@ -44,6 +58,10 @@ pub enum KaspaError {
     UtxoIndexNotEnabled,
     RpcError(String),
     TransactionFailed(String),
+    /// F-003: Specific double-spend error variant for clear error handling.
+    DoubleSpend(String),
+    /// F-003: Mempool is full, retry later.
+    MempoolFull,
     Timeout,
 }
 
@@ -57,6 +75,8 @@ impl fmt::Display for KaspaError {
             }
             KaspaError::RpcError(e) => write!(f, "RPC error: {}", e),
             KaspaError::TransactionFailed(e) => write!(f, "Transaction failed: {}", e),
+            KaspaError::DoubleSpend(e) => write!(f, "Double-spend detected: {}", e),
+            KaspaError::MempoolFull => write!(f, "Kaspa mempool is full — retry later"),
             KaspaError::Timeout => write!(f, "RPC request timed out"),
         }
     }
@@ -90,12 +110,20 @@ pub trait KaspaRpc: Send + Sync {
     /// Get all UTXOs for an address.
     async fn get_utxos(&self, address: &str) -> std::result::Result<Vec<UtxoInfo>, KaspaError>;
 
-    /// Submit a signed transaction (hex payload or serialized).
+    /// Submit a fully-built and signed Kaspa transaction.
+    /// F-003: Takes an RpcTransaction (already converted from consensus Transaction).
     /// Returns the transaction ID on success.
-    async fn submit_transaction(&self, tx_hex: &str) -> std::result::Result<String, KaspaError>;
+    async fn submit_rpc_transaction(
+        &self,
+        tx: RpcTransaction,
+    ) -> std::result::Result<String, KaspaError>;
 
     /// Get node status information.
     async fn get_node_info(&self) -> std::result::Result<NodeInfo, KaspaError>;
+
+    /// F-003: Get current fee estimate from the network.
+    /// Returns sompi-per-gram fee rates for normal and low-priority transactions.
+    async fn get_fee_estimate(&self) -> std::result::Result<FeeEstimate, KaspaError>;
 }
 
 // === Real Kaspa Client ===
@@ -123,7 +151,6 @@ impl RealKaspaClient {
     /// * `node_url` - wRPC endpoint (e.g. `wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh`)
     /// * `network` - Network identifier (e.g. "testnet-10")
     pub async fn new(node_url: &str, network: &str) -> std::result::Result<Self, KaspaError> {
-        use kaspa_consensus_core::network::{NetworkId, NetworkType};
         use kaspa_wrpc_client::WrpcEncoding;
 
         tracing::info!("Connecting to Kaspa node: {}", node_url);
@@ -172,7 +199,10 @@ impl RealKaspaClient {
     }
 
     /// Attempt connection with exponential backoff.
-    async fn connect_with_retry(&self, max_retries: u32) -> std::result::Result<(), KaspaError> {
+    async fn connect_with_retry(
+        &self,
+        max_retries: u32,
+    ) -> std::result::Result<(), KaspaError> {
         use kaspa_wrpc_client::client::{ConnectOptions, ConnectStrategy};
 
         let options = ConnectOptions {
@@ -208,6 +238,19 @@ impl RealKaspaClient {
             "Failed to connect after {} attempts to {}",
             max_retries, self.node_url
         )))
+    }
+
+    /// Interpret an RPC submit error message into a specific KaspaError variant.
+    /// F-003: Allows callers to distinguish double-spend from mempool-full etc.
+    fn classify_submit_error(msg: &str) -> KaspaError {
+        let lower = msg.to_lowercase();
+        if lower.contains("double") || lower.contains("already spent") {
+            KaspaError::DoubleSpend(msg.to_string())
+        } else if lower.contains("mempool") && lower.contains("full") {
+            KaspaError::MempoolFull
+        } else {
+            KaspaError::TransactionFailed(msg.to_string())
+        }
     }
 }
 
@@ -290,16 +333,35 @@ impl KaspaRpc for RealKaspaClient {
         Ok(utxos)
     }
 
-    async fn submit_transaction(&self, _tx_hex: &str) -> std::result::Result<String, KaspaError> {
+    /// F-003: Real transaction submission to the Kaspa node.
+    ///
+    /// Pre-flight check: ensures the node is synced before sending.
+    /// Classifies RPC errors into specific KaspaError variants for clear handling.
+    async fn submit_rpc_transaction(
+        &self,
+        tx: RpcTransaction,
+    ) -> std::result::Result<String, KaspaError> {
         use kaspa_rpc_core::api::rpc::RpcApi;
 
-        // For now, we submit a raw transaction payload.
-        // In production, this would deserialize the signed TX and call submit_transaction.
-        // The tx_hex is currently a placeholder – real TX building occurs in escrow.rs.
-        Err(KaspaError::TransactionFailed(
-            "Real TX submission requires signed Transaction object. Use EscrowService for payouts."
-                .to_string(),
-        ))
+        // Pre-flight: refuse to submit if node is not synced
+        let synced = self.is_synced().await?;
+        if !synced {
+            return Err(KaspaError::NodeNotSynced);
+        }
+
+        let tx_id = self
+            .inner
+            .submit_transaction(tx, false)
+            .await
+            .map_err(|e| {
+                let msg = e.to_string();
+                tracing::error!("submit_transaction failed: {}", msg);
+                Self::classify_submit_error(&msg)
+            })?;
+
+        let tx_id_str = tx_id.to_string();
+        tracing::info!("Transaction submitted successfully: {}", tx_id_str);
+        Ok(tx_id_str)
     }
 
     async fn get_node_info(&self) -> std::result::Result<NodeInfo, KaspaError> {
@@ -318,6 +380,44 @@ impl KaspaRpc for RealKaspaClient {
             network: info.network_id.to_string(),
         })
     }
+
+    /// F-003: Queries the node for current fee estimates via `get_fee_estimate` RPC.
+    ///
+    /// Falls back to a reasonable default (1.0 sompi/gram) if the node does not
+    /// support this RPC method (older node versions).
+    async fn get_fee_estimate(&self) -> std::result::Result<FeeEstimate, KaspaError> {
+        use kaspa_rpc_core::api::rpc::RpcApi;
+
+        match self.inner.get_fee_estimate().await {
+            Ok(response) => {
+                // response is RpcFeeEstimate directly with normal_buckets and priority_bucket
+                let normal = response
+                    .normal_buckets
+                    .first()
+                    .map(|b| b.feerate)
+                    .unwrap_or(response.priority_bucket.feerate);
+                let low = response
+                    .low_buckets
+                    .first()
+                    .map(|b| b.feerate)
+                    .unwrap_or(0.5);
+                Ok(FeeEstimate {
+                    normal_bucket_feerate: normal,
+                    low_bucket_feerate: low,
+                })
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "get_fee_estimate not supported by node ({}), using default 1.0 sompi/gram",
+                    e
+                );
+                Ok(FeeEstimate {
+                    normal_bucket_feerate: 1.0,
+                    low_bucket_feerate: 0.5,
+                })
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -326,7 +426,6 @@ mod tests {
 
     #[test]
     fn test_real_client_creation_types() {
-        // Verify our types are well-formed
         let info = NodeInfo {
             server_version: "0.15.0".to_string(),
             is_synced: true,
@@ -347,5 +446,23 @@ mod tests {
 
         let err = KaspaError::Timeout;
         assert_eq!(format!("{}", err), "RPC request timed out");
+
+        let err = KaspaError::MempoolFull;
+        assert!(format!("{}", err).contains("mempool"));
+
+        let err = KaspaError::DoubleSpend("input already spent".to_string());
+        assert!(format!("{}", err).contains("Double-spend"));
+    }
+
+    #[test]
+    fn test_classify_submit_error() {
+        let e = RealKaspaClient::classify_submit_error("double spend detected");
+        assert!(matches!(e, KaspaError::DoubleSpend(_)));
+
+        let e = RealKaspaClient::classify_submit_error("mempool is full");
+        assert!(matches!(e, KaspaError::MempoolFull));
+
+        let e = RealKaspaClient::classify_submit_error("some other error");
+        assert!(matches!(e, KaspaError::TransactionFailed(_)));
     }
 }
