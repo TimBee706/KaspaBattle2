@@ -1,2 +1,0 @@
-fn(actix_web::web::Data<AppState>) -> impl std::future::Future<Output = impl Responder> {node_status}
-fn(actix_web::web::Data<AppState>) -> impl std::future::Future<Output = impl Responder> {node_status}: HttpServiceFactory
