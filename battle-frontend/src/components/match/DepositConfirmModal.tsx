@@ -7,11 +7,10 @@ interface DepositConfirmModalProps {
     onClose: () => void;
     matchId: string;
     amountSompi: number;
-    escrowAddress: string;
     playerRole: 'A' | 'B';
 }
 
-export function DepositConfirmModal({ isOpen, onClose, amountSompi, escrowAddress, playerRole }: DepositConfirmModalProps) {
+export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }: DepositConfirmModalProps) {
     const { executeDeposit, isDepositing, depositTxHash } = useEscrowDeposit();
     const { balanceSompi } = useWalletStore();
 

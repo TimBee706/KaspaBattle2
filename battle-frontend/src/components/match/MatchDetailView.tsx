@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { BattleMatch } from '../../api/types';
-import { formatKas, shortenAddress, explorerAddressUrl, explorerTxUrl } from '../../utils/format';
+import { formatKas, explorerAddressUrl, explorerTxUrl } from '../../utils/format';
 import { SUPPORTED_GAMES } from '../../config/constants';
 import { MatchStatusBadge } from './MatchStatusBadge';
 import { DepositConfirmModal } from './DepositConfirmModal';
@@ -15,11 +15,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
     const isPlayerA = user?.faceit_id === match.player_a_faceit_id;
     const isPlayerB = user?.faceit_id === match.player_b_faceit_id;
-    const isParticipant = isPlayerA || isPlayerB;
-
     const canAccept = match.status === 'OPEN' && !isPlayerA && user;
-    const canDepositA = match.status === 'OPEN' || match.status === 'FUNDED'; // A kann immer einzahlen wenn Match offen
-    const canDepositB = match.status === 'FUNDED' || (match.status === 'OPEN' && isPlayerB);
 
     const handleAccept = async () => {
         setIsAccepting(true);
@@ -203,7 +199,6 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                 onClose={() => setIsDepositModalOpen(false)}
                 matchId={match.id}
                 amountSompi={match.wager_amount_sompi}
-                escrowAddress={match.escrow_address}
                 playerRole={isPlayerA ? 'A' : 'B'}
             />
         </div>

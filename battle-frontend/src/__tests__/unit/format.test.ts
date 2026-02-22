@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sompiToKas, kasToSompi, formatKas, shortenAddress } from '../utils/format';
+import { sompiToKas, kasToSompi, formatKas, shortenAddress } from '../../utils/format';
 
 describe('Format Utils', () => {
     it('should convert sompi to KAS correctly', () => {

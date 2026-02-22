@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateWagerAmount, validateKaspaAddress } from '../utils/validation';
+import { validateWagerAmount, validateKaspaAddress } from '../../utils/validation';
 
 describe('Validation Utils', () => {
     it('should validate wager amounts', () => {
