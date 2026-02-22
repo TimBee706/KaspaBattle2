@@ -18,6 +18,7 @@ use battle_kaspa::watcher::BlockchainWatcher;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     log::info!("🎮 KaspaBattle Backend v0.3.0 (Real Testnet-10) startet...");
@@ -56,10 +57,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     log::info!("✅ FaceitOAuthService bereit");
 
-    // === Oracle Service (V2) ===
-    // F-015: FACEIT_API_KEY is mandatory — refuse to start without it.
-    let faceit_api_key = std::env::var("FACEIT_API_KEY")
-        .expect("FACEIT_API_KEY must be set. The oracle cannot function without it.");
+    // F-015: FACEIT_API_KEY is mandatory in production — provide fallback for dev.
+    let faceit_api_key = std::env::var("FACEIT_API_KEY").unwrap_or_else(|_| {
+        let env_mode = std::env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+        if env_mode == "production" {
+            panic!("FACEIT_API_KEY must be set in production mode!");
+        }
+        log::warn!("⚠️ FACEIT_API_KEY not set — using dummy key for development");
+        "dummy_key".to_string()
+    });
     let oracle_signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
     let oracle = Arc::new(battle_core::oracle::faceit::FaceitOracleService::new(
         faceit_api_key,
@@ -104,10 +110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let watcher = Arc::new(BlockchainWatcher::new(kaspa.clone(), poll_interval));
 
-    // === Payout Manager ===
-    // F-015: TREASURY_ADDRESS is mandatory — payouts to a dummy address lose funds.
-    let treasury_address = std::env::var("TREASURY_ADDRESS")
-        .expect("TREASURY_ADDRESS must be set. Cannot safely execute payouts without it.");
+    // F-015: TREASURY_ADDRESS is mandatory in production — provide fallback for dev.
+    let treasury_address = std::env::var("TREASURY_ADDRESS").unwrap_or_else(|_| {
+        let env_mode = std::env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+        if env_mode == "production" {
+            panic!("TREASURY_ADDRESS must be set in production mode!");
+        }
+        log::warn!("⚠️ TREASURY_ADDRESS not set — using dev-only dummy address");
+        "kaspatest:qz4mv06zlvay4l8k3m3m00000000000000000000000000000000g7q3r4".to_string()
+    });
     let payout = Arc::new(PayoutService::new(
         kaspa.clone(),
         treasury_address,

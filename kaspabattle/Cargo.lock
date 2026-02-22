@@ -598,6 +598,7 @@ dependencies = [
  "battle-core",
  "battle-kaspa",
  "chrono",
+ "dotenvy",
  "ed25519-dalek",
  "env_logger",
  "hex",
