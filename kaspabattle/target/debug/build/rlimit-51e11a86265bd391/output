@@ -1,0 +1,3 @@
+cargo:rustc-check-cfg=cfg(target_os, values("switch"))
+cargo:rustc-check-cfg=cfg(rlimit__has_prlimit64)
+cargo:rustc-check-cfg=cfg(rlimit__get_kern_max_files_per_proc)

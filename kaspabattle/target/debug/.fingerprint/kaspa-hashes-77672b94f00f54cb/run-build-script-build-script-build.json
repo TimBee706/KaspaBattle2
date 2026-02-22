@@ -1,0 +1,1 @@
+{"rustc":2490638836439573635,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[15920099005954194815,"build_script_build",false,8889029262880796692]],"local":[{"RerunIfChanged":{"output":"debug\\build\\kaspa-hashes-77672b94f00f54cb\\output","paths":["src/keccakf1600_x86-64.s","src/keccakf1600_x86-64-osx.s"]}}],"rustflags":[],"config":0,"compile_kind":0}

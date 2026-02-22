@@ -1,0 +1,2 @@
+cargo:rustc-env=RUSTY_KASPA_GIT_FULL_COMMIT_HASH=
+cargo:rustc-env=RUSTY_KASPA_GIT_SHORT_COMMIT_HASH=

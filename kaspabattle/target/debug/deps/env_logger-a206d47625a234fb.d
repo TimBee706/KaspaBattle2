@@ -1,0 +1,11 @@
+C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps\env_logger-a206d47625a234fb.d: C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\lib.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\logger.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\buffer.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\target.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\humantime.rs
+
+C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps\libenv_logger-a206d47625a234fb.rmeta: C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\lib.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\logger.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\buffer.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\target.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\humantime.rs
+
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\lib.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\logger.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\mod.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\buffer.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\writer\target.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\mod.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\env_logger-0.11.9\src\fmt\humantime.rs:

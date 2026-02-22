@@ -1,0 +1,2 @@
+cargo:rerun-if-changed=src/keccakf1600_x86-64.s
+cargo:rerun-if-changed=src/keccakf1600_x86-64-osx.s

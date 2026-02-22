@@ -1,0 +1,114 @@
+﻿cargo : warning: unused import: `UtxoInfo`
+In Zeile:1 Zeichen:1
++ cargo check -p battle-api 2>&1 | Out-File -Encoding utf8 check_api_fi 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unused import: `U 
+   txoInfo`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  --> battle-kaspa\src\escrow.rs:16:28
+   |
+16 | use crate::rpc::{KaspaRpc, UtxoInfo};
+   |                            ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by 
+default
+
+warning: unused import: `crate::rpc::KaspaRpc`
+  --> battle-kaspa\src\payout.rs:10:5
+   |
+10 | use crate::rpc::KaspaRpc;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `battle_core::types::SOMPI_PER_KAS`
+  --> battle-kaspa\src\payout.rs:11:5
+   |
+11 | use battle_core::types::SOMPI_PER_KAS;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+  --> battle-kaspa\src\rpc.rs:12:5
+   |
+12 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `NetworkId` and `NetworkType`
+   --> battle-kaspa\src\rpc.rs:126:45
+    |
+126 |         use kaspa_consensus_core::network::{NetworkId, 
+NetworkType};
+    |                                             ^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `kaspa_rpc_core::api::rpc::RpcApi`
+   --> battle-kaspa\src\rpc.rs:294:13
+    |
+294 |         use kaspa_rpc_core::api::rpc::RpcApi;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `battle-kaspa` (lib) generated 6 warnings (run `cargo fix 
+--lib -p battle-kaspa` to apply 6 suggestions)
+warning: unused variable: `current_state`
+   --> battle-api\src\watcher_task.rs:126:17
+    |
+126 |             let current_state: MatchState = match 
+serde_json::from_str(&escrow.state_json) {
+    |                 ^^^^^^^^^^^^^ help: if this is intentional, 
+prefix it with an underscore: `_current_state`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on 
+by default
+
+warning: unused variable: `action`
+   --> battle-api\src\watcher_task.rs:145:17
+    |
+145 |             let action = MatchAction::DepositConfirmed {
+    |                 ^^^^^^ help: if this is intentional, prefix it 
+with an underscore: `_action`
+
+warning: multiple fields are never read
+  --> battle-api\src\db.rs:18:9
+   |
+ 5 | pub struct MatchRow {
+   |            -------- fields in this struct
+...
+18 |     pub timeout_at: Option<String>,
+   |         ^^^^^^^^^^
+19 |     pub created_at: String,
+20 |     pub updated_at: String,
+   |         ^^^^^^^^^^
+21 |     // Step 2 columns (may be NULL if migration 002 hasn't run yet)
+22 |     pub escrow_private_seed: Option<String>,
+   |         ^^^^^^^^^^^^^^^^^^^
+...
+25 |     pub winner_id: Option<String>,
+   |         ^^^^^^^^^
+26 |     pub winner_address: Option<String>,
+   |         ^^^^^^^^^^^^^^
+27 |     pub payout_tx_hash: Option<String>,
+   |         ^^^^^^^^^^^^^^
+28 |     pub payout_amount_sompi: Option<i64>,
+   |         ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `MatchRow` has derived impls for the traits `Clone` and 
+`Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by 
+default
+
+warning: struct `DepositRow` is never constructed
+  --> battle-api\src\db.rs:46:12
+   |
+46 | pub struct DepositRow {
+   |            ^^^^^^^^^^
+
+warning: method `update_escrow_payout` is never used
+   --> battle-api\src\db.rs:423:18
+    |
+ 73 | impl Database {
+    | ------------- method in this implementation
+...
+423 |     pub async fn update_escrow_payout(
+    |                  ^^^^^^^^^^^^^^^^^^^^
+
+warning: `battle-api` (bin "battle-api") generated 5 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.97s

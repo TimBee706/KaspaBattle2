@@ -1,0 +1,13 @@
+C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps\log-41eb04c3128ef99c.d: C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\lib.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\macros.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\serde.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\error.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\key.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\source.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\value.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\__private_api.rs
+
+C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps\liblog-41eb04c3128ef99c.rmeta: C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\lib.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\macros.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\serde.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\mod.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\error.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\key.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\source.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\value.rs C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\__private_api.rs
+
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\lib.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\macros.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\serde.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\mod.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\error.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\key.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\source.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\kv\value.rs:
+C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\log-0.4.29\src\__private_api.rs:

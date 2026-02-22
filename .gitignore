@@ -1,0 +1,49 @@
+# Rust
+/target
+/target_v3
+build.rs
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+kaspabattle.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.exe
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# OS
+Thumbs.db
+.DS_Store
+
+# SQLx
+.sqlx/
+
+# Cargo
+Cargo.lock
+# Note: In some workspaces Cargo.lock is committed, but for local dev with specific target dirs it can be ignored if preferred.
+# Here we keep it commented out by default if they want to share the lock, but many dev environments ignore it.
+# Cargo.lock
+
+# Logs
+*.log
+check_output.txt
+check_output_utf8.txt
+test_output_utf8.txt
+check_errors.txt
