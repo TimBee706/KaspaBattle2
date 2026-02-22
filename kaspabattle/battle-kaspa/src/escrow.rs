@@ -13,9 +13,56 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
+use crate::errors::EscrowError;
 use crate::rpc::{KaspaRpc, UtxoInfo};
 use crate::wallet::EscrowWallet;
 use battle_core::types::SOMPI_PER_KAS;
+use kaspa_addresses::{Address, Version};
+use kaspa_consensus_core::network::NetworkId;
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
+
+/// Derives a deterministic escrow address from a match ID and two player public keys.
+/// Uses SHA-256 of (match_id || player_a_pubkey || player_b_pubkey) as the secret.
+/// Returns the Kaspa address for the given network.
+pub fn derive_escrow_address(
+    match_id: &Uuid,
+    player_a_pubkey: &str,
+    player_b_pubkey: &str,
+    network: NetworkId,
+) -> Result<String, EscrowError> {
+    if player_a_pubkey.len() < 64 || player_b_pubkey.len() < 64 {
+        return Err(EscrowError::InvalidPublicKey(
+            "Public keys must be valid hex strings.".to_string(),
+        ));
+    }
+
+    let input = format!(
+        "{}{}{}",
+        match_id.to_string(),
+        player_a_pubkey,
+        player_b_pubkey
+    );
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    let hash_result = hasher.finalize();
+
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(&hash_result).map_err(|e| {
+        EscrowError::DerivationFailed(format!("Failed to create secret key from hash: {}", e))
+    })?;
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
+    let x_only_public_key = public_key.x_only_public_key().0;
+    let address = Address::new(
+        network.into(),
+        Version::PubKey,
+        &x_only_public_key.serialize(),
+    );
+
+    Ok(address.to_string())
+}
 
 /// Platform fee percentage (5% of total pot)
 const PLATFORM_FEE_PERCENT: u64 = 5;
@@ -369,6 +416,57 @@ impl EscrowService {
 mod tests {
     use super::*;
     use crate::mock::MockKaspaClient;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_escrow_address_deterministic() {
+        let match_id = Uuid::new_v4();
+        let pk_a = "02b0c368d18e8ac4a77033cb2118dbb0a5ee3e1afb1419726207c4bbee5aa5e62f";
+        let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
+        let network = NetworkId::from_str("testnet-10").unwrap();
+
+        let addr1 = derive_escrow_address(&match_id, pk_a, pk_b, network.clone()).unwrap();
+        let addr2 = derive_escrow_address(&match_id, pk_a, pk_b, network).unwrap();
+
+        assert_eq!(
+            addr1, addr2,
+            "Deterministic derivation failed - identical inputs yielded different outputs"
+        );
+    }
+
+    #[test]
+    fn test_escrow_address_unique_per_match() {
+        let match_id1 = Uuid::new_v4();
+        let match_id2 = Uuid::new_v4();
+        let pk_a = "02b0c368d18e8ac4a77033cb2118dbb0a5ee3e1afb1419726207c4bbee5aa5e62f";
+        let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
+        let network = NetworkId::from_str("testnet-10").unwrap();
+
+        let addr1 = derive_escrow_address(&match_id1, pk_a, pk_b, network.clone()).unwrap();
+        let addr2 = derive_escrow_address(&match_id2, pk_a, pk_b, network).unwrap();
+
+        assert_ne!(
+            addr1, addr2,
+            "Unique derivation failed - different matches yielded identical outputs"
+        );
+    }
+
+    #[test]
+    fn test_escrow_address_invalid_pubkey() {
+        let match_id = Uuid::new_v4();
+        let pk_a = "short";
+        let pk_b = "short_too";
+        let network = NetworkId::from_str("testnet-10").unwrap();
+
+        let result = derive_escrow_address(&match_id, pk_a, pk_b, network);
+        assert!(result.is_err());
+
+        if let Err(EscrowError::InvalidPublicKey(_)) = result {
+            // Test passed
+        } else {
+            panic!("Expected InvalidPublicKey error, got {:?}", result);
+        }
+    }
 
     fn make_service() -> EscrowService {
         let wallet = Arc::new(

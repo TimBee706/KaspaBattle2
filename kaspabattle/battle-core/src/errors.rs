@@ -43,3 +43,17 @@ impl fmt::Display for MatchError {
 }
 
 impl std::error::Error for MatchError {}
+
+#[derive(thiserror::Error, Debug)]
+pub enum OracleError {
+    #[error("Network Error: {0}")]
+    NetworkError(#[from] reqwest::Error),
+    #[error("API Error - Status: {status}, Message: {message}")]
+    ApiError { status: u16, message: String },
+    #[error("Parse Error: {0}")]
+    ParseError(String),
+    #[error("Signature Error: {0}")]
+    SignatureError(String),
+    #[error("Confirmation Mismatch: First ({first}) vs Second ({second})")]
+    ConfirmationMismatch { first: String, second: String },
+}

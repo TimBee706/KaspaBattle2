@@ -1,25 +1,36 @@
 use crate::db::Database;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use battle_core::match_state::{transition, MatchAction, MatchState};
+use battle_core::models::match_::{BattleMatch, MatchStatus};
 use battle_core::types::{
     GameType, DEPOSIT_TIMEOUT_MINUTES, MAX_WAGER_KAS, MIN_WAGER_KAS, SOMPI_PER_KAS,
 };
 use battle_kaspa::escrow::EscrowService;
-use battle_kaspa::payout::PayoutManager;
+use battle_kaspa::payout::PayoutService;
 use battle_kaspa::rpc::KaspaRpc;
 use battle_kaspa::wallet::EscrowWallet;
 use battle_kaspa::watcher::BlockchainWatcher;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct AppState {
     pub db: Arc<Database>,
     pub kaspa: Arc<dyn KaspaRpc>,
     pub wallet: Arc<EscrowWallet>,
     pub watcher: Arc<BlockchainWatcher>,
-    pub payout: Arc<PayoutManager>,
+    pub payout: Arc<PayoutService>,
     pub escrow: Arc<EscrowService>,
+    pub auth: Arc<battle_core::auth::AuthService>,
+    pub faceit_oauth: Arc<battle_core::faceit_oauth::FaceitOAuthService>,
+    pub oracle: Arc<battle_core::oracle::faceit::FaceitOracleService>,
 }
+
+pub mod auth;
+pub mod faceit;
+pub mod match_result;
+pub mod oracle;
 
 // === Request / Response DTOs ===
 
@@ -706,19 +717,30 @@ pub async fn resolve_match(
     };
 
     // Attempt payout
-    let total_pot = (row.wager_sompi as u64) * 2;
-    let treasury_address = "kaspatest:qtreasury_kaspabattle";
-    let escrow_address = row.escrow_address.clone();
+
+    // Construct BattleMatch for payout service
+    let battle_match = BattleMatch {
+        id: Uuid::parse_str(&match_id).unwrap_or_default(),
+        player_a_kas_address: row.player_a_addr.clone(),
+        player_b_kas_address: row.player_b_addr.clone().unwrap_or_default(),
+        player_a_faceit_id: row.player_a_id.clone(),
+        player_b_faceit_id: row.player_b_id.clone().unwrap_or_default(),
+        faceit_match_id: None,
+        wager_amount_sompi: row.wager_sompi as u64,
+        escrow_address: row.escrow_address.clone(),
+        status: MatchStatus::Locked,
+        winner_kas_address: Some(winner_address.clone()),
+        payout_tx_hash: None,
+        oracle_result_signature: None,
+        created_at: Utc::now(), // Placeholder
+        locked_at: None,
+        resolved_at: Some(Utc::now()),
+        timeout_at: Utc::now(), // Placeholder
+    };
 
     let payout_response = match state
         .payout
-        .execute_payout(
-            &match_id,
-            &winner_address,
-            treasury_address,
-            &escrow_address,
-            total_pot,
-        )
+        .execute_payout(&battle_match, &winner_address)
         .await
     {
         Ok(result) => {
@@ -729,8 +751,8 @@ pub async fn resolve_match(
                     &match_id,
                     &body.winner_id,
                     &winner_address,
-                    &result.tx_id,
-                    result.winner_amount as i64,
+                    &result.winner_tx_hash,
+                    result.winner_amount_sompi as i64,
                 )
                 .await
             {
@@ -738,10 +760,10 @@ pub async fn resolve_match(
             }
 
             Some(PayoutResponse {
-                winner_amount_kas: result.winner_amount as f64 / SOMPI_PER_KAS as f64,
-                protocol_fee_kas: result.platform_fee as f64 / SOMPI_PER_KAS as f64,
+                winner_amount_kas: result.winner_amount_sompi as f64 / SOMPI_PER_KAS as f64,
+                protocol_fee_kas: result.treasury_amount_sompi as f64 / SOMPI_PER_KAS as f64,
                 oracle_fee_kas: 0.0,
-                payout_tx_hash: result.tx_id,
+                payout_tx_hash: result.winner_tx_hash.clone(),
             })
         }
         Err(e) => {

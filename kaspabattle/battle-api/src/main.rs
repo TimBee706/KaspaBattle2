@@ -3,13 +3,13 @@ use actix_web::{middleware, web, App, HttpServer};
 use std::sync::Arc;
 use std::time::Duration;
 
-mod db;
-mod routes;
-mod watcher_task;
+use battle_api::db;
+use battle_api::routes;
+use battle_api::watcher_task;
 
 use battle_kaspa::escrow::EscrowService;
 use battle_kaspa::mock::MockKaspaClient;
-use battle_kaspa::payout::PayoutManager;
+use battle_kaspa::payout::PayoutService;
 use battle_kaspa::rpc::{KaspaRpc, RealKaspaClient};
 use battle_kaspa::wallet::EscrowWallet;
 use battle_kaspa::watcher::BlockchainWatcher;
@@ -26,6 +26,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db = Arc::new(db::Database::new(&database_url).await?);
     log::info!("✅ SQLite Datenbank bereit (inkl. Migration 002)");
+
+    // === AuthService ===
+    let rusqlite_conn = rusqlite::Connection::open("kaspabattle.db")?;
+    let auth_db = Arc::new(tokio::sync::Mutex::new(rusqlite_conn));
+    let auth = Arc::new(battle_core::auth::AuthService::new(auth_db.clone()).await?);
+    log::info!("✅ AuthService bereit (inkl. Migration 004)");
+
+    // === Faceit OAuth ===
+    let faceit_config = battle_core::models::faceit::FaceitOAuthConfig {
+        client_id: std::env::var("FACEIT_CLIENT_ID").unwrap_or_else(|_| "client_id".to_string()),
+        client_secret: std::env::var("FACEIT_CLIENT_SECRET")
+            .unwrap_or_else(|_| "secret".to_string()),
+        redirect_uri: std::env::var("FACEIT_REDIRECT_URI")
+            .unwrap_or_else(|_| "http://localhost:3000/api/v1/faceit/callback".to_string()),
+        auth_url: "https://accounts.faceit.com/authorize".to_string(),
+        token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
+        userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
+    };
+    let faceit_oauth = Arc::new(battle_core::faceit_oauth::FaceitOAuthService::new(
+        faceit_config,
+        auth_db.clone(),
+    ));
+    log::info!("✅ FaceitOAuthService bereit");
+
+    // === Oracle Service (V2) ===
+    let oracle_signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
+    let oracle = Arc::new(battle_core::oracle::faceit::FaceitOracleService::new(
+        std::env::var("FACEIT_API_KEY").unwrap_or_else(|_| "faceit_api_key".to_string()),
+        oracle_signing_key,
+    ));
+    log::info!("✅ FaceitOracleService bereit");
 
     // === Kaspa Client ===
     let kaspa_node_url = std::env::var("KASPA_NODE_URL")
@@ -65,7 +96,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let watcher = Arc::new(BlockchainWatcher::new(kaspa.clone(), poll_interval));
 
     // === Payout Manager ===
-    let payout = Arc::new(PayoutManager::new(escrow.clone()));
+    let payout = Arc::new(PayoutService::new(
+        kaspa.clone(),
+        std::env::var("TREASURY_ADDRESS")
+            .unwrap_or_else(|_| "kaspatest:qztreasurydummy123456789".to_string()),
+        std::collections::HashMap::new(),
+    ));
 
     // === Start Watcher Background Task ===
     let _watcher_handle =
@@ -79,6 +115,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         watcher,
         payout,
         escrow,
+        auth,
+        faceit_oauth,
+        oracle,
     });
 
     let bind_addr = "0.0.0.0:3000";
@@ -100,14 +139,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .service(routes::get_match_status)
             .service(routes::join_match)
             .service(routes::cancel_match)
-            // Step 2: New endpoints
             .service(routes::get_escrow_status)
             .service(routes::resolve_match)
             .service(routes::node_status)
-            // Step 3: V1 endpoints
             .service(routes::create_challenge_escrow)
             .service(routes::get_challenge_deposits)
             .service(routes::cancel_challenge)
+            .configure(routes::auth::auth_routes)
+            .configure(routes::faceit::faceit_routes)
+            .service(routes::match_result::trigger_payout)
+            .configure(routes::oracle::oracle_routes)
     })
     .bind(bind_addr)?
     .run()

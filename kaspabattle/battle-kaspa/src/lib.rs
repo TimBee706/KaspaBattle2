@@ -1,5 +1,9 @@
+pub mod errors;
 pub mod escrow;
+pub mod faceit_api;
 pub mod mock;
+pub mod models;
+pub mod oracle;
 pub mod payout;
 pub mod rpc;
 pub mod wallet;

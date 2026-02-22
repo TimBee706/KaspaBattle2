@@ -4,7 +4,36 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+tracing = "0.1"
+argon2 = "0.5"
+rand = "0.8"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4", "serde"] }
+regex = "1"
 chrono = { version = "0.4", features = ["serde"] }
+
+# Network
+reqwest = { version = "0.12", features = ["json"] }
+
+# Cryptography
+sha2 = "0.10.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+
+# Async & Errors
+tokio = { version = "1.0", features = ["full"] }
+thiserror = "1"
+async-trait = "0.1"
+sqlx = { version = "0.8", default-features = false, features = [
+    "postgres",
+    "macros",
+    "uuid",
+    "chrono",
+    "runtime-tokio-rustls",
+] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

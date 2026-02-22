@@ -1,5 +1,7 @@
 use battle_core::match_state::MatchState;
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use battle_core::models::oracle::{OracleJob, OracleJobStatus};
+use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::{Sqlite, SqlitePool};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct MatchRow {
@@ -42,17 +44,6 @@ pub struct EscrowRow {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct DepositRow {
-    pub id: i64,
-    pub match_id: String,
-    pub player_id: String,
-    pub tx_hash: Option<String>,
-    pub amount_sompi: i64,
-    pub detected_at: String,
-    pub confirmed: i32,
-}
-
 /// Lightweight struct for active escrow polling
 #[derive(Debug, Clone)]
 pub struct ActiveEscrow {
@@ -67,10 +58,14 @@ pub struct ActiveEscrow {
 }
 
 pub struct Database {
-    pool: SqlitePool,
+    pub(crate) pool: SqlitePool,
 }
 
 impl Database {
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     pub async fn new(database_url: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -93,6 +88,15 @@ impl Database {
 
         // Run migration 003
         db.run_migration_003().await?;
+
+        // Run migration 004 (Users)
+        db.run_migration_004().await?;
+
+        // Run migration 005 (Oracle)
+        db.run_migration_005().await?;
+
+        // Run migration 006 (Faceit Match ID)
+        db.run_migration_006().await?;
 
         Ok(db)
     }
@@ -169,6 +173,56 @@ impl Database {
         Ok(())
     }
 
+    /// Run migration 004: users table.
+    async fn run_migration_004(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let migration_sql = include_str!("../../battle-core/migrations/004_users.sql");
+        for statement in migration_sql.split(';') {
+            let trimmed = statement.trim();
+            if !trimmed.is_empty() {
+                sqlx::query(trimmed).execute(&self.pool).await?;
+            }
+        }
+        log::info!("✅ Migration 004 (users) completed");
+        Ok(())
+    }
+
+    /// Run migration 005: oracle_jobs table.
+    async fn run_migration_005(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let migration_sql = include_str!("../../battle-core/migrations/005_oracle.sql");
+        for statement in migration_sql.split(';') {
+            let trimmed = statement.trim();
+            if !trimmed.is_empty() {
+                sqlx::query(trimmed).execute(&self.pool).await?;
+            }
+        }
+        log::info!("✅ Migration 005 (oracle) completed");
+        Ok(())
+    }
+
+    /// Run migration 006: add faceit_match_id to matches.
+    async fn run_migration_006(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let migration_sql = include_str!("../../migrations/006_faceit_match_id.sql");
+        for statement in migration_sql.split(';') {
+            let trimmed = statement.trim();
+            if !trimmed.is_empty() {
+                // Ignore "duplicate column" errors
+                match sqlx::query(trimmed).execute(&self.pool).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        let err_str = e.to_string();
+                        if err_str.contains("duplicate column") || err_str.contains("already exists") {
+                            // skip
+                        } else {
+                            return Err(Box::new(e));
+                        }
+                    }
+                }
+            }
+        }
+        log::info!("✅ Migration 006 (faceit_match_id) completed");
+        Ok(())
+    }
+
     pub async fn create_match(
         &self,
         match_id: &str,
@@ -209,7 +263,7 @@ impl Database {
         &self,
         match_id: &str,
     ) -> Result<Option<MatchRow>, Box<dyn std::error::Error>> {
-        let row = sqlx::query_as::<_, MatchRow>("SELECT * FROM matches WHERE match_id = ?")
+        let row = sqlx::query_as::<Sqlite, MatchRow>("SELECT * FROM matches WHERE match_id = ?")
             .bind(match_id)
             .fetch_optional(&self.pool)
             .await?;
@@ -396,10 +450,11 @@ impl Database {
         &self,
         challenge_id: &str,
     ) -> Result<Option<EscrowRow>, Box<dyn std::error::Error>> {
-        let row = sqlx::query_as::<_, EscrowRow>("SELECT * FROM escrows WHERE challenge_id = ?")
-            .bind(challenge_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row =
+            sqlx::query_as::<Sqlite, EscrowRow>("SELECT * FROM escrows WHERE challenge_id = ?")
+                .bind(challenge_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(row)
     }
@@ -413,22 +468,6 @@ impl Database {
             "UPDATE escrows SET status = ?, updated_at = datetime('now') WHERE challenge_id = ?",
         )
         .bind(status)
-        .bind(challenge_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn update_escrow_payout(
-        &self,
-        challenge_id: &str,
-        payout_tx_id: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        sqlx::query(
-            "UPDATE escrows SET status = 'PAID', payout_tx_id = ?, updated_at = datetime('now') WHERE challenge_id = ?"
-        )
-        .bind(payout_tx_id)
         .bind(challenge_id)
         .execute(&self.pool)
         .await?;
@@ -460,5 +499,73 @@ impl Database {
                 .fetch_one(&self.pool)
                 .await?;
         Ok(row.0)
+    }
+
+    // === Step 4: Oracle methods ===
+
+    pub async fn create_oracle_job(
+        &self,
+        job: &OracleJob,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let status = job.status.as_str();
+
+        sqlx::query(
+            "INSERT INTO oracle_jobs (job_id, match_id, faceit_match_id, status, reported_winner, error_message, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&job.job_id)
+        .bind(&job.match_id)
+        .bind(&job.faceit_match_id)
+        .bind(status)
+        .bind(&job.reported_winner)
+        .bind(&job.error_message)
+        .bind(&job.created_at)
+        .bind(&job.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_oracle_job(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<OracleJob>, Box<dyn std::error::Error>> {
+        #[derive(sqlx::FromRow)]
+        struct DbOracleJob {
+            job_id: String,
+            match_id: String,
+            faceit_match_id: String,
+            status: String,
+            reported_winner: Option<String>,
+            error_message: Option<String>,
+            created_at: String,
+            updated_at: String,
+            resolved_at: Option<String>,
+        }
+
+        let row =
+            sqlx::query_as::<Sqlite, DbOracleJob>("SELECT * FROM oracle_jobs WHERE job_id = ?")
+                .bind(job_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if let Some(db_job) = row {
+            let status =
+                OracleJobStatus::from_str(&db_job.status).unwrap_or(OracleJobStatus::Pending);
+            Ok(Some(OracleJob {
+                job_id: db_job.job_id,
+                match_id: db_job.match_id,
+                faceit_match_id: db_job.faceit_match_id,
+                status,
+                reported_winner: db_job.reported_winner,
+                error_message: db_job.error_message,
+                created_at: db_job.created_at,
+                updated_at: db_job.updated_at,
+                resolved_at: db_job.resolved_at,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

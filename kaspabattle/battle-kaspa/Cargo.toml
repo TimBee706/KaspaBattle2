@@ -25,6 +25,19 @@ kaspa-addresses = "0.15"
 kaspa-consensus-core = "0.15"
 kaspa-txscript = "0.15"
 kaspa-hashes = "0.15"
+kaspa-wallet-core = "0.15"
+
+# Wasm-bindgen downgrade to fix compilation error
+wasm-bindgen = "=0.2.95"
+js-sys = "=0.3.72"
+web-sys = "=0.3.72"
 
 # Cryptography
 secp256k1 = { version = "0.29", features = ["global-context", "rand-std"] }
+reqwest = { version = "0.12", features = ["json"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+thiserror = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+wiremock = "0.6"
