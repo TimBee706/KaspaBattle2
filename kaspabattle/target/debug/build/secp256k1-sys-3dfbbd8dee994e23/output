@@ -16,7 +16,7 @@ cargo:rerun-if-env-changed=WindowsSDKVersion
 WindowsSDKVersion = None
 cargo:rerun-if-env-changed=LIB
 LIB = None
-PATH = Some(C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps;C:\Projects\KaspaBattle2\kaspabattle\target\debug;C:\Users\Timo\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\LLVM\bin;C:\Program Files\Go\bin;C:\Program Files\nodejs\;C:\Users\Timo\.cargo\bin;C:\Users\Timo\AppData\Local\Microsoft\WindowsApps;C:\Users\Timo\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Timo\AppData\Local\GitHubDesktop\bin;C:\Protoc\protoc-21.10-win64\bin;C:\Users\Timo\go\bin;C:\Users\Timo\AppData\Roaming\npm;C:\Users\Timo\AppData\Local\Programs\Antigravity\bin;C:\Users\Timo\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+PATH = Some(C:\Projects\KaspaBattle2\kaspabattle\target\debug\deps;C:\Projects\KaspaBattle2\kaspabattle\target\debug;C:\Users\Timo\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Google\Chrome\Application;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\LLVM\bin;C:\Program Files\Go\bin;C:\Program Files\nodejs\;C:\Users\Timo\.cargo\bin;C:\Users\Timo\AppData\Local\Microsoft\WindowsApps;C:\Users\Timo\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Timo\AppData\Local\GitHubDesktop\bin;C:\Protoc\protoc-21.10-win64\bin;C:\Users\Timo\go\bin;C:\Users\Timo\AppData\Roaming\npm;C:\Users\Timo\AppData\Local\Programs\Antigravity\bin;C:\Users\Timo\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
 cargo:rerun-if-env-changed=INCLUDE
 INCLUDE = None
 HOST = Some(x86_64-pc-windows-msvc)
@@ -72,11 +72,11 @@ cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
 CFLAGS_x86_64-pc-windows-msvc = None
 cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
 lax_der_parsing.c
+precomputed_ecmult_gen.c
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\include\secp256k1.h(155): warning C4005: 'SECP256K1_API': macro redefinition
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\include\secp256k1.h(155): note: 'SECP256K1_API' previously declared on the command line
 depend/secp256k1/contrib/lax_der_parsing.c(10): warning C4273: 'rustsecp256k1_v0_10_0_ecdsa_signature_parse_compact': inconsistent dll linkage
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\include\secp256k1.h(467): note: see previous definition of 'rustsecp256k1_v0_10_0_ecdsa_signature_parse_compact'
-precomputed_ecmult_gen.c
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\src\../include/secp256k1.h(155): warning C4005: 'SECP256K1_API': macro redefinition
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\src\../include/secp256k1.h(155): note: 'SECP256K1_API' previously declared on the command line
 C:\Users\Timo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\secp256k1-sys-0.10.1\depend\secp256k1\src\util.h(265): warning C4146: unary minus operator applied to unsigned type, result still unsigned
