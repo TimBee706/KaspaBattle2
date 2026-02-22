@@ -170,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // F-006: Rate limiting — 20 requests per 60 seconds per peer IP.
         let governor_conf = GovernorConfigBuilder::default()
-            .per_second(3) // refill 1 token every 3 seconds
+            .seconds_per_request(3) // refill 1 token every 3 seconds
             .burst_size(20) // max 20 tokens in bucket
             .finish()
             .unwrap();

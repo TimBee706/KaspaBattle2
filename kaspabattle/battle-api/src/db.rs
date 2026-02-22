@@ -599,7 +599,7 @@ impl Database {
 
         if let Some(db_job) = row {
             let status =
-                OracleJobStatus::from_str(&db_job.status).unwrap_or(OracleJobStatus::Pending);
+                db_job.status.parse::<OracleJobStatus>().unwrap_or(OracleJobStatus::Pending);
             Ok(Some(OracleJob {
                 job_id: db_job.job_id,
                 match_id: db_job.match_id,
