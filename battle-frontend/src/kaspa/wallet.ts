@@ -1,4 +1,4 @@
-import { Wallet, Mnemonic, NetworkId, Account } from 'kaspa-wasm';
+import { Wallet, NetworkId, Account } from 'kaspa-wasm';
 import { initKaspaWasm } from './init';
 import { getRpcClient } from './rpc';
 
@@ -8,25 +8,6 @@ export interface WalletConnection {
     address: string;
 }
 
-// Neues Wallet erstellen (Registrierung / Erstanmeldung)
-export async function createNewWallet(): Promise<{ connection: WalletConnection; mnemonic: string }> {
-    await initKaspaWasm();
-    const mnemonic = new Mnemonic();          // 12 Wörter generieren
-    const phraseString = mnemonic.toString();
-
-    const wallet = new Wallet({
-        networkId: NetworkId.Mainnet as any,
-        mnemonic: phraseString,
-    });
-
-    const account = await wallet.createAccount('KaspaBattle');
-    const address = account.externalAddress(0);
-
-    return {
-        connection: { wallet, account, address },
-        mnemonic: phraseString,
-    };
-}
 
 // Wallet aus Mnemonic importieren
 export async function importWallet(mnemonic: string): Promise<WalletConnection> {

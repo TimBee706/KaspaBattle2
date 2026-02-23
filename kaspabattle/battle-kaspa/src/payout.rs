@@ -21,8 +21,8 @@ use kaspa_consensus_core::{
     },
     subnets::SUBNETWORK_ID_NATIVE,
     tx::{
-        PopulatedTransaction, Transaction, TransactionId, TransactionInput,
-        TransactionOutpoint, TransactionOutput, UtxoEntry,
+        PopulatedTransaction, Transaction, TransactionId, TransactionInput, TransactionOutpoint,
+        TransactionOutput, UtxoEntry,
     },
 };
 use kaspa_txscript::pay_to_address_script;
@@ -46,6 +46,7 @@ pub struct PayoutService {
     escrow_private_keys: Arc<Mutex<HashMap<String, [u8; 32]>>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct PayoutResult {
     pub winner_tx_id: String,
     pub winner_amount_sompi: u64,
@@ -145,9 +146,9 @@ impl PayoutService {
             .get_fee_estimate()
             .await
             .map_err(PayoutError::KaspaRpcError)?;
-        let fee_sompi =
-            ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64).ceil() as u64)
-                .max(1000);
+        let fee_sompi = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
+            .ceil() as u64)
+            .max(1000);
 
         // Calculate split
         let net_pot = total_pot.saturating_sub(fee_sompi);
@@ -182,9 +183,7 @@ impl PayoutService {
         let winner_addr = Address::try_from(winner_address)
             .map_err(|e| PayoutError::TxBuildError(format!("Invalid winner address: {}", e)))?;
         let treasury_addr = Address::try_from(self.treasury_address.as_str())
-            .map_err(|e| {
-                PayoutError::TxBuildError(format!("Invalid treasury address: {}", e))
-            })?;
+            .map_err(|e| PayoutError::TxBuildError(format!("Invalid treasury address: {}", e)))?;
         let escrow_addr = Address::try_from(battle_match.escrow_address.as_str())
             .map_err(|e| PayoutError::TxBuildError(format!("Invalid escrow address: {}", e)))?;
         let escrow_script_pk = pay_to_address_script(&escrow_addr);
@@ -218,15 +217,7 @@ impl PayoutService {
         ];
 
         // Assemble unsigned transaction
-        let mut tx = Transaction::new(
-            0,
-            inputs,
-            outputs,
-            0,
-            SUBNETWORK_ID_NATIVE,
-            0,
-            vec![],
-        );
+        let mut tx = Transaction::new(0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, vec![]);
 
         // Build UTXO entries for signing
         let utxo_entries: Vec<UtxoEntry> = utxos
@@ -253,7 +244,9 @@ impl PayoutService {
             let mut reused_values = SigHashReusedValues::new();
             let populated = PopulatedTransaction::new(&tx, utxo_entries);
             (0..tx.inputs.len())
-                .map(|i| calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values))
+                .map(|i| {
+                    calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values)
+                })
                 .collect()
         }; // `populated` and its borrow of `tx` are dropped here
 
@@ -328,9 +321,9 @@ impl PayoutService {
             .get_fee_estimate()
             .await
             .map_err(PayoutError::KaspaRpcError)?;
-        let fee_sompi =
-            ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64).ceil() as u64)
-                .max(1000);
+        let fee_sompi = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
+            .ceil() as u64)
+            .max(1000);
 
         let net = escrow_balance.saturating_sub(fee_sompi);
         let half = net / 2;
@@ -407,7 +400,9 @@ impl PayoutService {
             let mut reused_values = SigHashReusedValues::new();
             let populated = PopulatedTransaction::new(&tx, utxo_entries);
             (0..tx.inputs.len())
-                .map(|i| calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values))
+                .map(|i| {
+                    calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values)
+                })
                 .collect()
         };
 
@@ -498,8 +493,7 @@ impl RpcTransactionExt for RpcTransaction {
 mod tests {
     use super::*;
     use crate::mock::MockKaspaClient;
-    use battle_core::match_state::MatchState;
-    use battle_core::models::match_::BattleMatch;
+    use battle_core::models::match_::{BattleMatch, MatchStatus};
     use uuid::Uuid;
 
     fn make_service(mock: Arc<MockKaspaClient>) -> PayoutService {
@@ -510,7 +504,7 @@ mod tests {
         )
     }
 
-    fn make_match_with_state(state: MatchState) -> BattleMatch {
+    fn make_match_with_state(status: MatchStatus) -> BattleMatch {
         BattleMatch {
             id: Uuid::new_v4(),
             player_a_kas_address: "kaspatest:qalice".to_string(),
@@ -520,7 +514,7 @@ mod tests {
             faceit_match_id: None,
             wager_amount_sompi: 5_000_000,
             escrow_address: "kaspatest:qescrow".to_string(),
-            status: state,
+            status,
             winner_kas_address: None,
             payout_tx_hash: None,
             oracle_result_signature: None,
@@ -558,10 +552,7 @@ mod tests {
         let mock = Arc::new(MockKaspaClient::new());
         let service = make_service(mock);
 
-        let battle_match = make_match_with_state(MatchState::Disputed {
-            reason: "Contested result".to_string(),
-            disputed_by: "alice".to_string(),
-        });
+        let battle_match = make_match_with_state(MatchStatus::Disputed);
 
         let result = service
             .execute_payout(&battle_match, "kaspatest:qwinner")
@@ -579,16 +570,17 @@ mod tests {
         let mock = Arc::new(MockKaspaClient::new());
         let service = make_service(mock);
 
-        let battle_match = make_match_with_state(MatchState::Cancelled {
-            reason: "Timeout".to_string(),
-        });
+        let battle_match = make_match_with_state(MatchStatus::Cancelled);
 
         let result = service
             .execute_payout(&battle_match, "kaspatest:qwinner")
             .await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PayoutError::MatchInDisputedState));
+        assert!(matches!(
+            result.unwrap_err(),
+            PayoutError::MatchInDisputedState
+        ));
     }
 
     #[tokio::test]
@@ -596,9 +588,7 @@ mod tests {
         let mock = Arc::new(MockKaspaClient::new());
         let service = make_service(mock);
 
-        let battle_match = make_match_with_state(MatchState::Resolved {
-            winner_id: "alice".to_string(),
-        });
+        let battle_match = make_match_with_state(MatchStatus::Resolved);
 
         let result = service
             .execute_payout(&battle_match, "kaspatest:qalice")
@@ -616,9 +606,7 @@ mod tests {
         let mock = Arc::new(MockKaspaClient::with_synced(false));
         let service = make_service(mock);
 
-        let battle_match = make_match_with_state(MatchState::Resolved {
-            winner_id: "alice".to_string(),
-        });
+        let battle_match = make_match_with_state(MatchStatus::Resolved);
 
         let result = service
             .execute_payout(&battle_match, "kaspatest:qalice")

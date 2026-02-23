@@ -171,9 +171,7 @@ impl OracleService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::faceit_data::{
-        FaceitFaction, FaceitMatchDetails, FaceitPlayer, FaceitResults, FaceitScore, FaceitTeams,
-    };
+
     use serde_json::json;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Mutex as StdMutex;

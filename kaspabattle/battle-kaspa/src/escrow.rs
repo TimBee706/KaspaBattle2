@@ -60,17 +60,9 @@ pub fn derive_escrow_address(
         ));
     }
 
-    log::info!(
-        "Generating escrow address for match: {}",
-        match_id
-    );
+    log::info!("Generating escrow address for match: {}", match_id);
 
-    let input = format!(
-        "{}{}{}",
-        match_id,
-        player_a_pubkey,
-        player_b_pubkey
-    );
+    let input = format!("{}{}{}", match_id, player_a_pubkey, player_b_pubkey);
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());
     let hash_result = hasher.finalize();
@@ -385,7 +377,9 @@ impl EscrowService {
             let tx_id = uuid::Uuid::new_v4().to_string();
             tracing::info!(
                 "REFUND stub challenge {}: {} sompi → player A ({})",
-                challenge_id, refund_a, tx_id
+                challenge_id,
+                refund_a,
+                tx_id
             );
             refund_tx_a = Some(tx_id);
         }
@@ -395,7 +389,9 @@ impl EscrowService {
             let tx_id = uuid::Uuid::new_v4().to_string();
             tracing::info!(
                 "REFUND stub challenge {}: {} sompi → player B ({})",
-                challenge_id, refund_b, tx_id
+                challenge_id,
+                refund_b,
+                tx_id
             );
             refund_tx_b = Some(tx_id);
         }
@@ -414,6 +410,7 @@ impl EscrowService {
 mod tests {
     use super::*;
     use crate::mock::MockKaspaClient;
+    use crate::rpc::UtxoInfo;
     use std::str::FromStr;
 
     #[test]

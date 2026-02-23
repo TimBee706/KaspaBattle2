@@ -4,14 +4,15 @@ import { AuthGuard } from './components/auth/AuthGuard';
 import { FaceitCallback } from './components/auth/FaceitCallback';
 import { useKaspaInit } from './hooks/useKaspaInit';
 import { useBalance } from './hooks/useBalance';
+import { WalletPage } from './pages/WalletPage';
+import { LandingPage } from './pages/LandingPage';
+import { LobbyPage } from './pages/LobbyPage';
+import { CreateMatchPage } from './pages/CreateMatchPage';
+import { MatchPage } from './pages/MatchPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { ProfilePage } from './pages/ProfilePage';
 
-// Pages - placeholder for now
-const PlaceHolder = ({ title }: { title: string }) => (
-  <div className="py-20 text-center">
-    <h1 className="text-4xl font-black text-kaspa-primary mb-4 uppercase">{title}</h1>
-    <p className="text-gray-500">Diese Seite wird gerade implementiert...</p>
-  </div>
-);
+// Fallback for unknown routes goes to LandingPage
 
 export default function App() {
   const { isReady, error: wasmError } = useKaspaInit();
@@ -52,17 +53,18 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<PlaceHolder title="Landing Page" />} />
+          <Route index element={<LandingPage />} />
           <Route path="auth/faceit/callback" element={<FaceitCallback />} />
 
           {/* Geschützte Routen */}
-          <Route path="lobby" element={<AuthGuard><PlaceHolder title="Matchmaking Lobby" /></AuthGuard>} />
-          <Route path="create" element={<AuthGuard><PlaceHolder title="Challenge erstellen" /></AuthGuard>} />
-          <Route path="match/:matchId" element={<AuthGuard><PlaceHolder title="Live Match" /></AuthGuard>} />
-          <Route path="history" element={<AuthGuard><PlaceHolder title="Match Verlauf" /></AuthGuard>} />
-          <Route path="profile" element={<AuthGuard><PlaceHolder title="Profil" /></AuthGuard>} />
+          <Route path="lobby" element={<AuthGuard><LobbyPage /></AuthGuard>} />
+          <Route path="lobby/create" element={<AuthGuard><CreateMatchPage /></AuthGuard>} />
+          <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
+          <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
+          <Route path="profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+          <Route path="wallet/import" element={<WalletPage />} />
 
-          <Route path="*" element={<PlaceHolder title="404 - Not Found" />} />
+          <Route path="*" element={<LandingPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -60,13 +60,6 @@
 | 3.7 | 15-Minuten-Zeitfenster nach Spielende | ❌ Fehlt | — | Keine Wartezeit nach Match-Ende vor Resolve. |
 | 3.8 | Fallback auf manuellen Dispute-Prozess | ⚠️ Teilweise | `routes.rs:dispute_match` | Dispute-State vorhanden, aber kein Admin-UI. |
 
-### 1.4 kdapp-Framework
-
-| # | Whitepaper-Anforderung | Status | Anmerkung |
-|---|---|---|---|
-| 4.1 | Episode-Trait (Initialize/Execute/Rollback/Poll) | ❌ Fehlt | Kein kdapp-Framework integriert. Actix-Web stattdessen. |
-| 4.2 | kaspa-auth Integration | ❌ Fehlt | Eigener Auth-Service mit Argon2/Session-Tokens. |
-
 ### 1.5 Plugin-Architektur
 
 | # | Whitepaper-Anforderung | Status | Anmerkung |

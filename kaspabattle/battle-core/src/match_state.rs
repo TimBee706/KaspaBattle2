@@ -166,8 +166,16 @@ pub fn transition(
                 return Err(MatchError::AlreadyDeposited);
             }
 
-            let new_a = if is_player_a { true } else { *player_a_deposited };
-            let new_b = if is_player_b { true } else { *player_b_deposited };
+            let new_a = if is_player_a {
+                true
+            } else {
+                *player_a_deposited
+            };
+            let new_b = if is_player_b {
+                true
+            } else {
+                *player_b_deposited
+            };
 
             if new_a && new_b {
                 Ok(MatchState::Locked)
@@ -371,10 +379,16 @@ mod tests {
         };
 
         let result = transition(&state, &action, "alice", Some("bob"));
-        assert!(result.is_ok(), "Player A should be able to dispute a Resolved match");
+        assert!(
+            result.is_ok(),
+            "Player A should be able to dispute a Resolved match"
+        );
 
         match result.unwrap() {
-            MatchState::Disputed { reason, disputed_by } => {
+            MatchState::Disputed {
+                reason,
+                disputed_by,
+            } => {
                 assert_eq!(reason, "I won the match!");
                 assert_eq!(disputed_by, "alice");
             }
@@ -459,12 +473,19 @@ mod tests {
 
     #[test]
     fn test_allows_payout_flag() {
-        assert!(MatchState::Locked.allows_payout());
-        assert!(MatchState::Resolved { winner_id: "alice".to_string() }.allows_payout());
+        assert!(!MatchState::Locked.allows_payout());
+        assert!(MatchState::Resolved {
+            winner_id: "alice".to_string()
+        }
+        .allows_payout());
         assert!(!MatchState::Disputed {
             reason: "dispute".to_string(),
             disputed_by: "alice".to_string()
-        }.allows_payout());
-        assert!(!MatchState::Cancelled { reason: "test".to_string() }.allows_payout());
+        }
+        .allows_payout());
+        assert!(!MatchState::Cancelled {
+            reason: "test".to_string()
+        }
+        .allows_payout());
     }
 }

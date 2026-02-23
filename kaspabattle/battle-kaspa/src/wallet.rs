@@ -87,7 +87,11 @@ impl EscrowWallet {
         log::info!(
             "EscrowWallet initialized (network: {}, mnemonic: {})",
             network,
-            if mnemonic.is_some() { "imported" } else { "generated" }
+            if mnemonic.is_some() {
+                "imported"
+            } else {
+                "generated"
+            }
         );
 
         Ok(Self {
@@ -98,8 +102,6 @@ impl EscrowWallet {
             index_map: Arc::new(Mutex::new(HashMap::new())),
         })
     }
-
-
 
     /// Derives a deterministic escrow address for a challenge.
     ///
@@ -249,7 +251,7 @@ mod tests {
     fn test_wallet_generate_new() {
         let wallet = EscrowWallet::new(None, "testnet").unwrap();
         // F-003: verify 12-word mnemonic was generated without exposing it
-        let phrase = wallet.mnemonic_phrase();
+        let phrase = wallet.mnemonic_phrase.as_str();
         let word_count = phrase.split_whitespace().count();
         assert_eq!(
             word_count, 12,

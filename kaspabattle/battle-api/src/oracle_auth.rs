@@ -108,10 +108,7 @@ pub fn verify_oracle_key(req: &HttpRequest) -> bool {
             provided.len()
         );
     } else {
-        log::info!(
-            "Oracle auth succeeded from {:?}",
-            req.peer_addr()
-        );
+        log::info!("Oracle auth succeeded from {:?}", req.peer_addr());
     }
 
     authorized
@@ -146,10 +143,7 @@ mod tests {
         // Reset the OnceLock by creating a temporary env-based approach for tests.
         // Since OnceLock can't be reset, we test via the env var before initialization.
         unsafe {
-            env::set_var(
-                "ORACLE_API_KEYS",
-                keys.join(","),
-            );
+            env::set_var("ORACLE_API_KEYS", keys.join(","));
         }
     }
 
@@ -163,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_key_accepted() {
+    async fn test_valid_key_accepted() {
         // Use the internal key set directly to avoid OnceLock initialization issues in tests
         let mut keys = HashSet::new();
         keys.insert("valid-oracle-key".to_string());
@@ -173,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_key_rejected() {
+    async fn test_invalid_key_rejected() {
         let mut keys = HashSet::new();
         keys.insert("valid-oracle-key".to_string());
 
@@ -182,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_key_rejected() {
+    async fn test_empty_key_rejected() {
         let mut keys = HashSet::new();
         keys.insert("valid-oracle-key".to_string());
 
@@ -191,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_oracle_keys_parsing() {
+    async fn test_init_oracle_keys_parsing() {
         // Test the internal parsing logic directly instead of using env vars
         // which are global and hazardous in multi-threaded tests.
         let raw = "key1,key2";
@@ -206,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_oracle_keys_parses_correctly() {
+    async fn test_init_oracle_keys_parses_correctly() {
         let raw = "key-alpha,key-beta, key-gamma , ";
         let keys: HashSet<String> = raw
             .split(',')
