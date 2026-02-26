@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod errors;
+pub mod faceit_data;
 pub mod faceit_oauth;
 pub mod match_state;
 pub mod models;

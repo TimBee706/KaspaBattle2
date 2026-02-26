@@ -1,8 +1,19 @@
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { formatKas, shortenAddress } from '../utils/format';
+import { faceitApi } from '../api/faceit';
+import type { FaceitProfileResponse } from '../api/types';
 
 export function ProfilePage() {
     const { user } = useAuthStore();
+    const [faceitData, setFaceitData] = useState<FaceitProfileResponse | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        faceitApi.getProfile()
+            .then(res => setFaceitData(res))
+            .catch(err => console.error("Fehler beim Abrufen der Faceit Stats:", err));
+    }, [user]);
 
     if (!user) return null;
 
@@ -20,8 +31,8 @@ export function ProfilePage() {
                             {user.faceit_nickname[0].toUpperCase()}
                         </div>
                     )}
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-kaspa-primary text-kaspa-dark text-[10px] font-black rounded-full uppercase tracking-tighter">
-                        LVL 10
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-kaspa-primary text-kaspa-dark text-[10px] font-black rounded-full uppercase tracking-tighter shadow-lg shadow-kaspa-primary/20">
+                        {faceitData && faceitData.skill_level > 0 ? `LVL ${faceitData.skill_level}` : 'LVL UNBEKANNT'}
                     </div>
                 </div>
 
@@ -36,6 +47,11 @@ export function ProfilePage() {
                         <div className="px-3 py-1 bg-orange-600/20 rounded border border-orange-500/30 text-xs font-bold text-orange-400">
                             VERIFIED PLAYER
                         </div>
+                        {faceitData && faceitData.elo > 0 && (
+                            <div className="px-3 py-1 bg-kaspa-primary/10 rounded border border-kaspa-primary/30 text-xs font-bold text-kaspa-primary">
+                                {faceitData.elo} ELO {faceitData.is_cached && <span className="text-gray-500 font-normal ml-1">(cached)</span>}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

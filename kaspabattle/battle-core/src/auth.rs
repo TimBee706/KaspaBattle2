@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use crate::models::faceit::FaceitLink;
 use crate::models::user::{AuthResponse, LoginRequest, RegisterRequest, User};
 
 pub struct AuthService {
@@ -27,8 +28,10 @@ impl AuthService {
 
     pub async fn run_migrations(&self) -> Result<()> {
         let conn = self.db.lock().await;
-        let sql = include_str!("../migrations/004_users.sql");
-        conn.execute_batch(sql)?;
+        let sql_users = include_str!("../migrations/004_users.sql");
+        let sql_snapshots = include_str!("../migrations/006_faceit_snapshots.sql");
+        conn.execute_batch(sql_users)?;
+        conn.execute_batch(sql_snapshots)?;
         Ok(())
     }
 
@@ -244,6 +247,83 @@ impl AuthService {
         }
     }
 
+    pub async fn get_faceit_link(&self, user_id: &str) -> Result<Option<FaceitLink>> {
+        let conn = self.db.lock().await;
+
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, faceit_player_id, faceit_nickname, faceit_elo, faceit_skill_level, faceit_avatar_url, created_at, verified 
+             FROM faceit_links WHERE user_id = ?1"
+        )?;
+
+        let mut rows = stmt.query([user_id])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(FaceitLink {
+                id: row.get(0)?,
+                user_id: row.get(1)?,
+                faceit_player_id: row.get(2)?,
+                faceit_nickname: row.get(3)?,
+                faceit_elo: row.get(4)?,
+                faceit_skill_level: row.get(5)?,
+                faceit_avatar_url: row.get(6)?,
+                linked_at: row.get(7)?,
+                verified: row.get::<_, i64>(8)? != 0,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn save_faceit_snapshot(
+        &self,
+        user_id: &str,
+        faceit_player_id: &str,
+        game_id: &str,
+        elo: i32,
+        skill_level: i32,
+    ) -> Result<()> {
+        let snapshot_id = Uuid::new_v4().to_string();
+        let conn = self.db.lock().await;
+
+        conn.execute(
+            "INSERT INTO faceit_stats_snapshots (id, user_id, faceit_player_id, game_id, elo, skill_level) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            (&snapshot_id, user_id, faceit_player_id, game_id, &elo, &skill_level),
+        )?;
+        Ok(())
+    }
+
+    pub async fn get_latest_faceit_snapshot(
+        &self,
+        faceit_player_id: &str,
+        game_id: &str,
+    ) -> Result<Option<crate::models::faceit_data::FaceitStatsSnapshot>> {
+        let conn = self.db.lock().await;
+
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, faceit_player_id, game_id, elo, skill_level, snapshot_at
+             FROM faceit_stats_snapshots 
+             WHERE faceit_player_id = ?1 AND game_id = ?2
+             ORDER BY snapshot_at DESC LIMIT 1",
+        )?;
+
+        let mut rows = stmt.query([faceit_player_id, game_id])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(crate::models::faceit_data::FaceitStatsSnapshot {
+                id: row.get(0)?,
+                user_id: row.get(1)?,
+                faceit_player_id: row.get(2)?,
+                game_id: row.get(3)?,
+                elo: row.get(4)?,
+                skill_level: row.get(5)?,
+                snapshot_at: row.get(6)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn cleanup_expired_sessions(&self) -> Result<u64> {
         let conn = self.db.lock().await;
         let deleted = conn.execute(
@@ -251,6 +331,54 @@ impl AuthService {
             [],
         )?;
         Ok(deleted as u64)
+    }
+
+    pub async fn handle_faceit_sso(
+        &self,
+        info: &crate::models::faceit::FaceitUserInfo,
+    ) -> Result<(String, String)> {
+        let conn = self.db.lock().await;
+
+        let mut stmt =
+            conn.prepare("SELECT user_id FROM faceit_links WHERE faceit_player_id = ?1")?;
+        let mut rows = stmt.query([&info.guid])?;
+
+        let user_id = if let Some(row) = rows.next()? {
+            row.get(0)?
+        } else {
+            let new_user_id = Uuid::new_v4().to_string();
+            let email = info
+                .email
+                .clone()
+                .unwrap_or_else(|| format!("{}@faceit.local", info.guid));
+            let display_name = info.nickname.clone();
+            let dummy_pass = Self::hash_password(&Uuid::new_v4().to_string())?;
+
+            match conn.execute(
+                "INSERT INTO users (id, email, password_hash, display_name) VALUES (?1, ?2, ?3, ?4)",
+                (&new_user_id, &email, &dummy_pass, &display_name),
+            ) {
+                Ok(_) => new_user_id,
+                Err(_) => {
+                    let fallback_email = format!("{}-{}@faceit.local", info.guid, &Uuid::new_v4().to_string()[..6]);
+                    conn.execute(
+                        "INSERT INTO users (id, email, password_hash, display_name) VALUES (?1, ?2, ?3, ?4)",
+                        (&new_user_id, &fallback_email, &dummy_pass, &display_name),
+                    )?;
+                    new_user_id
+                }
+            }
+        };
+
+        let session_token = Self::generate_session_token();
+        let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)",
+            (&session_token, &user_id, &expires_at),
+        )?;
+
+        Ok((user_id, session_token))
     }
 }
 

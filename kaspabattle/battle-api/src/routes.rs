@@ -25,6 +25,7 @@ pub struct AppState {
     pub escrow: Arc<EscrowService>,
     pub auth: Arc<battle_core::auth::AuthService>,
     pub faceit_oauth: Arc<battle_core::faceit_oauth::FaceitOAuthService>,
+    pub faceit_data: Arc<battle_core::faceit_data::FaceitDataService>,
     pub oracle: Arc<battle_core::oracle::faceit::FaceitOracleService>,
 }
 
@@ -876,7 +877,9 @@ pub async fn dispute_match(
 
     log::warn!(
         "⚠️  Match {} disputed by player '{}': {}",
-        match_id, body.player_id, body.reason
+        match_id,
+        body.player_id,
+        body.reason
     );
 
     HttpResponse::Ok().json(DisputeMatchResponse {

@@ -58,7 +58,10 @@ impl FaceitOAuthService {
         }
     }
 
-    pub async fn generate_auth_url(&self, user_id: &str) -> Result<(String, OAuthPendingState)> {
+    pub async fn generate_auth_url(
+        &self,
+        user_id: Option<&str>,
+    ) -> Result<(String, OAuthPendingState)> {
         let code_verifier = generate_code_verifier();
         let code_challenge = generate_code_challenge(&code_verifier);
         let state = generate_state();
@@ -78,7 +81,7 @@ impl FaceitOAuthService {
         let pending_state = OAuthPendingState {
             state: state.clone(),
             code_verifier,
-            user_id: user_id.to_string(),
+            user_id: user_id.map(|s| s.to_string()),
             created_at: Utc::now().to_rfc3339(),
         };
 
@@ -88,7 +91,11 @@ impl FaceitOAuthService {
         Ok((url.to_string(), pending_state))
     }
 
-    pub async fn handle_callback(&self, code: &str, state: &str) -> Result<FaceitLink> {
+    pub async fn handle_callback(
+        &self,
+        code: &str,
+        state: &str,
+    ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>)> {
         let pending_state = {
             let mut states = self.pending_states.lock().await;
             states
@@ -101,11 +108,7 @@ impl FaceitOAuthService {
             .await?;
         let userinfo = self.get_userinfo(&tokens.access_token).await?;
 
-        let link = self
-            .save_faceit_link(&pending_state.user_id, &userinfo, &tokens)
-            .await?;
-
-        Ok(link)
+        Ok((userinfo, tokens, pending_state.user_id))
     }
 
     pub async fn exchange_code(
@@ -192,7 +195,11 @@ impl FaceitOAuthService {
 
         match conn.execute(
             "INSERT INTO faceit_links (id, user_id, faceit_player_id, faceit_nickname, faceit_avatar_url, access_token, refresh_token, token_expires_at, verified) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(user_id) DO UPDATE SET 
+             access_token=excluded.access_token, 
+             refresh_token=excluded.refresh_token, 
+             token_expires_at=excluded.token_expires_at",
             (
                 &link_id,
                 user_id,
@@ -207,7 +214,11 @@ impl FaceitOAuthService {
         ) {
             Ok(_) => {},
             Err(rusqlite::Error::SqliteFailure(err, _)) if err.code == rusqlite::ffi::ErrorCode::ConstraintViolation => {
-                return Err(anyhow!("Dieser FACEIT-Account oder KaspaBattle-Account ist bereits verknüpft"));
+                // If it fails on faceit_player_id unique constraint
+                conn.execute(
+                    "UPDATE faceit_links SET access_token=?1, refresh_token=?2, token_expires_at=?3 WHERE faceit_player_id=?4",
+                    (&tokens.access_token, &tokens.refresh_token, &expires_at, &info.guid),
+                )?;
             }
             Err(e) => return Err(e.into()),
         }
@@ -353,7 +364,7 @@ mod tests {
     #[tokio::test]
     async fn test_generate_auth_url_contains_all_params() {
         let service = create_test_service().await;
-        let (url, state) = service.generate_auth_url("user123").await.unwrap();
+        let (url, state) = service.generate_auth_url(Some("user123")).await.unwrap();
 
         assert!(url.contains("client_id=test-client-id"));
         assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback"));

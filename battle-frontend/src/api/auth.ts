@@ -1,45 +1,15 @@
 import apiClient from './client';
-import { FACEIT_CLIENT_ID, FACEIT_AUTH_URL, FACEIT_REDIRECT_URI, FACEIT_SCOPES } from '../config/constants';
+import { API_BASE_URL, FACEIT_REDIRECT_URI } from '../config/constants';
 import type { FaceitAuthResponse } from './types';
 
-// PKCE Code Verifier generieren
-function generateCodeVerifier(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return btoa(String.fromCharCode(...array))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// OAuth Login starten – leitet über unser Backend zum FACEIT SSO weiter
+export function startFaceitLogin(): void {
+    window.location.href = `${API_BASE_URL}/faceit/login`;
 }
 
-// PKCE Code Challenge aus Verifier
-async function generateCodeChallenge(verifier: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode(...new Uint8Array(digest)))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-// OAuth Login starten – leitet zu FACEIT weiter
-export async function startFaceitLogin(): Promise<void> {
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
-    const state = crypto.randomUUID();
-
-    // Verifier + State im SessionStorage speichern
-    sessionStorage.setItem('faceit_code_verifier', codeVerifier);
-    sessionStorage.setItem('faceit_state', state);
-
-    const params = new URLSearchParams({
-        client_id: FACEIT_CLIENT_ID,
-        response_type: 'code',
-        redirect_uri: FACEIT_REDIRECT_URI,
-        scope: FACEIT_SCOPES,
-        state: state,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
-    });
-
-    window.location.href = `${FACEIT_AUTH_URL}/authorize?${params.toString()}`;
+// OAuth Profil Verknüpfen starten (wenn bereits eingeloggt)
+export function startFaceitLink(): void {
+    window.location.href = `${API_BASE_URL}/faceit/link`;
 }
 
 // OAuth Callback verarbeiten – tauscht Code gegen Tokens

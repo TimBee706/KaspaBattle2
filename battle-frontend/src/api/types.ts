@@ -89,6 +89,43 @@ export interface FaceitAuthResponse {
     user: UserProfile;
 }
 
+// ── Faceit Data API Types ──
+export interface FaceitProfileResponse {
+    faceit_player_id: string;
+    nickname: string;
+    avatar_url: string | null;
+    game_id: string;
+    elo: number;
+    skill_level: number;
+    is_cached: boolean;
+}
+
+export interface FaceitMatchDetails {
+    winner: string;
+    score: Record<string, number>;
+}
+
+export interface FaceitMatchHistoryItem {
+    match_id: string;
+    game_id: string;
+    region: string;
+    match_type: string;
+    game_mode: string;
+    map_i_ds: string[];
+    team_id: string;
+    playing_players: string[];
+    started_at: number;
+    finished_at: number;
+    results: FaceitMatchDetails;
+}
+
+export interface FaceitMatchHistoryResponse {
+    items: FaceitMatchHistoryItem[];
+    start: number;
+    end: number;
+}
+
+
 // ── Filter Types ──
 export interface LobbyFilters {
     game_id?: string;

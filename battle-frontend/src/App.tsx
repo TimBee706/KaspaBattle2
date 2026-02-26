@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { AuthGuard } from './components/auth/AuthGuard';
@@ -11,12 +12,37 @@ import { CreateMatchPage } from './pages/CreateMatchPage';
 import { MatchPage } from './pages/MatchPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { useAuthStore } from './stores/useAuthStore';
 
 // Fallback for unknown routes goes to LandingPage
 
 export default function App() {
   const { isReady, error: wasmError } = useKaspaInit();
+  const { setTokens, fetchUser } = useAuthStore();
+
   useBalance(); // Balance-Tracking im Hintergrund starten
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const linked = params.get('linked');
+    const errorParam = params.get('error');
+
+    if (token) {
+      const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      setTokens({ access_token: token, refresh_token: '', expires_at });
+      fetchUser().catch(console.error);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (linked) {
+      // Optionale Erfolgsmeldung für reines Account-Linking
+      fetchUser().catch(console.error);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (errorParam) {
+      console.error("FACEIT Auth Fehler:", errorParam);
+      alert(`Authentication Error: ${errorParam}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [setTokens, fetchUser]);
 
   if (wasmError) {
     return (

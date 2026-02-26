@@ -48,9 +48,9 @@ pub struct FaceitUserInfo {
 /// (Kurzlebig, nur für die Dauer des Redirects)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthPendingState {
-    pub state: String,         // Random CSRF-Token
-    pub code_verifier: String, // PKCE Code Verifier
-    pub user_id: String,       // User der den Link initiiert hat
+    pub state: String,           // Random CSRF-Token
+    pub code_verifier: String,   // PKCE Code Verifier
+    pub user_id: Option<String>, // Option für echtes SSO (None = Login, Some = Account-Link)
     pub created_at: String,
 }
 

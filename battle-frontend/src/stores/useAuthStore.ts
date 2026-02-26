@@ -10,6 +10,8 @@ interface AuthState {
     walletConnected: boolean;
 
     setAuth: (user: UserProfile, tokens: AuthTokens) => void;
+    setTokens: (tokens: AuthTokens) => void;
+    fetchUser: () => Promise<void>;
     logout: () => void;
     refreshAccessToken: () => Promise<void>;
     updateKasAddress: (address: string) => void;
@@ -25,6 +27,11 @@ export const useAuthStore = create<AuthState>()(
             walletConnected: false,
 
             setAuth: (user, tokens) => set({ user, tokens, isAuthenticated: true }),
+            setTokens: (tokens) => set({ tokens }),
+            fetchUser: async () => {
+                const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
+                set({ user: res.data, isAuthenticated: true });
+            },
 
             logout: () => {
                 set({ user: null, tokens: null, isAuthenticated: false, walletConnected: false });

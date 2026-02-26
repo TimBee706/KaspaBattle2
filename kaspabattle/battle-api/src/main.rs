@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client_secret: std::env::var("FACEIT_CLIENT_SECRET")
             .unwrap_or_else(|_| "secret".to_string()),
         redirect_uri: std::env::var("FACEIT_REDIRECT_URI")
-            .unwrap_or_else(|_| "http://localhost:3000/api/v1/faceit/callback".to_string()),
+            .unwrap_or_else(|_| "http://localhost:8080/api/v1/faceit/callback".to_string()),
         auth_url: "https://accounts.faceit.com/authorize".to_string(),
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
@@ -68,10 +68,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let oracle_signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
     let oracle = Arc::new(battle_core::oracle::faceit::FaceitOracleService::new(
-        faceit_api_key,
+        faceit_api_key.clone(),
         oracle_signing_key,
     ));
     log::info!("✅ FaceitOracleService bereit");
+
+    let faceit_data = Arc::new(battle_core::faceit_data::FaceitDataService::new(
+        faceit_api_key,
+    ));
+    log::info!("✅ FaceitDataService bereit");
 
     // === Kaspa Client ===
     let kaspa_node_url = std::env::var("KASPA_NODE_URL")
@@ -147,10 +152,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         escrow,
         auth,
         faceit_oauth,
+        faceit_data,
         oracle,
     });
 
-    let bind_addr = "0.0.0.0:3000";
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let bind_addr = format!("0.0.0.0:{}", port);
     log::info!("🚀 HTTP-Server startet auf {}", bind_addr);
 
     HttpServer::new(move || {
@@ -160,9 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if env_mode == "production" {
                 let origins_raw = std::env::var("ALLOWED_ORIGINS")
                     .unwrap_or_else(|_| "https://kaspabattle.com".to_string());
-                let mut cors = Cors::default()
-                    .allow_any_method()
-                    .allow_any_header();
+                let mut cors = Cors::default().allow_any_method().allow_any_header();
                 for origin in origins_raw.split(',') {
                     let o = origin.trim().to_string();
                     if !o.is_empty() {
