@@ -7,10 +7,11 @@ interface WalletState {
     wallet: Wallet | null;
     account: Account | null;
     address: string | null;
+    mnemonic: string | null;
     balanceSompi: number;
     error: string | null;
 
-    setWalletConnection: (wallet: Wallet, account: Account, address: string) => void;
+    setWalletConnection: (wallet: Wallet, account: Account, address: string, mnemonic: string) => void;
     setBalance: (balanceSompi: number) => void;
     setConnecting: (isConnecting: boolean) => void;
     setError: (error: string | null) => void;
@@ -23,11 +24,12 @@ export const useWalletStore = create<WalletState>((set) => ({
     wallet: null,
     account: null,
     address: null,
+    mnemonic: null,
     balanceSompi: 0,
     error: null,
 
-    setWalletConnection: (wallet, account, address) =>
-        set({ wallet, account, address, isConnected: true, isConnecting: false, error: null }),
+    setWalletConnection: (wallet, account, address, mnemonic) =>
+        set({ wallet, account, address, mnemonic, isConnected: true, isConnecting: false, error: null }),
 
     setBalance: (balanceSompi) => set({ balanceSompi }),
 
@@ -36,5 +38,5 @@ export const useWalletStore = create<WalletState>((set) => ({
     setError: (error) => set({ error, isConnecting: false }),
 
     disconnect: () =>
-        set({ wallet: null, account: null, address: null, isConnected: false, balanceSompi: 0, error: null }),
+        set({ wallet: null, account: null, address: null, mnemonic: null, isConnected: false, balanceSompi: 0, error: null }),
 }));

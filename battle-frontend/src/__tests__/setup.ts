@@ -14,21 +14,26 @@ vi.mock('kaspa-wasm', () => ({
         getFeeEstimate: vi.fn().mockResolvedValue({ feeRate: 1.0 }),
     })),
     Wallet: vi.fn().mockImplementation(() => ({
+        createPrvKeyData: vi.fn().mockResolvedValue({ id: 'mock-prv-id' }),
         createAccount: vi.fn().mockResolvedValue({
-            externalAddress: vi.fn().mockReturnValue('kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czlltest'),
+            receiveAddress: 'kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czlltest',
+            balance: { mature: 5_000_000n },
             getBalance: vi.fn().mockResolvedValue(5_000_000),
             send: vi.fn().mockResolvedValue({ transactionId: 'mock-tx-hash-002' }),
+            scan: vi.fn().mockResolvedValue(undefined),
         }),
         getAccount: vi.fn().mockResolvedValue({
-            externalAddress: vi.fn().mockReturnValue('kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czlltest'),
+            receiveAddress: 'kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czlltest',
+            balance: { mature: 5_000_000n },
             getBalance: vi.fn().mockResolvedValue(5_000_000),
         }),
         addEventListener: vi.fn(),
     })),
     Mnemonic: vi.fn().mockImplementation(() => ({
+        phrase: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
         toString: () => 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
     })),
-    NetworkId: { Mainnet: 'mainnet', Testnet: 'testnet' },
+    NetworkId: vi.fn(),
     Account: vi.fn(),
 }));
 

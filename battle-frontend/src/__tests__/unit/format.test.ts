@@ -3,23 +3,24 @@ import { sompiToKas, kasToSompi, formatKas, shortenAddress } from '../../utils/f
 
 describe('Format Utils', () => {
     it('should convert sompi to KAS correctly', () => {
-        expect(sompiToKas(100_000)).toBe(1);
-        expect(sompiToKas(250_000)).toBe(2.5);
+        expect(sompiToKas(100_000_000)).toBe(1);
+        expect(sompiToKas(250_000_000)).toBe(2.5);
     });
 
     it('should convert KAS to sompi correctly', () => {
-        expect(kasToSompi(1)).toBe(100_000);
-        expect(kasToSompi(2.5)).toBe(250_000);
+        expect(kasToSompi(1)).toBe(100_000_000);
+        expect(kasToSompi(2.5)).toBe(250_000_000);
     });
 
     it('should format KAS with decimals', () => {
-        expect(formatKas(100_000)).toBe('1,00');
-        expect(formatKas(2_550_000)).toBe('25,50');
+        expect(formatKas(100_000_000)).toBe('1,00');
+        expect(formatKas(255_000_000)).toBe('2,55');
     });
 
     it('should shorten Kaspa addresses', () => {
         const addr = 'kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czll';
-        expect(shortenAddress(addr, 6, 4)).toBe('kaspa:...zlll');
-        expect(shortenAddress('too-short')).toBe('too-short');
+        // 'kaspa:' (6) + 'qz2p' (4) = 10 prefixLen => 'kaspa:qz2p'
+        expect(shortenAddress(addr, 10, 4)).toBe('kaspa:qz2p...czll');
+        expect(shortenAddress('too-short', 10, 4)).toBe('too-short');
     });
 });

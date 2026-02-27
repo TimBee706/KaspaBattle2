@@ -4,7 +4,7 @@ import { formatKas } from '../utils/format';
 
 export function WalletPage() {
     const {
-        isConnected, isConnecting, address, balanceSompi, error,
+        isConnected, isConnecting, address, balanceSompi, error, mnemonic,
         connectWithMnemonic, disconnect,
     } = useWalletConnect();
     const [mnemonicInput, setMnemonicInput] = useState('');
@@ -109,6 +109,32 @@ export function WalletPage() {
                     Transaktionshistorie wird in Kürze verfügbar sein.
                 </div>
             </div>
+
+            {mnemonic && (
+                <div className="card p-8 border border-red-900/20 bg-red-900/5">
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="text-2xl">⚠️</span>
+                        <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">Secret Recovery Phrase (Backup)</h3>
+                    </div>
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                        Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen.
+                        Mitarbeiter von KaspaBattle werden dich niemals danach fragen.
+                    </p>
+                    <div className="bg-kaspa-dark p-6 rounded-xl border border-kaspa-border relative group">
+                        <div className="flex flex-wrap gap-2 blur-md group-hover:blur-none transition-all duration-300">
+                            {mnemonic.split(' ').map((word: string, i: number) => (
+                                <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
+                                    <span className="text-gray-500 text-xs">{i + 1}</span>
+                                    <span className="font-mono text-kaspa-primary font-bold">{word}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center group-hover:hidden bg-kaspa-dark/80 backdrop-blur-sm rounded-xl transition-opacity">
+                            <span className="text-xs font-black tracking-widest text-gray-400">HOVER ZUM ANZEIGEN</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -139,23 +139,6 @@ mod tests {
     use super::*;
     use actix_web::test;
 
-    fn setup_keys(keys: &[&str]) {
-        // Reset the OnceLock by creating a temporary env-based approach for tests.
-        // Since OnceLock can't be reset, we test via the env var before initialization.
-        unsafe {
-            env::set_var("ORACLE_API_KEYS", keys.join(","));
-        }
-    }
-
-    /// Helper to build a test request with a given header value
-    fn req_with_key(key: &str) -> actix_web::test::TestRequest {
-        test::TestRequest::post().insert_header(("X-Oracle-Key", key))
-    }
-
-    fn req_without_key() -> actix_web::test::TestRequest {
-        test::TestRequest::post()
-    }
-
     #[test]
     async fn test_valid_key_accepted() {
         // Use the internal key set directly to avoid OnceLock initialization issues in tests

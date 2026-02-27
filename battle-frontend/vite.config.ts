@@ -10,14 +10,18 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
   ],
+  assetsInclude: ['**/*.wasm'],
   optimizeDeps: {
-    exclude: ['kaspa-wasm'], // WASM darf nicht von Vite gebündelt werden
+    exclude: [], // Erlaube Vite die Optimierung/Konvertierung zu ESM
   },
   build: {
     target: 'esnext',
   },
   server: {
     port: 5173,
+    fs: {
+      allow: ['..']
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

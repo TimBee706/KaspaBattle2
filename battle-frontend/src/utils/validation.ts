@@ -17,5 +17,5 @@ export function validateWagerAmount(kasAmount: number): { valid: boolean; error?
 }
 
 export function validateKaspaAddress(address: string): boolean {
-    return /^kaspa:[a-z0-9]{61,63}$/.test(address);
+    return /^(kaspa|kaspatest):[a-z0-9]{42,63}$/.test(address);
 }

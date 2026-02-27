@@ -14,15 +14,22 @@ vi.mock('../../kaspa/wallet', () => ({
     sendDeposit: vi.fn().mockResolvedValue('mock-tx-id')
 }));
 
+vi.mock('../../hooks/useKaspaInit', () => ({
+    useKaspaInit: vi.fn().mockReturnValue({ isReady: true, error: null })
+}));
+
 describe('Full Match Flow Integration', () => {
     it('should handle wallet import and mock deposit', async () => {
-        // 1. App rendern
+        // 1. URL direkt auf die Wallet-Seite setzen für den Test
+        window.history.pushState({}, 'Test', '/wallet/import');
+
+        // 2. App rendern
         render(<App />);
 
-        // 2. Warten bis die App geladen ist (WASM init) und Wallet importieren via Header
+        // 3. Warten bis die Wallet-Seite geladen ist
         let importInput: HTMLElement;
         await waitFor(() => {
-            importInput = screen.getByPlaceholderText('12-Wort Mnemonic');
+            importInput = screen.getByPlaceholderText('Seed-Phrase (Mnemonic) oder Private Key');
             expect(importInput).toBeInTheDocument();
         });
         const importBtn = screen.getByText('Wallet importieren');

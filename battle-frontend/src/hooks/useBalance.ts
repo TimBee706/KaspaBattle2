@@ -4,14 +4,15 @@ import { getBalance } from '../kaspa/wallet';
 
 // Pollt die Balance alle 30 Sekunden als Fallback zum Event-Listener
 export function useBalance() {
-    const { address, setBalance, isConnected } = useWalletStore();
+    const { account, address, setBalance, isConnected } = useWalletStore();
 
     useEffect(() => {
-        if (!address || !isConnected) return;
+        if (!account || !address || !isConnected) return;
 
         const fetchBalance = async () => {
             try {
-                const balance = await getBalance(address);
+                // Fetch using the account directly
+                const balance = await getBalance(account);
                 setBalance(balance);
             } catch {
                 // Silent fail – Event-Listener ist primär
