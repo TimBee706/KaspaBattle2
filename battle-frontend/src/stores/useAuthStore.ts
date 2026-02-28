@@ -8,6 +8,7 @@ interface AuthState {
     tokens: AuthTokens | null;
     isAuthenticated: boolean;
     walletConnected: boolean;
+    testMode: boolean;
 
     setAuth: (user: UserProfile, tokens: AuthTokens) => void;
     setTokens: (tokens: AuthTokens) => void;
@@ -16,6 +17,7 @@ interface AuthState {
     refreshAccessToken: () => Promise<void>;
     updateKasAddress: (address: string) => void;
     setWalletConnected: (connected: boolean) => void;
+    setTestMode: (enabled: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
             tokens: null,
             isAuthenticated: false,
             walletConnected: false,
+            testMode: false,
 
             setAuth: (user, tokens) => set({ user, tokens, isAuthenticated: true }),
             setTokens: (tokens) => set({ tokens }),
@@ -51,6 +54,7 @@ export const useAuthStore = create<AuthState>()(
             },
 
             setWalletConnected: (connected) => set({ walletConnected: connected }),
+            setTestMode: (enabled) => set({ testMode: enabled }),
         }),
         { name: 'kaspabattle-auth' },
     ),
