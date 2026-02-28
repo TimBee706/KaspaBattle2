@@ -1,35 +1,37 @@
 import { create } from 'zustand';
-import type { BattleMatch, LobbyFilters } from '../api/types';
+import type { BattleMatch } from '../api/types';
 
 interface LobbyState {
-    challenges: BattleMatch[];
-    total: number;
+    lobbies: BattleMatch[];
+    history: BattleMatch[];
     isLoading: boolean;
     error: string | null;
-    filters: LobbyFilters;
 
-    setChallenges: (challenges: BattleMatch[], total: number) => void;
+    setLobbies: (lobbies: BattleMatch[]) => void;
+    setHistory: (history: BattleMatch[]) => void;
+    addOrUpdateLobby: (match: BattleMatch) => void;
     setLoading: (isLoading: boolean) => void;
     setError: (error: string | null) => void;
-    setFilters: (filters: Partial<LobbyFilters>) => void;
-    resetFilters: () => void;
 }
 
-const DEFAULT_FILTERS: LobbyFilters = {
-    page: 1,
-    per_page: 20,
-};
-
-export const useLobbyStore = create<LobbyState>((set, get) => ({
-    challenges: [],
-    total: 0,
+export const useLobbyStore = create<LobbyState>((set) => ({
+    lobbies: [],
+    history: [],
     isLoading: false,
     error: null,
-    filters: DEFAULT_FILTERS,
 
-    setChallenges: (challenges, total) => set({ challenges, total, isLoading: false, error: null }),
+    setLobbies: (lobbies) => set({ lobbies, isLoading: false, error: null }),
+    setHistory: (history) => set({ history, isLoading: false, error: null }),
+    addOrUpdateLobby: (match) => set((state) => {
+        const idx = state.lobbies.findIndex(l => l.id === match.id);
+        const next = [...state.lobbies];
+        if (idx >= 0) {
+            next[idx] = match;
+        } else {
+            next.push(match);
+        }
+        return { lobbies: next };
+    }),
     setLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error, isLoading: false }),
-    setFilters: (newFilters) => set({ filters: { ...get().filters, ...newFilters, page: 1 } }),
-    resetFilters: () => set({ filters: DEFAULT_FILTERS }),
 }));

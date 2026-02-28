@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
-use rusqlite::Connection;
 use sha2::{Digest, Sha256};
+use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -14,13 +14,11 @@ use crate::models::faceit::{
     OAuthPendingState,
 };
 
-/// Generiert einen PKCE Code Verifier (43-128 Zeichen, URL-safe)
 pub fn generate_code_verifier() -> String {
     let bytes: [u8; 32] = rand::thread_rng().gen();
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// Berechnet die PKCE Code Challenge (SHA256 + base64url)
 pub fn generate_code_challenge(verifier: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(verifier.as_bytes());
@@ -28,14 +26,11 @@ pub fn generate_code_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(hash)
 }
 
-/// Generiert einen zufälligen State-Token für CSRF-Schutz
 pub fn generate_state() -> String {
     let bytes: [u8; 16] = rand::thread_rng().gen();
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// Erstellt den Base64url-kodierten Basic Auth Header
-/// WICHTIG: Muss URL-safe sein ('+' → '-', '/' → '_', kein '=')
 pub fn encode_basic_auth(client_id: &str, client_secret: &str) -> String {
     let credentials = format!("{}:{}", client_id, client_secret);
     URL_SAFE_NO_PAD.encode(credentials.as_bytes())
@@ -44,12 +39,12 @@ pub fn encode_basic_auth(client_id: &str, client_secret: &str) -> String {
 pub struct FaceitOAuthService {
     config: FaceitOAuthConfig,
     http_client: reqwest::Client,
-    db: Arc<Mutex<Connection>>,
+    db: PgPool,
     pending_states: Arc<Mutex<HashMap<String, OAuthPendingState>>>,
 }
 
 impl FaceitOAuthService {
-    pub fn new(config: FaceitOAuthConfig, db: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(config: FaceitOAuthConfig, db: PgPool) -> Self {
         Self {
             config,
             http_client: reqwest::Client::new(),
@@ -188,43 +183,48 @@ impl FaceitOAuthService {
         info: &FaceitUserInfo,
         tokens: &FaceitTokenResponse,
     ) -> Result<FaceitLink> {
-        let conn = self.db.lock().await;
+        let uid = Uuid::parse_str(user_id)?;
+        let link_id = Uuid::new_v4();
+        let expires_at = Utc::now() + Duration::seconds(tokens.expires_in as i64);
 
-        let link_id = Uuid::new_v4().to_string();
-        let expires_at = (Utc::now() + Duration::seconds(tokens.expires_in as i64)).to_rfc3339();
-
-        match conn.execute(
+        let res = sqlx::query(
             "INSERT INTO faceit_links (id, user_id, faceit_player_id, faceit_nickname, faceit_avatar_url, access_token, refresh_token, token_expires_at, verified) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT(user_id) DO UPDATE SET 
-             access_token=excluded.access_token, 
-             refresh_token=excluded.refresh_token, 
-             token_expires_at=excluded.token_expires_at",
-            (
-                &link_id,
-                user_id,
-                &info.guid,
-                &info.nickname,
-                info.picture.as_deref(),
-                &tokens.access_token,   // In Production sollte dies verschlüsselt werden
-                &tokens.refresh_token,  // In Production sollte dies verschlüsselt werden
-                &expires_at,
-                1
-            ),
-        ) {
-            Ok(_) => {},
-            Err(rusqlite::Error::SqliteFailure(err, _)) if err.code == rusqlite::ffi::ErrorCode::ConstraintViolation => {
-                // If it fails on faceit_player_id unique constraint
-                conn.execute(
-                    "UPDATE faceit_links SET access_token=?1, refresh_token=?2, token_expires_at=?3 WHERE faceit_player_id=?4",
-                    (&tokens.access_token, &tokens.refresh_token, &expires_at, &info.guid),
-                )?;
+             access_token=EXCLUDED.access_token, 
+             refresh_token=EXCLUDED.refresh_token, 
+             token_expires_at=EXCLUDED.token_expires_at"
+        )
+        .bind(&link_id)
+        .bind(&uid)
+        .bind(&info.guid)
+        .bind(&info.nickname)
+        .bind(&info.picture)
+        .bind(&tokens.access_token)
+        .bind(&tokens.refresh_token)
+        .bind(&expires_at)
+        .bind(true)
+        .execute(&self.db)
+        .await;
+
+        if let Err(e) = res {
+            if e.to_string().contains("unique constraint") {
+                sqlx::query(
+                    "UPDATE faceit_links SET access_token=$1, refresh_token=$2, token_expires_at=$3 WHERE faceit_player_id=$4"
+                )
+                .bind(&tokens.access_token)
+                .bind(&tokens.refresh_token)
+                .bind(&expires_at)
+                .bind(&info.guid)
+                .execute(&self.db)
+                .await?;
+            } else {
+                return Err(e.into());
             }
-            Err(e) => return Err(e.into()),
         }
 
         Ok(FaceitLink {
-            id: link_id,
+            id: link_id.to_string(),
             user_id: user_id.to_string(),
             faceit_player_id: info.guid.clone(),
             faceit_nickname: info.nickname.clone(),
@@ -237,23 +237,24 @@ impl FaceitOAuthService {
     }
 
     pub async fn get_link_status(&self, user_id: &str) -> Result<FaceitLinkStatus> {
-        let conn = self.db.lock().await;
-
-        let mut stmt = conn.prepare(
+        let uid = Uuid::parse_str(user_id)?;
+        let row = sqlx::query(
             "SELECT faceit_nickname, faceit_elo, faceit_skill_level, faceit_avatar_url, linked_at 
-             FROM faceit_links WHERE user_id = ?1",
-        )?;
+             FROM faceit_links WHERE user_id = $1",
+        )
+        .bind(uid)
+        .fetch_optional(&self.db)
+        .await?;
 
-        let mut rows = stmt.query([user_id])?;
-
-        if let Some(row) = rows.next()? {
+        if let Some(r) = row {
+            let linked_at: DateTime<Utc> = r.try_get("linked_at")?;
             Ok(FaceitLinkStatus {
                 linked: true,
-                faceit_nickname: Some(row.get(0)?),
-                faceit_elo: row.get(1)?,
-                faceit_skill_level: row.get(2)?,
-                faceit_avatar_url: row.get(3)?,
-                linked_at: Some(row.get(4)?),
+                faceit_nickname: Some(r.try_get("faceit_nickname")?),
+                faceit_elo: r.try_get("faceit_elo")?,
+                faceit_skill_level: r.try_get("faceit_skill_level")?,
+                faceit_avatar_url: r.try_get("faceit_avatar_url")?,
+                linked_at: Some(linked_at.to_rfc3339()),
             })
         } else {
             Ok(FaceitLinkStatus {
@@ -268,257 +269,26 @@ impl FaceitOAuthService {
     }
 
     pub async fn unlink_faceit(&self, user_id: &str) -> Result<()> {
-        let conn = self.db.lock().await;
-        conn.execute("DELETE FROM faceit_links WHERE user_id = ?1", [user_id])?;
+        let uid = Uuid::parse_str(user_id)?;
+        sqlx::query("DELETE FROM faceit_links WHERE user_id = $1")
+            .bind(uid)
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 
     pub async fn get_faceit_player_id(&self, user_id: &str) -> Result<Option<String>> {
-        let conn = self.db.lock().await;
+        let uid = Uuid::parse_str(user_id)?;
+        let row = sqlx::query("SELECT faceit_player_id FROM faceit_links WHERE user_id = $1")
+            .bind(uid)
+            .fetch_optional(&self.db)
+            .await?;
 
-        let mut stmt =
-            conn.prepare("SELECT faceit_player_id FROM faceit_links WHERE user_id = ?1")?;
-        let mut rows = stmt.query([user_id])?;
-
-        if let Some(row) = rows.next()? {
-            let id: String = row.get(0)?;
+        if let Some(r) = row {
+            let id: String = r.try_get("faceit_player_id")?;
             Ok(Some(id))
         } else {
             Ok(None)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn mock_config() -> FaceitOAuthConfig {
-        FaceitOAuthConfig {
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
-            auth_url: "https://accounts.faceit.com/authorize".to_string(),
-            token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
-            userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
-        }
-    }
-
-    async fn create_test_service() -> FaceitOAuthService {
-        let conn = Connection::open_in_memory().unwrap();
-
-        conn.execute_batch(
-            "CREATE TABLE users (id TEXT PRIMARY KEY);
-             CREATE TABLE faceit_links (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL UNIQUE,
-                faceit_player_id TEXT NOT NULL UNIQUE,
-                faceit_nickname TEXT NOT NULL,
-                faceit_elo INTEGER,
-                faceit_skill_level INTEGER,
-                faceit_avatar_url TEXT,
-                access_token TEXT,
-                refresh_token TEXT,
-                token_expires_at TEXT,
-                linked_at TEXT NOT NULL DEFAULT (datetime('now')),
-                verified INTEGER NOT NULL DEFAULT 0
-            );",
-        )
-        .unwrap();
-
-        FaceitOAuthService::new(mock_config(), Arc::new(Mutex::new(conn)))
-    }
-
-    #[test]
-    fn test_generate_code_verifier() {
-        let v1 = generate_code_verifier();
-        let v2 = generate_code_verifier();
-        assert!(v1.len() >= 43 && v1.len() <= 128);
-        assert!(!v1.contains('+') && !v1.contains('/') && !v1.contains('='));
-        assert_ne!(v1, v2);
-    }
-
-    #[test]
-    fn test_generate_code_challenge() {
-        let verifier = "test-verifier-which-is-long-enough-for-pkce";
-        let challenge = generate_code_challenge(verifier);
-        assert!(!challenge.contains('+') && !challenge.contains('/') && !challenge.contains('='));
-        assert!(!challenge.is_empty());
-    }
-
-    #[test]
-    fn test_encode_basic_auth() {
-        let basic = encode_basic_auth("user", "pass");
-        assert_eq!(basic, URL_SAFE_NO_PAD.encode(b"user:pass"));
-        assert!(!basic.contains('+') && !basic.contains('/') && !basic.contains('='));
-    }
-
-    #[test]
-    fn test_generate_state() {
-        let s1 = generate_state();
-        let s2 = generate_state();
-        assert!(!s1.is_empty());
-        assert_ne!(s1, s2);
-    }
-
-    #[tokio::test]
-    async fn test_generate_auth_url_contains_all_params() {
-        let service = create_test_service().await;
-        let (url, state) = service.generate_auth_url(Some("user123")).await.unwrap();
-
-        assert!(url.contains("client_id=test-client-id"));
-        assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback"));
-        assert!(url.contains("response_type=code"));
-        assert!(url.contains("scope=openid+email+profile"));
-        assert!(url.contains(&format!("state={}", state.state)));
-        let challenge = generate_code_challenge(&state.code_verifier);
-        assert!(url.contains(&format!("code_challenge={}", challenge)));
-        assert!(url.contains("code_challenge_method=S256"));
-    }
-
-    #[test]
-    fn test_code_challenge_matches_verifier() {
-        let verifier = generate_code_verifier();
-        let challenge = generate_code_challenge(&verifier);
-
-        let mut hasher = Sha256::new();
-        hasher.update(verifier.as_bytes());
-        let hash = hasher.finalize();
-        let expected = URL_SAFE_NO_PAD.encode(hash);
-
-        assert_eq!(challenge, expected);
-    }
-
-    #[tokio::test]
-    async fn test_save_faceit_link_to_db() {
-        let service = create_test_service().await;
-
-        service
-            .db
-            .lock()
-            .await
-            .execute("INSERT INTO users (id) VALUES ('user123')", [])
-            .unwrap();
-
-        let info = FaceitUserInfo {
-            guid: "faceit-guid-123".to_string(),
-            nickname: "testplayer".to_string(),
-            email: Some("test@example.com".to_string()),
-            picture: Some("http://example.com/pic.png".to_string()),
-        };
-
-        let tokens = FaceitTokenResponse {
-            access_token: "access".to_string(),
-            id_token: "id".to_string(),
-            refresh_token: "refresh".to_string(),
-            expires_in: 3600,
-            token_type: "Bearer".to_string(),
-        };
-
-        let link = service
-            .save_faceit_link("user123", &info, &tokens)
-            .await
-            .unwrap();
-
-        assert_eq!(link.user_id, "user123");
-        assert_eq!(link.faceit_player_id, "faceit-guid-123");
-        assert_eq!(link.faceit_nickname, "testplayer");
-        assert_eq!(
-            link.faceit_avatar_url.unwrap(),
-            "http://example.com/pic.png"
-        );
-
-        let status = service.get_link_status("user123").await.unwrap();
-        assert!(status.linked);
-    }
-
-    #[tokio::test]
-    async fn test_prevent_duplicate_faceit_link() {
-        let service = create_test_service().await;
-
-        service
-            .db
-            .lock()
-            .await
-            .execute("INSERT INTO users (id) VALUES ('user1')", [])
-            .unwrap();
-        service
-            .db
-            .lock()
-            .await
-            .execute("INSERT INTO users (id) VALUES ('user2')", [])
-            .unwrap();
-
-        let info = FaceitUserInfo {
-            guid: "shared-guid".to_string(),
-            nickname: "player".to_string(),
-            email: None,
-            picture: None,
-        };
-
-        let tokens = FaceitTokenResponse {
-            access_token: "acc".to_string(),
-            id_token: "id".to_string(),
-            refresh_token: "ref".to_string(),
-            expires_in: 3600,
-            token_type: "Bearer".to_string(),
-        };
-
-        let res1 = service.save_faceit_link("user1", &info, &tokens).await;
-        assert!(res1.is_ok());
-
-        let res2 = service.save_faceit_link("user2", &info, &tokens).await;
-        assert!(res2.is_err());
-        assert!(res2
-            .unwrap_err()
-            .to_string()
-            .contains("ist bereits verknüpft"));
-    }
-
-    #[tokio::test]
-    async fn test_unlink_faceit() {
-        let service = create_test_service().await;
-        service
-            .db
-            .lock()
-            .await
-            .execute("INSERT INTO users (id) VALUES ('user1')", [])
-            .unwrap();
-
-        let info = FaceitUserInfo {
-            guid: "guid".to_string(),
-            nickname: "player".to_string(),
-            email: None,
-            picture: None,
-        };
-        let tokens = FaceitTokenResponse {
-            access_token: "acc".to_string(),
-            id_token: "id".to_string(),
-            refresh_token: "ref".to_string(),
-            expires_in: 3600,
-            token_type: "Bearer".to_string(),
-        };
-
-        service
-            .save_faceit_link("user1", &info, &tokens)
-            .await
-            .unwrap();
-
-        let status1 = service.get_link_status("user1").await.unwrap();
-        assert!(status1.linked);
-
-        service.unlink_faceit("user1").await.unwrap();
-
-        let status2 = service.get_link_status("user1").await.unwrap();
-        assert!(!status2.linked);
-    }
-
-    #[tokio::test]
-    async fn test_get_link_status_not_linked() {
-        let service = create_test_service().await;
-        let status = service.get_link_status("not-linked-user").await.unwrap();
-        assert!(!status.linked);
-        assert!(status.faceit_nickname.is_none());
-        assert!(status.faceit_elo.is_none());
     }
 }

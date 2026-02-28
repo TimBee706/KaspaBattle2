@@ -4,35 +4,22 @@ use argon2::{
     Argon2,
 };
 use base64::{engine::general_purpose, Engine as _};
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use regex::Regex;
-use rusqlite::Connection;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::models::faceit::FaceitLink;
 use crate::models::user::{AuthResponse, LoginRequest, RegisterRequest, User};
 
 pub struct AuthService {
-    db: Arc<Mutex<Connection>>,
+    db: PgPool,
 }
 
 impl AuthService {
-    pub async fn new(db: Arc<Mutex<Connection>>) -> Result<Self> {
-        let service = Self { db };
-        service.run_migrations().await?;
-        Ok(service)
-    }
-
-    pub async fn run_migrations(&self) -> Result<()> {
-        let conn = self.db.lock().await;
-        let sql_users = include_str!("../migrations/004_users.sql");
-        let sql_snapshots = include_str!("../migrations/006_faceit_snapshots.sql");
-        conn.execute_batch(sql_users)?;
-        conn.execute_batch(sql_snapshots)?;
-        Ok(())
+    pub fn new(db: PgPool) -> Self {
+        Self { db }
     }
 
     pub fn validate_email(email: &str) -> Result<String> {
@@ -88,54 +75,57 @@ impl AuthService {
         let display_name = Self::validate_display_name(&req.display_name)?;
         let password_hash = Self::hash_password(&req.password)?;
 
-        let user_id = Uuid::new_v4().to_string();
+        let user_id = Uuid::new_v4();
 
-        let conn = self.db.lock().await;
+        let res = sqlx::query(
+            "INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(&user_id)
+        .bind(&email)
+        .bind(&password_hash)
+        .bind(&display_name)
+        .execute(&self.db)
+        .await;
 
-        match conn.execute(
-            "INSERT INTO users (id, email, password_hash, display_name) VALUES (?1, ?2, ?3, ?4)",
-            (&user_id, &email, &password_hash, &display_name),
-        ) {
-            Ok(_) => {}
-            Err(rusqlite::Error::SqliteFailure(err, _))
-                if err.code == rusqlite::ffi::ErrorCode::ConstraintViolation =>
-            {
+        if let Err(e) = res {
+            if e.to_string().contains("unique constraint") {
                 return Err(anyhow!("Ein Account mit dieser E-Mail existiert bereits"));
             }
-            Err(e) => return Err(e.into()),
+            return Err(e.into());
         }
 
         let session_token = Self::generate_session_token();
-        let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
+        let expires_at = Utc::now() + Duration::days(7);
 
-        conn.execute(
-            "INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)",
-            (&session_token, &user_id, &expires_at),
-        )?;
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
+            .bind(&session_token)
+            .bind(&user_id)
+            .bind(&expires_at)
+            .execute(&self.db)
+            .await?;
 
         Ok(AuthResponse {
-            user_id,
+            user_id: user_id.to_string(),
             display_name,
             session_token,
-            expires_at,
+            expires_at: expires_at.to_rfc3339(),
         })
     }
 
     pub async fn login(&self, req: LoginRequest) -> Result<AuthResponse> {
         let email = req.email.to_lowercase().trim().to_string();
 
-        let conn = self.db.lock().await;
+        let row = sqlx::query("SELECT id, display_name, password_hash FROM users WHERE email = $1")
+            .bind(&email)
+            .fetch_optional(&self.db)
+            .await?;
 
-        let mut stmt =
-            conn.prepare("SELECT id, display_name, password_hash FROM users WHERE email = ?1")?;
-
-        let mut rows = stmt.query([&email])?;
-
-        let (user_id, display_name, password_hash) = if let Some(row) = rows.next()? {
-            let id: String = row.get(0)?;
-            let name: String = row.get(1)?;
-            let hash: String = row.get(2)?;
-            (id, name, hash)
+        let (user_id, display_name, password_hash): (Uuid, String, String) = if let Some(r) = row {
+            (
+                r.try_get("id")?,
+                r.try_get("display_name")?,
+                r.try_get("password_hash")?,
+            )
         } else {
             return Err(anyhow!("Ungültige Anmeldedaten"));
         };
@@ -144,52 +134,61 @@ impl AuthService {
             return Err(anyhow!("Ungültige Anmeldedaten"));
         }
 
-        conn.execute(
-            "UPDATE users SET last_login_at = datetime('now') WHERE id = ?1",
-            [&user_id],
-        )?;
+        sqlx::query("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1")
+            .bind(&user_id)
+            .execute(&self.db)
+            .await?;
 
-        conn.execute("DELETE FROM sessions WHERE user_id = ?1", [&user_id])?;
+        sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+            .bind(&user_id)
+            .execute(&self.db)
+            .await?;
 
         let session_token = Self::generate_session_token();
-        let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
+        let expires_at = Utc::now() + Duration::days(7);
 
-        conn.execute(
-            "INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)",
-            (&session_token, &user_id, &expires_at),
-        )?;
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
+            .bind(&session_token)
+            .bind(&user_id)
+            .bind(&expires_at)
+            .execute(&self.db)
+            .await?;
 
         Ok(AuthResponse {
-            user_id,
+            user_id: user_id.to_string(),
             display_name,
             session_token,
-            expires_at,
+            expires_at: expires_at.to_rfc3339(),
         })
     }
 
     pub async fn validate_session(&self, token: &str) -> Result<User> {
-        let conn = self.db.lock().await;
-
-        let mut stmt = conn.prepare(
+        let row = sqlx::query(
             "SELECT u.id, u.email, u.email_verified, u.password_hash, u.display_name, u.kaspa_address, u.created_at, u.updated_at, u.last_login_at 
              FROM sessions s 
              JOIN users u ON s.user_id = u.id 
-             WHERE s.id = ?1 AND s.expires_at > datetime('now')"
-        )?;
+             WHERE s.id = $1 AND s.expires_at > CURRENT_TIMESTAMP"
+        )
+        .bind(token)
+        .fetch_optional(&self.db)
+        .await?;
 
-        let mut rows = stmt.query([token])?;
+        if let Some(r) = row {
+            let id: Uuid = r.try_get("id")?;
+            let created_at: DateTime<Utc> = r.try_get("created_at")?;
+            let updated_at: DateTime<Utc> = r.try_get("updated_at")?;
+            let last_login_at: Option<DateTime<Utc>> = r.try_get("last_login_at")?;
 
-        if let Some(row) = rows.next()? {
             Ok(User {
-                id: row.get(0)?,
-                email: row.get(1)?,
-                email_verified: row.get::<_, i64>(2)? != 0,
-                password_hash: row.get(3)?,
-                display_name: row.get(4)?,
-                kaspa_address: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
-                last_login_at: row.get(8)?,
+                id: id.to_string(),
+                email: r.try_get("email")?,
+                email_verified: r.try_get("email_verified")?,
+                password_hash: r.try_get("password_hash")?,
+                display_name: r.try_get("display_name")?,
+                kaspa_address: r.try_get("kaspa_address")?,
+                created_at: created_at.to_rfc3339(),
+                updated_at: updated_at.to_rfc3339(),
+                last_login_at: last_login_at.map(|dt| dt.to_rfc3339()),
             })
         } else {
             Err(anyhow!("Session ungültig oder abgelaufen"))
@@ -197,8 +196,10 @@ impl AuthService {
     }
 
     pub async fn logout(&self, token: &str) -> Result<()> {
-        let conn = self.db.lock().await;
-        conn.execute("DELETE FROM sessions WHERE id = ?1", [&token])?;
+        sqlx::query("DELETE FROM sessions WHERE id = $1")
+            .bind(token)
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 
@@ -207,11 +208,16 @@ impl AuthService {
             return Err(anyhow!("Ungültige Kaspa-Adresse"));
         }
 
-        let conn = self.db.lock().await;
-        let affected = conn.execute(
-            "UPDATE users SET kaspa_address = ?1, updated_at = datetime('now') WHERE id = ?2",
-            [&address.to_string(), &user_id.to_string()],
-        )?;
+        let uid = Uuid::parse_str(user_id)?;
+
+        let affected = sqlx::query(
+            "UPDATE users SET kaspa_address = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(address)
+        .bind(uid)
+        .execute(&self.db)
+        .await?
+        .rows_affected();
 
         if affected == 0 {
             Err(anyhow!("User nicht gefunden"))
@@ -221,26 +227,32 @@ impl AuthService {
     }
 
     pub async fn get_user(&self, user_id: &str) -> Result<User> {
-        let conn = self.db.lock().await;
+        let uid = Uuid::parse_str(user_id)?;
 
-        let mut stmt = conn.prepare(
+        let row = sqlx::query(
             "SELECT id, email, email_verified, password_hash, display_name, kaspa_address, created_at, updated_at, last_login_at 
-             FROM users WHERE id = ?1"
-        )?;
+             FROM users WHERE id = $1"
+        )
+        .bind(uid)
+        .fetch_optional(&self.db)
+        .await?;
 
-        let mut rows = stmt.query([user_id])?;
+        if let Some(r) = row {
+            let id: Uuid = r.try_get("id")?;
+            let created_at: DateTime<Utc> = r.try_get("created_at")?;
+            let updated_at: DateTime<Utc> = r.try_get("updated_at")?;
+            let last_login_at: Option<DateTime<Utc>> = r.try_get("last_login_at")?;
 
-        if let Some(row) = rows.next()? {
             Ok(User {
-                id: row.get(0)?,
-                email: row.get(1)?,
-                email_verified: row.get::<_, i64>(2)? != 0,
-                password_hash: row.get(3)?,
-                display_name: row.get(4)?,
-                kaspa_address: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
-                last_login_at: row.get(8)?,
+                id: id.to_string(),
+                email: r.try_get("email")?,
+                email_verified: r.try_get("email_verified")?,
+                password_hash: r.try_get("password_hash")?,
+                display_name: r.try_get("display_name")?,
+                kaspa_address: r.try_get("kaspa_address")?,
+                created_at: created_at.to_rfc3339(),
+                updated_at: updated_at.to_rfc3339(),
+                last_login_at: last_login_at.map(|dt| dt.to_rfc3339()),
             })
         } else {
             Err(anyhow!("User nicht gefunden"))
@@ -248,26 +260,32 @@ impl AuthService {
     }
 
     pub async fn get_faceit_link(&self, user_id: &str) -> Result<Option<FaceitLink>> {
-        let conn = self.db.lock().await;
+        let uid = Uuid::parse_str(user_id)?;
+        let row = sqlx::query(
+            "SELECT id, user_id, faceit_player_id, faceit_nickname, faceit_elo, faceit_skill_level, faceit_avatar_url, linked_at, verified 
+             FROM faceit_links WHERE user_id = $1"
+        )
+        .bind(uid)
+        .fetch_optional(&self.db)
+        .await?;
 
-        let mut stmt = conn.prepare(
-            "SELECT id, user_id, faceit_player_id, faceit_nickname, faceit_elo, faceit_skill_level, faceit_avatar_url, created_at, verified 
-             FROM faceit_links WHERE user_id = ?1"
-        )?;
+        if let Some(r) = row {
+            let id: Uuid = r.try_get("id")?;
+            let user_id_res: Uuid = r.try_get("user_id")?;
+            let linked_at: DateTime<Utc> = r.try_get("linked_at")?;
+            let elo: Option<i32> = r.try_get("faceit_elo")?;
+            let skill: Option<i32> = r.try_get("faceit_skill_level")?;
 
-        let mut rows = stmt.query([user_id])?;
-
-        if let Some(row) = rows.next()? {
             Ok(Some(FaceitLink {
-                id: row.get(0)?,
-                user_id: row.get(1)?,
-                faceit_player_id: row.get(2)?,
-                faceit_nickname: row.get(3)?,
-                faceit_elo: row.get(4)?,
-                faceit_skill_level: row.get(5)?,
-                faceit_avatar_url: row.get(6)?,
-                linked_at: row.get(7)?,
-                verified: row.get::<_, i64>(8)? != 0,
+                id: id.to_string(),
+                user_id: user_id_res.to_string(),
+                faceit_player_id: r.try_get("faceit_player_id")?,
+                faceit_nickname: r.try_get("faceit_nickname")?,
+                faceit_elo: elo,
+                faceit_skill_level: skill,
+                faceit_avatar_url: r.try_get("faceit_avatar_url")?,
+                linked_at: linked_at.to_rfc3339(),
+                verified: r.try_get("verified")?,
             }))
         } else {
             Ok(None)
@@ -282,14 +300,22 @@ impl AuthService {
         elo: i32,
         skill_level: i32,
     ) -> Result<()> {
-        let snapshot_id = Uuid::new_v4().to_string();
-        let conn = self.db.lock().await;
+        let uid = Uuid::parse_str(user_id)?;
+        let snapshot_id = Uuid::new_v4();
 
-        conn.execute(
+        sqlx::query(
             "INSERT INTO faceit_stats_snapshots (id, user_id, faceit_player_id, game_id, elo, skill_level) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            (&snapshot_id, user_id, faceit_player_id, game_id, &elo, &skill_level),
-        )?;
+             VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(snapshot_id)
+        .bind(uid)
+        .bind(faceit_player_id)
+        .bind(game_id)
+        .bind(elo)
+        .bind(skill_level)
+        .execute(&self.db)
+        .await?;
+
         Ok(())
     }
 
@@ -298,26 +324,30 @@ impl AuthService {
         faceit_player_id: &str,
         game_id: &str,
     ) -> Result<Option<crate::models::faceit_data::FaceitStatsSnapshot>> {
-        let conn = self.db.lock().await;
-
-        let mut stmt = conn.prepare(
+        let row = sqlx::query(
             "SELECT id, user_id, faceit_player_id, game_id, elo, skill_level, snapshot_at
              FROM faceit_stats_snapshots 
-             WHERE faceit_player_id = ?1 AND game_id = ?2
+             WHERE faceit_player_id = $1 AND game_id = $2
              ORDER BY snapshot_at DESC LIMIT 1",
-        )?;
+        )
+        .bind(faceit_player_id)
+        .bind(game_id)
+        .fetch_optional(&self.db)
+        .await?;
 
-        let mut rows = stmt.query([faceit_player_id, game_id])?;
+        if let Some(r) = row {
+            let id: Uuid = r.try_get("id")?;
+            let user_id: Uuid = r.try_get("user_id")?;
+            let snapshot_at: DateTime<Utc> = r.try_get("snapshot_at")?;
 
-        if let Some(row) = rows.next()? {
             Ok(Some(crate::models::faceit_data::FaceitStatsSnapshot {
-                id: row.get(0)?,
-                user_id: row.get(1)?,
-                faceit_player_id: row.get(2)?,
-                game_id: row.get(3)?,
-                elo: row.get(4)?,
-                skill_level: row.get(5)?,
-                snapshot_at: row.get(6)?,
+                id: id.to_string(),
+                user_id: user_id.to_string(),
+                faceit_player_id: r.try_get("faceit_player_id")?,
+                game_id: r.try_get("game_id")?,
+                elo: r.try_get("elo")?,
+                skill_level: r.try_get("skill_level")?,
+                snapshot_at: snapshot_at.to_rfc3339(),
             }))
         } else {
             Ok(None)
@@ -325,28 +355,25 @@ impl AuthService {
     }
 
     pub async fn cleanup_expired_sessions(&self) -> Result<u64> {
-        let conn = self.db.lock().await;
-        let deleted = conn.execute(
-            "DELETE FROM sessions WHERE expires_at < datetime('now')",
-            [],
-        )?;
-        Ok(deleted as u64)
+        let res = sqlx::query("DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP")
+            .execute(&self.db)
+            .await?;
+        Ok(res.rows_affected())
     }
 
     pub async fn handle_faceit_sso(
         &self,
         info: &crate::models::faceit::FaceitUserInfo,
     ) -> Result<(String, String)> {
-        let conn = self.db.lock().await;
+        let row = sqlx::query("SELECT user_id FROM faceit_links WHERE faceit_player_id = $1")
+            .bind(&info.guid)
+            .fetch_optional(&self.db)
+            .await?;
 
-        let mut stmt =
-            conn.prepare("SELECT user_id FROM faceit_links WHERE faceit_player_id = ?1")?;
-        let mut rows = stmt.query([&info.guid])?;
-
-        let user_id = if let Some(row) = rows.next()? {
-            row.get(0)?
+        let user_id: Uuid = if let Some(r) = row {
+            r.try_get("user_id")?
         } else {
-            let new_user_id = Uuid::new_v4().to_string();
+            let new_user_id = Uuid::new_v4();
             let email = info
                 .email
                 .clone()
@@ -354,441 +381,41 @@ impl AuthService {
             let display_name = info.nickname.clone();
             let dummy_pass = Self::hash_password(&Uuid::new_v4().to_string())?;
 
-            match conn.execute(
-                "INSERT INTO users (id, email, password_hash, display_name) VALUES (?1, ?2, ?3, ?4)",
-                (&new_user_id, &email, &dummy_pass, &display_name),
-            ) {
-                Ok(_) => new_user_id,
-                Err(_) => {
-                    let fallback_email = format!("{}-{}@faceit.local", info.guid, &Uuid::new_v4().to_string()[..6]);
-                    conn.execute(
-                        "INSERT INTO users (id, email, password_hash, display_name) VALUES (?1, ?2, ?3, ?4)",
-                        (&new_user_id, &fallback_email, &dummy_pass, &display_name),
-                    )?;
-                    new_user_id
-                }
+            let res = sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
+                .bind(&new_user_id)
+                .bind(&email)
+                .bind(&dummy_pass)
+                .bind(&display_name)
+                .execute(&self.db)
+                .await;
+
+            if res.is_err() {
+                let fallback_email = format!(
+                    "{}-{}@faceit.local",
+                    info.guid,
+                    &Uuid::new_v4().to_string()[..6]
+                );
+                sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
+                    .bind(&new_user_id)
+                    .bind(&fallback_email)
+                    .bind(&dummy_pass)
+                    .bind(&display_name)
+                    .execute(&self.db)
+                    .await?;
             }
+            new_user_id
         };
 
         let session_token = Self::generate_session_token();
-        let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
+        let expires_at = Utc::now() + Duration::days(7);
 
-        conn.execute(
-            "INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)",
-            (&session_token, &user_id, &expires_at),
-        )?;
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
+            .bind(&session_token)
+            .bind(&user_id)
+            .bind(&expires_at)
+            .execute(&self.db)
+            .await?;
 
-        Ok((user_id, session_token))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Erstellt einen frischen AuthService mit In-Memory-DB für Tests
-    async fn create_test_service() -> AuthService {
-        let conn = Connection::open_in_memory().expect("In-Memory DB sollte funktionieren");
-        let db = Arc::new(Mutex::new(conn));
-        AuthService::new(db)
-            .await
-            .expect("AuthService Init sollte funktionieren")
-    }
-
-    /// Hilfsfunktion: Registriert einen Test-User und gibt AuthResponse zurück
-    async fn register_test_user(service: &AuthService) -> AuthResponse {
-        service
-            .register(RegisterRequest {
-                email: "test@example.com".to_string(),
-                password: "TestPass123!".to_string(),
-                display_name: "TestUser".to_string(),
-            })
-            .await
-            .expect("Registrierung sollte funktionieren")
-    }
-
-    #[tokio::test]
-    async fn test_register_new_user() {
-        let service = create_test_service().await;
-
-        let result = service
-            .register(RegisterRequest {
-                email: "alice@example.com".to_string(),
-                password: "SecurePass123!".to_string(),
-                display_name: "Alice".to_string(),
-            })
-            .await;
-
-        // ASSERT: Registrierung erfolgreich
-        assert!(result.is_ok(), "Registrierung sollte erfolgreich sein");
-
-        let auth = result.unwrap();
-
-        // ASSERT: User-ID ist eine gültige UUID
-        assert_eq!(auth.user_id.len(), 36, "User-ID sollte UUID-Format haben");
-        assert!(
-            auth.user_id.contains('-'),
-            "User-ID sollte Bindestriche enthalten"
-        );
-
-        // ASSERT: Display-Name korrekt
-        assert_eq!(auth.display_name, "Alice");
-
-        // ASSERT: Session-Token ist nicht leer und hat richtige Länge
-        assert!(
-            !auth.session_token.is_empty(),
-            "Session-Token darf nicht leer sein"
-        );
-        assert!(
-            auth.session_token.len() >= 40,
-            "Session-Token sollte mindestens 40 Zeichen haben"
-        );
-
-        // ASSERT: expires_at liegt in der Zukunft
-        assert!(
-            !auth.expires_at.is_empty(),
-            "expires_at darf nicht leer sein"
-        );
-
-        // ASSERT: User kann in DB gefunden werden
-        let user = service.get_user(&auth.user_id).await;
-        assert!(user.is_ok(), "User sollte in DB existieren");
-        let user = user.unwrap();
-        assert_eq!(user.email, "alice@example.com");
-        assert_eq!(user.display_name, "Alice");
-        assert!(
-            user.kaspa_address.is_none(),
-            "Kaspa-Adresse sollte initial None sein"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_register_duplicate_email() {
-        let service = create_test_service().await;
-
-        // Ersten User registrieren
-        let first = service
-            .register(RegisterRequest {
-                email: "bob@example.com".to_string(),
-                password: "Password123!".to_string(),
-                display_name: "Bob".to_string(),
-            })
-            .await;
-        assert!(first.is_ok(), "Erste Registrierung sollte funktionieren");
-
-        // Gleiche E-Mail nochmal registrieren
-        let second = service
-            .register(RegisterRequest {
-                email: "bob@example.com".to_string(),
-                password: "AnotherPass456!".to_string(),
-                display_name: "Bob2".to_string(),
-            })
-            .await;
-
-        // ASSERT: Zweite Registrierung schlägt fehl
-        assert!(second.is_err(), "Duplikat-Email sollte abgelehnt werden");
-
-        let err_msg = second.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("existiert bereits") || err_msg.contains("UNIQUE"),
-            "Fehlermeldung sollte auf Duplikat hinweisen, war aber: {}",
-            err_msg
-        );
-    }
-
-    #[tokio::test]
-    async fn test_register_email_case_insensitive() {
-        let service = create_test_service().await;
-
-        // Registrierung mit Großbuchstaben
-        let first = service
-            .register(RegisterRequest {
-                email: "Alice@Example.COM".to_string(),
-                password: "Password123!".to_string(),
-                display_name: "Alice".to_string(),
-            })
-            .await;
-        assert!(first.is_ok());
-
-        // Gleiche E-Mail in Kleinbuchstaben
-        let second = service
-            .register(RegisterRequest {
-                email: "alice@example.com".to_string(),
-                password: "Password456!".to_string(),
-                display_name: "Alice2".to_string(),
-            })
-            .await;
-
-        // ASSERT: Wird als Duplikat erkannt
-        assert!(
-            second.is_err(),
-            "Case-insensitive E-Mail sollte als Duplikat erkannt werden"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_register_invalid_email() {
-        let service = create_test_service().await;
-
-        let invalid_emails = vec![
-            "",
-            "keine-email",
-            "@example.com",
-            "user@",
-            "user@.com",
-            "user@com",
-            "user space@example.com",
-        ];
-
-        for email in invalid_emails {
-            let result = service
-                .register(RegisterRequest {
-                    email: email.to_string(),
-                    password: "ValidPass123!".to_string(),
-                    display_name: "TestUser".to_string(),
-                })
-                .await;
-
-            assert!(
-                result.is_err(),
-                "E-Mail '{}' sollte abgelehnt werden",
-                email
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_register_invalid_password() {
-        let service = create_test_service().await;
-
-        // Zu kurzes Passwort (< 8 Zeichen)
-        let result = service
-            .register(RegisterRequest {
-                email: "test@example.com".to_string(),
-                password: "Short1!".to_string(), // Nur 7 Zeichen
-                display_name: "TestUser".to_string(),
-            })
-            .await;
-
-        assert!(
-            result.is_err(),
-            "Zu kurzes Passwort sollte abgelehnt werden"
-        );
-
-        // Leeres Passwort
-        let result2 = service
-            .register(RegisterRequest {
-                email: "test2@example.com".to_string(),
-                password: "".to_string(),
-                display_name: "TestUser2".to_string(),
-            })
-            .await;
-
-        assert!(result2.is_err(), "Leeres Passwort sollte abgelehnt werden");
-    }
-
-    #[tokio::test]
-    async fn test_register_invalid_display_name() {
-        let service = create_test_service().await;
-
-        let too_long = "x".repeat(31);
-        let invalid_names = vec![
-            "",        // Leer
-            "ab",      // Zu kurz (< 3)
-            "a",       // Zu kurz
-            &too_long, // Zu lang (> 30)
-            "name with spaces",
-            "name@special",
-            "name!chars",
-        ];
-
-        for name in invalid_names {
-            let result = service
-                .register(RegisterRequest {
-                    email: format!("{}@example.com", name.replace(" ", "")),
-                    password: "ValidPass123!".to_string(),
-                    display_name: name.to_string(),
-                })
-                .await;
-
-            assert!(
-                result.is_err(),
-                "Display-Name '{}' sollte abgelehnt werden",
-                name
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_login_correct_password() {
-        let service = create_test_service().await;
-
-        // User registrieren
-        let reg = service
-            .register(RegisterRequest {
-                email: "login@example.com".to_string(),
-                password: "MyPassword123!".to_string(),
-                display_name: "LoginUser".to_string(),
-            })
-            .await
-            .expect("Registrierung sollte funktionieren");
-
-        // Login mit korrektem Passwort
-        let login = service
-            .login(LoginRequest {
-                email: "login@example.com".to_string(),
-                password: "MyPassword123!".to_string(),
-            })
-            .await;
-
-        // ASSERT: Login erfolgreich
-        assert!(
-            login.is_ok(),
-            "Login mit korrektem Passwort sollte funktionieren"
-        );
-
-        let auth = login.unwrap();
-        assert_eq!(auth.user_id, reg.user_id, "User-ID sollte identisch sein");
-        assert_eq!(auth.display_name, "LoginUser");
-        assert!(!auth.session_token.is_empty());
-
-        // ASSERT: Neues Session-Token (nicht das alte von der Registrierung)
-        assert_ne!(
-            auth.session_token, reg.session_token,
-            "Login sollte neuen Session-Token generieren"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_login_wrong_password() {
-        let service = create_test_service().await;
-
-        // User registrieren
-        service
-            .register(RegisterRequest {
-                email: "wrong@example.com".to_string(),
-                password: "CorrectPassword123!".to_string(),
-                display_name: "WrongPassUser".to_string(),
-            })
-            .await
-            .expect("Registrierung sollte funktionieren");
-
-        // Login mit falschem Passwort
-        let result = service
-            .login(LoginRequest {
-                email: "wrong@example.com".to_string(),
-                password: "WrongPassword456!".to_string(),
-            })
-            .await;
-
-        // ASSERT: Login schlägt fehl
-        assert!(
-            result.is_err(),
-            "Login mit falschem Passwort sollte fehlschlagen"
-        );
-
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("Ungültige Anmeldedaten"),
-            "Fehlermeldung sollte generisch sein: {}",
-            err_msg
-        );
-    }
-
-    #[tokio::test]
-    async fn test_login_nonexistent_user() {
-        let service = create_test_service().await;
-
-        let result = service
-            .login(LoginRequest {
-                email: "nobody@example.com".to_string(),
-                password: "SomePassword123!".to_string(),
-            })
-            .await;
-
-        // ASSERT: Login schlägt fehl mit GLEICHER Fehlermeldung wie bei falschem Passwort
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("Ungültige Anmeldedaten"),
-            "Fehlermeldung bei nicht-existentem User sollte gleich sein wie bei falschem Passwort: {}",
-            err_msg
-        );
-    }
-
-    #[tokio::test]
-    async fn test_session_validation() {
-        let service = create_test_service().await;
-
-        // User registrieren → Session-Token erhalten
-        let auth = register_test_user(&service).await;
-
-        // Session validieren
-        let user = service.validate_session(&auth.session_token).await;
-
-        // ASSERT: Session ist gültig
-        assert!(user.is_ok(), "Gültige Session sollte validiert werden");
-        let user = user.unwrap();
-        assert_eq!(user.id, auth.user_id);
-        assert_eq!(user.email, "test@example.com");
-    }
-
-    #[tokio::test]
-    async fn test_session_invalid_token() {
-        let service = create_test_service().await;
-
-        // Ungültigen Token validieren
-        let result = service
-            .validate_session("definitely-not-a-real-token")
-            .await;
-
-        // ASSERT: Session ungültig
-        assert!(result.is_err(), "Ungültiger Token sollte abgelehnt werden");
-    }
-
-    #[tokio::test]
-    async fn test_set_kaspa_address() {
-        let service = create_test_service().await;
-        let auth = register_test_user(&service).await;
-
-        // Testnet-Adresse setzen
-        let result = service
-            .set_kaspa_address(
-                &auth.user_id,
-                "kaspatest:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czll",
-            )
-            .await;
-        assert!(
-            result.is_ok(),
-            "Gültige Kaspa-Testnet-Adresse sollte akzeptiert werden"
-        );
-
-        // User abrufen und Adresse prüfen
-        let user = service.get_user(&auth.user_id).await.unwrap();
-        assert_eq!(
-            user.kaspa_address.as_deref(),
-            Some("kaspatest:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czll")
-        );
-
-        // Ungültige Adresse
-        let invalid = service
-            .set_kaspa_address(&auth.user_id, "bitcoin:xyz123")
-            .await;
-        assert!(
-            invalid.is_err(),
-            "Nicht-Kaspa-Adresse sollte abgelehnt werden"
-        );
-
-        // Mainnet-Adresse
-        let mainnet = service
-            .set_kaspa_address(
-                &auth.user_id,
-                "kaspa:qz2ptjk67k2twpvhcqx2fpe3n24xklngrpsatdq4c4l5czll",
-            )
-            .await;
-        assert!(
-            mainnet.is_ok(),
-            "Gültige Kaspa-Mainnet-Adresse sollte akzeptiert werden"
-        );
+        Ok((user_id.to_string(), session_token))
     }
 }

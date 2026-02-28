@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kaspabattle
+  backend:
+    build: 
+      context: ./kaspabattle
+      dockerfile: Dockerfile
+    ports: ["8080:8080"]
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
+    depends_on: [postgres]
+  frontend:
+    build: 
+      context: ./battle-frontend
+      dockerfile: Dockerfile
+    ports: ["3000:3000"]
