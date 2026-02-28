@@ -16,7 +16,8 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
 
     if (!isOpen) return null;
 
-    const hasEnoughBalance = balanceSompi >= amountSompi;
+    console.log('[DepositModal] amountSompi:', amountSompi, 'balanceSompi:', balanceSompi);
+    const hasEnoughBalance = (balanceSompi || 0) >= (amountSompi || 0);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

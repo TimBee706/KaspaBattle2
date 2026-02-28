@@ -3,6 +3,8 @@ export type MatchStatus = 'OPEN' | 'FUNDED' | 'LOCKED' | 'RESOLVED' | 'PAID_OUT'
 
 export interface BattleMatch {
     id: string;                            // UUID
+    creator_user_id?: string;              // UUID
+    opponent_user_id?: string | null;      // UUID
     player_a_kas_address: string;
     player_b_kas_address: string | null;
     player_a_faceit_id: string;
@@ -11,10 +13,12 @@ export interface BattleMatch {
     player_b_faceit_nickname: string | null;
     faceit_match_id: string | null;
     wager_amount_sompi: number;
+    stake_kas?: number;                   // Backend property fallback
     escrow_address: string;
     status: MatchStatus;
     game_id: string;                       // 'cs2' | 'dota2' | 'valorant'
     match_mode: string;                    // 'bo1' | 'bo3'
+    mode?: string;                         // Backend property fallback
     winner_kas_address: string | null;
     winner_faceit_nickname: string | null;
     payout_tx_hash: string | null;
@@ -67,8 +71,9 @@ export interface UserProfile {
     id: string;
     faceit_id: string;
     faceit_nickname: string;
+    display_name?: string;               // Backend property / TestUser
     faceit_avatar: string;
-    kas_address: string;
+    kaspa_address: string;
     total_matches: number;
     wins: number;
     losses: number;

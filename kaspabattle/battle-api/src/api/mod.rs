@@ -1,3 +1,6 @@
+pub mod auth_guard;
+pub mod faceit;
+
 use crate::models::{Match, MatchMode};
 use axum::{
     extract::{
@@ -22,10 +25,16 @@ pub struct CreateReq {
     pub mode: MatchMode,
 }
 
+use battle_core::auth::AuthService;
+use battle_core::faceit_oauth::FaceitOAuthService;
+use std::sync::Arc;
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub tx: broadcast::Sender<String>,
+    pub auth_service: Arc<AuthService>,
+    pub faceit_service: Arc<FaceitOAuthService>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -34,30 +43,71 @@ pub fn router() -> Router<AppState> {
         .route("/history", get(get_history))
         .route("/challenges", post(create_challenge))
         .route("/challenges/:id/join", post(join_challenge))
+        .route("/auth/me", get(get_me))
+        .nest("/faceit", faceit::router())
+}
+
+pub async fn get_me(
+    State(_state): State<AppState>,
+    user_opt: Option<crate::api::auth_guard::SessionUser>,
+) -> Result<Json<battle_core::models::user::User>, StatusCode> {
+    if std::env::var("TEST_MODE").unwrap_or_default() == "true" {
+        return Ok(Json(battle_core::models::user::User {
+            id: "00000000-0000-0000-0000-000000000001".to_string(),
+            email: "test@example.com".to_string(),
+            email_verified: true,
+            password_hash: "".to_string(),
+            display_name: "TestUser".to_string(),
+            kaspa_address: Some(
+                "kaspatest:qzh86re35m2re7k7sxc6uqlp40st4vvmefsc0sv0uev49v3axm7jwcst6p7xs"
+                    .to_string(),
+            ),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+            last_login_at: None,
+        }));
+    }
+
+    match user_opt {
+        Some(crate::api::auth_guard::SessionUser(user)) => Ok(Json(user)),
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
 }
 
 pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
     let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status IN ('OPEN', 'LOCKED', 'AWAITING_FUNDING')")
-        .fetch_all(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .fetch_all(&state.pool).await.map_err(|e| {
+            eprintln!("SQL Error in get_lobbies: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     Ok(Json(rows))
 }
 
 pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
     let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status = 'RESOLVED'")
-        .fetch_all(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .fetch_all(&state.pool).await.map_err(|e| {
+            eprintln!("SQL Error in get_history: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     Ok(Json(rows))
 }
 
 pub async fn create_challenge(
     State(state): State<AppState>,
+    crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<CreateReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    let mock_user_id = Uuid::nil();
+    // 1. Reale ID aus der verifizierten Session extrahieren
+    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     let record = sqlx::query_as::<_, Match>(
         "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
     )
-    .bind(mock_user_id).bind(&payload.game_id).bind(payload.stake_kas).bind(payload.mode)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .bind(user_id).bind(&payload.game_id).bind(payload.stake_kas).bind(payload.mode)
+    .fetch_one(&state.pool).await.map_err(|e| {
+        eprintln!("SQL Error in create_challenge: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let _ = state
         .tx
@@ -67,14 +117,17 @@ pub async fn create_challenge(
 
 pub async fn join_challenge(
     State(state): State<AppState>,
+    crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Match>, StatusCode> {
-    let mock_user_id = Uuid::nil();
+    let joiner_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let record = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET status = 'AWAITING_FUNDING', opponent_user_id = $1 WHERE id = $2 AND status = 'OPEN' RETURNING id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "UPDATE matches SET status = 'AWAITING_FUNDING', opponent_user_id = $1 WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
     )
-    .bind(mock_user_id).bind(id)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::BAD_REQUEST)?;
+    .bind(joiner_id).bind(id)
+    .fetch_one(&state.pool).await.map_err(|_| StatusCode::FORBIDDEN)?; // Fehlschlag (z.B. Self-Join) liefert 403
 
     let _ = state
         .tx

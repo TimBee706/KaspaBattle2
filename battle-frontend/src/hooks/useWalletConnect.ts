@@ -20,6 +20,7 @@ export function useWalletConnect() {
 
             // Fetch balance using the account directly from the WASM binding
             const initialBalance = await getBalance(connection.account);
+            console.log('[useWalletConnect] Initial balance:', initialBalance);
             setBalance(initialBalance);
 
             // Register event listener with both wallet and account context

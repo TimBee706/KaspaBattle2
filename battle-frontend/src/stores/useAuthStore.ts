@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
 
             updateKasAddress: (address) => {
                 const { user } = get();
-                if (user) set({ user: { ...user, kas_address: address }, walletConnected: true });
+                if (user) set({ user: { ...user, kaspa_address: address }, walletConnected: true });
             },
 
             setWalletConnected: (connected) => set({ walletConnected: connected }),

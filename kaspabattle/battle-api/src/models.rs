@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 #[derive(Type, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[sqlx(type_name = "match_status", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MatchStatus {
     Open,
     AwaitingFunding,
@@ -16,6 +17,7 @@ pub enum MatchStatus {
 
 #[derive(Type, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[sqlx(type_name = "match_mode", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MatchMode {
     Bo1,
     Bo3,

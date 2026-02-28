@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { kasToSompi } from '../utils/format';
+import apiClient from '../api/client';
 
 export const ChallengeModal: React.FC = () => {
     const [open, setOpen] = useState(false);
-    const [stake, setStake] = useState(50);
+    const [stake, setStake] = useState<number | string>(50);
     const [mode, setMode] = useState<'BO1' | 'BO3'>('BO1');
     const { user } = useAuthStore();
     const kaspaAddress = user?.kas_address || null;
@@ -12,10 +14,10 @@ export const ChallengeModal: React.FC = () => {
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await fetch('/api/challenges', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ game_id: 'CS2', stake_kas: stake, mode })
+            await apiClient.post('/challenges', {
+                game_id: 'CS2',
+                stake_kas: kasToSompi(stake),
+                mode: mode
             });
             setOpen(false);
         } catch (e) { console.error(e); }
@@ -33,7 +35,14 @@ export const ChallengeModal: React.FC = () => {
                 <h2 className="text-xl font-bold mb-4">Neue Challenge</h2>
                 <div className="mb-4">
                     <label className="block mb-2">Einsatz (KAS)</label>
-                    <input type="number" value={stake} onChange={e => setStake(Number(e.target.value))} className="w-full p-2 bg-slate-800 rounded" />
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        value={stake}
+                        onChange={e => setStake(e.target.value)}
+                        className="w-full p-2 bg-slate-800 rounded"
+                        placeholder="z.B. 49.99 oder 49,99"
+                    />
                 </div>
                 <div className="mb-6">
                     <label className="block mb-2">Modus</label>

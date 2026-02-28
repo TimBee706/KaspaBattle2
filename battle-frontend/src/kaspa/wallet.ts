@@ -3,13 +3,17 @@ import { initKaspaWasm } from './init';
 import { getRpcClient } from './rpc';
 import { KASPA_NETWORK } from '../config/constants';
 
+// Wallet Connection interface
 export interface WalletConnection {
     wallet: any;
-    account: any;
+    account: {
+        receiveAddress: string;
+        xpub: string;
+        mnemonic: string; // Store mnemonic to allow scanning
+    };
     address: string;
     mnemonic: string;
 }
-
 
 // Wallet aus Mnemonic importieren
 export async function importWallet(mnemonicPhrase: string): Promise<WalletConnection> {
@@ -79,15 +83,11 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     // (Das vorherige sdk hat .Wallet / .createAccount via mnemonic genutzt, dies ist oftmals
     // asymmetrisch in JS Wrappern implementiert, wir gehen nun den direkten BIP32 Derivation Weg.)
 
-    // Stub fÃ¼r Account Object so dass bestehender Code nicht bricht
+    // Stub für Account Object so dass bestehender Code nicht bricht
     const account = {
-        externalAddress: addressStr,
         receiveAddress: addressStr,
         xpub: addressData.xpub,
-        balance: { mature: 0n, pending: 0n, outgoing: 0n },
-        scan: async () => { }, // Mock-Sync
-        send: async () => { throw new Error("Send via raw derivation noch nicht voll implementiert!"); },
-        getBalance: async () => { return 0; }
+        mnemonic: mnemonicPhrase
     };
 
     console.log(`✅ Kaspa Wallet (Raw Derivation) erfolgreich geladen! (Adresse: ${addressStr})`);
@@ -97,24 +97,49 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
 
     return { wallet, account, address: addressStr, mnemonic: mnemonicPhrase };
 }
-// Balance abfragen direkt vom Account (verhindert RPC Caching)
 export async function getBalance(account: any): Promise<number> {
     try {
-        const address = account.externalAddress || account.receiveAddress;
-        if (!address) {
-            console.warn("⚠️ Keine Adresse im Account gefunden für getBalance");
-            return 0;
-        }
+        const mnemonicPhrase = account.mnemonic;
+        if (!mnemonicPhrase) return 0;
 
         const rpcClient = await getRpcClient();
-        const res = await rpcClient.getBalanceByAddress({ address });
 
-        // Die Balance wird typischerweise als bigint in Sompi zurückgegeben
-        const mature = res.balance;
-        return typeof mature === 'bigint' ? Number(mature) : Number(mature || 0);
+        // Re-derive generator to scan
+        const mnemonic = new kaspa.Mnemonic(mnemonicPhrase);
+        const seed = mnemonic.toSeed("");
+        const xprv = new kaspa.XPrv(seed);
+        const publicKeyGenerator = kaspa.PublicKeyGenerator.fromMasterXPrv(xprv as any, false, 0n);
+
+        let totalSompi = 0n;
+        const addressesToScan: string[] = [];
+
+        // Add first 20 receive addresses
+        for (let i = 0; i < 20; i++) {
+            addressesToScan.push(publicKeyGenerator.receiveAddress(KASPA_NETWORK, i).toString());
+        }
+        // Add first 20 change addresses
+        for (let i = 0; i < 20; i++) {
+            addressesToScan.push(publicKeyGenerator.changeAddress(KASPA_NETWORK, i).toString());
+        }
+
+        // Fetch balances for all derived addresses
+        for (const addr of addressesToScan) {
+            try {
+                const res = await rpcClient.getBalanceByAddress({ address: addr });
+                if (res.balance) {
+                    const mature = res.balance;
+                    const bal = typeof mature === 'bigint' ? mature : BigInt(mature || 0);
+                    totalSompi += bal;
+                }
+            } catch (e) {
+                // Ignore API lookup errors for single empty addresses
+            }
+        }
+
+        return Number(totalSompi);
 
     } catch (e) {
-        console.warn("⚠️ Fehler beim Lesen der Balance", e);
+        console.warn("⚠️ Fehler beim Scannen der Balances", e);
         return 0;
     }
 }
@@ -125,11 +150,87 @@ export async function sendDeposit(
     escrowAddress: string,
     amountSompi: number,
 ): Promise<string> {
-    const txResult = await (account as any).send({
-        destination: escrowAddress,
-        amount: amountSompi,
+    const mnemonicPhrase = account.mnemonic;
+    if (!mnemonicPhrase) throw new Error("Mnemonic fehlt im Account-Objekt");
+
+    console.log("🚀 Starte Deposit-Transaktion mit Multi-Address-Scan...");
+    const rpc = await getRpcClient();
+
+    // 1. Keys vorbereiten
+    const mnemonic = new kaspa.Mnemonic(mnemonicPhrase);
+    const seed = mnemonic.toSeed("");
+    const xprv = new kaspa.XPrv(seed);
+    const privateKeyGenerator = new kaspa.PrivateKeyGenerator(xprv, false, 0n);
+    const publicKeyGenerator = kaspa.PublicKeyGenerator.fromMasterXPrv(xprv as any, false, 0n);
+
+    const addressesToScan: string[] = [];
+    const keyMap = new Map<string, kaspa.PrivateKey>();
+
+    // Scan initialisieren (analog zu getBalance, scanne 20 receive + 20 change)
+    for (let i = 0; i < 20; i++) {
+        const addr = publicKeyGenerator.receiveAddress(KASPA_NETWORK, i).toString();
+        addressesToScan.push(addr);
+        keyMap.set(addr, privateKeyGenerator.receiveKey(i));
+
+        const changeAddr = publicKeyGenerator.changeAddress(KASPA_NETWORK, i).toString();
+        addressesToScan.push(changeAddr);
+        keyMap.set(changeAddr, privateKeyGenerator.changeKey(i));
+    }
+
+    console.log(`🔍 Scanne ${addressesToScan.length} Adressen nach UTXOs...`);
+    const { entries } = await rpc.getUtxosByAddresses(addressesToScan);
+
+    if (!entries || entries.length === 0) {
+        throw new Error("Kein Guthaben (UTXOs) auf dem Wallet gefunden. Bitte lade dein Wallet auf.");
+    }
+
+    // Sammle alle benötigten Private Keys für die gefundenen UTXOs
+    const usedPrivateKeys: kaspa.PrivateKey[] = [];
+    const usedKeyStrings = new Set<string>();
+
+    for (const entry of entries) {
+        const addr = entry.address?.toString();
+        if (addr && keyMap.has(addr)) {
+            const pk = keyMap.get(addr)!;
+            const pkStr = pk.toString();
+            if (!usedKeyStrings.has(pkStr)) {
+                usedKeyStrings.add(pkStr);
+                usedPrivateKeys.push(pk);
+            }
+        }
+    }
+
+    console.log(`📦 Gefundene UTXOs: ${entries.length}. Benötigte Keys: ${usedPrivateKeys.length}`);
+    console.log(`🎯 Ziel (Escrow): ${escrowAddress}`);
+    console.log(`💰 Betrag: ${amountSompi} sompi`);
+
+    // 3. Transaktion erstellen
+    const amount = BigInt(amountSompi);
+    // Erster Receive-Address als Change-Adresse nutzen
+    const changeAddress = publicKeyGenerator.receiveAddress(KASPA_NETWORK, 0).toString();
+
+    const { transactions } = await kaspa.createTransactions({
+        entries,
+        outputs: [{ address: escrowAddress, amount }],
+        priorityFee: 0n,
+        changeAddress,
     });
-    return txResult.transactionId;
+
+    if (!transactions || transactions.length === 0) {
+        throw new Error("Transaktionserstellung fehlgeschlagen. Möglicherweise nicht genug Guthaben für Gebühren oder Betrag.");
+    }
+
+    // 4. Signieren und Senden
+    let finalTxId = "";
+    for (const pending of transactions) {
+        console.log("✍️ Signiere Transaktion...");
+        await pending.sign(usedPrivateKeys);
+        console.log("📤 Übermittle an RPC...");
+        finalTxId = await pending.submit(rpc);
+        console.log(`✅ Transaktion gesendet! ID: ${finalTxId}`);
+    }
+
+    return finalTxId;
 }
 
 // Event-Listener für Balance-Änderungen

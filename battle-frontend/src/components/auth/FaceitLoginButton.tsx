@@ -8,7 +8,7 @@ export function FaceitLoginButton() {
         return (
             <div className="flex items-center gap-3 bg-kaspa-card/50 border border-kaspa-border pr-1 pl-3 py-1 rounded-full shadow-md group">
                 <div className="flex flex-col items-end">
-                    <span className="text-[11px] text-white font-bold tracking-tight">{user.faceit_nickname}</span>
+                    <span className="text-[11px] text-white font-bold tracking-tight">{user.faceit_nickname || 'Kaspa User'}</span>
                     <span className="text-[9px] text-gray-400 uppercase tracking-widest leading-none">Pro Player</span>
                 </div>
 
@@ -27,7 +27,7 @@ export function FaceitLoginButton() {
                             onClick={logout}
                             title="Abmelden"
                         >
-                            {user.faceit_nickname[0].toUpperCase()}
+                            {(user.faceit_nickname?.[0] || 'U').toUpperCase()}
                         </div>
                     )}
                     <div className="absolute -bottom-0 -right-0 w-2.5 h-2.5 bg-green-500 border-2 border-kaspa-dark rounded-full" />

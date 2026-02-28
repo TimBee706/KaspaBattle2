@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SUPPORTED_GAMES, MIN_WAGER_KAS, MAX_WAGER_KAS, FEE_WINNER_PERCENT } from '../../config/constants';
+import { SUPPORTED_GAMES, FEE_WINNER_PERCENT } from '../../config/constants';
 import { validateWagerAmount } from '../../utils/validation';
 import { kasToSompi } from '../../utils/format';
 import { createMatch } from '../../api/matches';
@@ -11,12 +11,14 @@ export function CreateChallengeForm() {
     const { isConnected } = useWalletStore();
     const [gameId, setGameId] = useState(SUPPORTED_GAMES[0].id);
     const [mode, setMode] = useState<'bo1' | 'bo3'>('bo1');
-    const [wager, setWager] = useState(10);
+    const [wager, setWager] = useState<number | string>(10);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const validation = validateWagerAmount(wager);
-    const potentialWin = wager * 2 * (FEE_WINNER_PERCENT / 100);
+    // Using parseLocalFloat helper here to calculate potentialWin properly despite comma string inputs
+    const wagerNumber = typeof wager === 'string' ? parseFloat(wager.replace(',', '.')) || 0 : wager;
+    const validation = validateWagerAmount(wagerNumber);
+    const potentialWin = wagerNumber * 2 * (FEE_WINNER_PERCENT / 100);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,8 +60,8 @@ export function CreateChallengeForm() {
                                 type="button"
                                 onClick={() => setGameId(game.id as any)}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${gameId === game.id
-                                        ? 'border-kaspa-primary bg-kaspa-primary/10 text-white'
-                                        : 'border-kaspa-border bg-kaspa-dark/50 text-gray-400 hover:border-gray-600'
+                                    ? 'border-kaspa-primary bg-kaspa-primary/10 text-white'
+                                    : 'border-kaspa-border bg-kaspa-dark/50 text-gray-400 hover:border-gray-600'
                                     }`}
                             >
                                 <span className="text-2xl mb-1">{game.icon}</span>
@@ -85,13 +87,13 @@ export function CreateChallengeForm() {
                     <div>
                         <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">Einsatz (KAS)</label>
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={wager}
-                            onChange={(e) => setWager(Number(e.target.value))}
+                            onChange={(e) => setWager(e.target.value)}
                             className={`w-full bg-kaspa-dark border rounded-lg px-3 py-2 text-sm focus:border-kaspa-primary outline-none ${!validation.valid ? 'border-red-500' : 'border-kaspa-border'
                                 }`}
-                            min={MIN_WAGER_KAS}
-                            max={MAX_WAGER_KAS}
+                            placeholder="Min 10 KAS"
                         />
                     </div>
                 </div>
@@ -104,7 +106,7 @@ export function CreateChallengeForm() {
                     </div>
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-xs text-gray-400">Pot-Gebühren (5%):</span>
-                        <span className="text-sm font-bold text-red-400">-{wager * 0.1} KAS</span>
+                        <span className="text-sm font-bold text-red-400">-{wagerNumber * 0.1} KAS</span>
                     </div>
                     <div className="h-px bg-kaspa-primary/20 mb-3" />
                     <div className="flex justify-between items-center">

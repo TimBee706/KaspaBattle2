@@ -6,8 +6,15 @@ import type {
 } from './types';
 
 export async function createMatch(data: CreateMatchRequest): Promise<CreateMatchResponse> {
-    const res = await apiClient.post<CreateMatchResponse>('/matches', data);
-    return res.data;
+    const res = await apiClient.post<any>('/challenges', {
+        game_id: data.game_id,
+        stake_kas: data.wager_amount_sompi,
+        mode: data.match_mode.toUpperCase()
+    });
+    return {
+        match: res.data as BattleMatch,
+        escrow_address: "mock" // Will be provided by escrow contract later
+    };
 }
 
 export async function acceptMatch(data: AcceptMatchRequest): Promise<BattleMatch> {
@@ -16,13 +23,18 @@ export async function acceptMatch(data: AcceptMatchRequest): Promise<BattleMatch
 }
 
 export async function getMatch(matchId: string): Promise<BattleMatch> {
-    const res = await apiClient.get<BattleMatch>(`/matches/${matchId}`);
-    return res.data;
+    // The backend doesn't have a specific /matches/:id endpoint yet.
+    // We will find it in the lobbies list as a temporary fix.
+    const res = await apiClient.get<BattleMatch[]>('/lobbies');
+    const match = res.data.find(m => m.id === matchId);
+    if (!match) throw new Error("Match not found");
+    return match;
 }
 
 export async function getOpenMatches(filters: LobbyFilters = {}): Promise<MatchListResponse> {
-    const res = await apiClient.get<MatchListResponse>('/matches', { params: { ...filters, status: 'OPEN' } });
-    return res.data;
+    const res = await apiClient.get<BattleMatch[]>('/lobbies');
+    const openMatches = res.data.filter(m => m.status === 'OPEN');
+    return { matches: openMatches, total: openMatches.length, page: 1, per_page: 20 };
 }
 
 export async function submitDeposit(data: SubmitDepositRequest): Promise<BattleMatch> {

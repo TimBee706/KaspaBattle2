@@ -20,7 +20,7 @@ export function useEscrowDeposit() {
             const txHash = await sendDeposit(
                 account,
                 currentMatch.escrow_address,
-                currentMatch.wager_amount_sompi,
+                currentMatch.wager_amount_sompi || (currentMatch as any).stake_kas || 0,
             );
 
             // 2. TX-Hash an Backend melden

@@ -6,12 +6,16 @@ import { MatchStatusBadge } from './MatchStatusBadge';
 import { DepositConfirmModal } from './DepositConfirmModal';
 import { acceptMatch } from '../../api/matches';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { KASPA_NETWORK } from '../../config/constants';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const { user } = useAuthStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const game = SUPPORTED_GAMES.find(g => g.id === match.game_id);
+
+    const wagerSompi = match.wager_amount_sompi || (match as any).stake_kas || 0;
+    const matchMode = match.match_mode || (match as any).mode || 'BO1';
 
     const isPlayerA = user?.faceit_id === match.player_a_faceit_id;
     const isPlayerB = user?.faceit_id === match.player_b_faceit_id;
@@ -42,7 +46,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     </div>
                     <div>
                         <h1 className="text-2xl font-black tracking-tight">{game?.name}</h1>
-                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">{match.match_mode} Challenge</p>
+                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">{matchMode} Challenge</p>
                     </div>
                 </div>
 
@@ -100,11 +104,11 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         <div className="grid grid-cols-2 gap-4 pt-2">
                             <div className="p-4 bg-kaspa-dark rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 font-bold block mb-1">EINSATZ PRO SPIELER</span>
-                                <span className="text-xl font-black text-white">{formatKas(match.wager_amount_sompi)} KAS</span>
+                                <span className="text-xl font-black text-white">{formatKas(wagerSompi)} KAS</span>
                             </div>
                             <div className="p-4 bg-kaspa-primary/10 rounded-xl border border-kaspa-primary/20">
                                 <span className="text-[10px] text-kaspa-primary font-bold block mb-1">GESAMT-POTT</span>
-                                <span className="text-xl font-black text-kaspa-primary">{formatKas(match.wager_amount_sompi * 2)} KAS</span>
+                                <span className="text-xl font-black text-kaspa-primary">{formatKas(wagerSompi * 2)} KAS</span>
                             </div>
                         </div>
                     </div>
@@ -129,23 +133,15 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                             </div>
                         )}
 
-                        {match.status === 'OPEN' && isPlayerA && !match.player_a_deposit_tx_hash && (
-                            <button
-                                onClick={() => setIsDepositModalOpen(true)}
-                                className="w-full btn-primary h-12"
-                            >
-                                EINSATZ EINZAHLEN
-                            </button>
-                        )}
-
-                        {(match.status === 'OPEN' || match.status === 'FUNDED') && isPlayerB && !match.player_b_deposit_tx_hash && (
-                            <button
-                                onClick={() => setIsDepositModalOpen(true)}
-                                className="w-full btn-primary h-12 shadow-lg shadow-kaspa-primary/20"
-                            >
-                                EINSATZ EINZAHLEN
-                            </button>
-                        )}
+                        {((match.status === 'OPEN' && isPlayerA && !match.player_a_deposit_tx_hash) ||
+                            ((match.status === 'OPEN' || match.status === 'FUNDED') && isPlayerB && !match.player_b_deposit_tx_hash)) && (
+                                <button
+                                    onClick={() => setIsDepositModalOpen(true)}
+                                    className="w-full btn-primary h-12 shadow-lg shadow-kaspa-primary/20 animate-in fade-in zoom-in-95"
+                                >
+                                    EINSATZ EINZAHLEN
+                                </button>
+                            )}
 
                         {match.status === 'FUNDED' && (
                             <div className="p-4 bg-yellow-900/10 border border-yellow-500/20 rounded-xl">
@@ -183,7 +179,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                             </div>
                             <div className="flex justify-between text-[11px]">
                                 <span className="text-gray-500 font-bold uppercase">Netzwerk</span>
-                                <span className="text-kaspa-primary">KASPA MAINNET</span>
+                                <span className="text-kaspa-primary uppercase">{KASPA_NETWORK}</span>
                             </div>
                             <div className="flex justify-between text-[11px]">
                                 <span className="text-gray-500 font-bold uppercase">Gebühr</span>
@@ -198,7 +194,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                 isOpen={isDepositModalOpen}
                 onClose={() => setIsDepositModalOpen(false)}
                 matchId={match.id}
-                amountSompi={match.wager_amount_sompi}
+                amountSompi={wagerSompi}
                 playerRole={isPlayerA ? 'A' : 'B'}
             />
         </div>
