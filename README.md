@@ -94,8 +94,10 @@ Comprehensive documentation for the newly released Lobby System, including archi
 
 For more detailed developer information, please refer to the following historical architecture guides:
 
+- [Whitepaper](docs/Whitepaper.md) — Comprehensive technical foundation, vision, and tokenomics.
 - [Project Overview](docs/overview.md) — Vision, Problem/Solution, and Match Cycle.
 - [Architecture](docs/architecture.md) — Technical stack and data flows.
+- [Lobby Integration](docs/lobby-integration.md) — Detailed architecture, state machines, and workflows of the lobby.
 - [Backend Development](docs/backend.md) — Rust services and API details.
 - [Frontend Development](docs/frontend.md) — React, WASM, and UI components.
 - [Kaspa Integration](docs/kaspa-integration.md) — How we use the Kaspa SDK.
