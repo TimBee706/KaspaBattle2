@@ -1,0 +1,197 @@
+{
+    "navigation": {
+        "lobby": "Lobby",
+        "create_challenge": "Create Challenge",
+        "history": "History",
+        "wallet": "Wallet",
+        "faceit_login": "Login with FACEIT",
+        "back_to_lobby": "TO LOBBY"
+    },
+    "hero": {
+        "beta_tag": "ENTRY PHASE 1: OPEN BETA",
+        "title": "PLAY TO WIN <1>KASPA</1>",
+        "subtitle": "The world's first decentralized gaming wager platform on Kaspa. Secure, lightning fast and 100% non-custodial."
+    },
+    "sections": {
+        "what_is": "WHAT IS KASPABATTLE?",
+        "what_is_content": "KaspaBattle is a decentralized <1>peer-to-peer gaming wager platform</1> on Kaspa. Two players deposit KAS into a secure smart contract escrow. After a match (e.g. CS2 on FACEIT), our automated oracle evaluates the result and the winner automatically receives the payout.",
+        "how_it_works": "HOW A KASPA BATTLE WORKS",
+        "how_it_works_steps": {
+            "1": "CONNECT WALLET & FACEIT LOGIN",
+            "2": "CREATE / ACCEPT CHALLENGE",
+            "3": "DEPOSIT STAKE (Smart Contract Escrow)",
+            "4": "PLAY MATCH (e.g. CS2 on FACEIT)",
+            "5": "RESULT AUTOMATICALLY IMPORTED (Oracle)",
+            "6": "AUTOMATIC PAYOUT (within seconds)"
+        },
+        "implemented_features": "ALREADY IMPLEMENTED (BETA)",
+        "already_live": "Already live",
+        "live_features": {
+            "faceit": "FACEIT login integration",
+            "lobby": "Lobby & challenge overview",
+            "escrow": "Escrow deposits on Testnet",
+            "payout": "Automatic payout simulation",
+            "history": "Match history basic version"
+        },
+        "in_progress": "In progress / Next steps",
+        "next_steps": {
+            "more_games": "Support for more games",
+            "smart_contracts": "Real L2 smart contracts on Kasplex",
+            "oracle": "Extended oracle network",
+            "tournament": "Tournament mode"
+        },
+        "why_kaspa": "WHY KASPA?",
+        "features": {
+            "finality": {
+                "title": "Fast finality ~1s",
+                "text": "Transactions are extremely fast and finally confirmed."
+            },
+            "blocks": {
+                "title": "10 blocks per second",
+                "text": "The power of the strongest blockDAG network."
+            },
+            "fees": {
+                "title": "Very low fees",
+                "text": "Minimal costs, ideal for nano-bets."
+            },
+            "security": {
+                "title": "Proof-of-Work security",
+                "text": "Nakamoto consensus for maximum decentralization."
+            }
+        },
+        "future": "THE FUTURE OF ESPORTS",
+        "future_subtitle": "COMPETE ON THE FASTEST BLOCKCHAIN IN THE WORLD",
+        "ready": "Ready for your match?"
+    },
+    "lobby": {
+        "title": "Lobby System",
+        "test_mode": "Test mode active: Wallet integration prioritized.",
+        "my_lobbies": "My Lobbies",
+        "available_challenges": "Available challenges"
+    },
+    "wallet": {
+        "import_title": "Import Wallet",
+        "import_subtitle": "Please enter your 12-word seed phrase (mnemonic) to restore your existing wallet.",
+        "seed_label": "Seed Phrase (Mnemonic) or Private Key",
+        "placeholder": "word1 word2 word3...",
+        "importing": "IMPORTING...",
+        "connect": "CONNECT WALLET",
+        "overview": "WALLET OVERVIEW",
+        "disconnect": "Disconnect wallet",
+        "balance": "Balance",
+        "address": "Kaspa Address",
+        "copy_address": "Copy address",
+        "tx_history": "Transaction History",
+        "tx_history_empty": "Transaction history will be available soon.",
+        "backup_title": "Secret Recovery Phrase (Backup)",
+        "backup_text": "This phrase is the only way to restore your balance. NEVER share it with others. KaspaBattle employees will never ask you for it.",
+        "hover_to_show": "HOVER TO SHOW"
+    },
+    "profile": {
+        "level_unknown": "LVL UNKNOWN",
+        "verified": "VERIFIED PLAYER",
+        "stats": {
+            "total_matches": "Total Matches",
+            "wins": "Wins",
+            "losses": "Losses",
+            "win_rate": "Win Rate"
+        },
+        "financials": {
+            "title": "Earnings Stats",
+            "total_wagered": "Total wagered",
+            "total_won": "Total won",
+            "net_profit": "Net Profit"
+        },
+        "rank": "Player Rank",
+        "next_level": "Next level after {{count}} wins"
+    },
+    "challenge": {
+        "create": "Create Challenge",
+        "new": "New Challenge",
+        "stake": "Stake (KAS)",
+        "mode": "Mode",
+        "cancel": "Cancel",
+        "create_submit": "Create",
+        "create_title": "Create New Challenge",
+        "select_game": "Choose Game",
+        "min_wager": "Min 10 KAS",
+        "preview": {
+            "title": "Prize Preview",
+            "your_wager": "Your Stake:",
+            "fees": "Pool Fees (5%):",
+            "potential_win": "Potential Win:"
+        },
+        "publish": "PUBLISH CHALLENGE",
+        "wallet_needed": "Please connect your wallet to proceed."
+    },
+    "create_match": {
+        "title": "CHALLENGE SOMEONE",
+        "subtitle": "Choose your game, stake and mode. Your challenge will be visible to all players in the lobby.",
+        "instant": "Instant Creation",
+        "escrow": "100% Escrow Protection"
+    },
+    "footer": {
+        "copyright": "© 2026 KaspaBattle. Decentralized gaming on Kaspa."
+    },
+    "validation": {
+        "wager_min_0": "Stake must be greater than 0",
+        "wager_min": "Minimum stake: {{amount}} KAS",
+        "wager_max": "Maximum stake: {{amount}} KAS",
+        "invalid_amount": "Invalid amount"
+    },
+    "match": {
+        "load_error": "Error loading",
+        "fetching_data": "Fetching match data...",
+        "not_found": "MATCH NOT FOUND",
+        "accept_error": "Error accepting match",
+        "detail_title": "{{game}} Challenge",
+        "challenger": "Challenger",
+        "opponent": "Opponent",
+        "escrow_wallet": "Escrow Wallet",
+        "stake_per_player": "STAKE PER PLAYER",
+        "total_pot": "TOTAL POT",
+        "status_actions": "Status & Actions",
+        "open_info": "This challenge is open. Anyone can join and start the match.",
+        "accept_challenge": "ACCEPT CHALLENGE",
+        "deposit_stake": "DEPOSIT STAKE",
+        "waiting_funding": "Waiting for funding...",
+        "waiting_funding_info": "Once both players have deposited, the match will be locked and the Oracle will start tracking.",
+        "running": "MATCH RUNNING...",
+        "running_info": "Play now on FACEIT. The result will be automatically tracked after the game.",
+        "paid_out": "Winnings Paid Out",
+        "winner_message": "{{name}} won!",
+        "info": "Match Info",
+        "platform": "Platform",
+        "network": "Network",
+        "fee": "Fee"
+    },
+    "deposit": {
+        "confirm_title": "Confirm Deposit",
+        "info": "You are depositing your stake into the match's escrow address. The funds will be locked there until the winner is determined.",
+        "amount": "Amount",
+        "your_balance": "Your Balance",
+        "insufficient_funds": "Insufficient Funds",
+        "insufficient_funds_info": "Please top up your Kaspa wallet to proceed.",
+        "cancel": "CANCEL",
+        "signing": "SIGNING...",
+        "pay_now": "PAY NOW",
+        "success_title": "Deposit Successful!",
+        "success_info": "Your transaction has been sent to the Kaspa network. The match status will be updated shortly.",
+        "view_explorer": "VIEW TRANSACTION IN EXPLORER",
+        "close": "CLOSE"
+    },
+    "status": {
+        "OPEN": "Open",
+        "FUNDED": "Funding In Progress",
+        "LOCKED": "Locked / In Game",
+        "RESOLVED": "Resolved",
+        "PAID_OUT": "Paid Out",
+        "DISPUTED": "Dispute",
+        "CANCELLED": "Cancelled"
+    },
+    "common": {
+        "loading": "Loading...",
+        "error": "Error: {{message}}",
+        "no_matches": "No matches completed yet."
+    }
+}

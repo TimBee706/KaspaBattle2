@@ -3,10 +3,12 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { formatKas, shortenAddress } from '../utils/format';
 import { faceitApi } from '../api/faceit';
 import type { FaceitProfileResponse } from '../api/types';
+import { useTranslation } from 'react-i18next';
 
 export function ProfilePage() {
     const { user } = useAuthStore();
     const [faceitData, setFaceitData] = useState<FaceitProfileResponse | null>(null);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!user) return;
@@ -32,20 +34,20 @@ export function ProfilePage() {
                         </div>
                     )}
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-kaspa-primary text-kaspa-dark text-[10px] font-black rounded-full uppercase tracking-tighter shadow-lg shadow-kaspa-primary/20">
-                        {faceitData && faceitData.skill_level > 0 ? `LVL ${faceitData.skill_level}` : 'LVL UNBEKANNT'}
+                        {faceitData && faceitData.skill_level > 0 ? `LVL ${faceitData.skill_level}` : t('profile.level_unknown')}
                     </div>
                 </div>
 
                 <div className="flex-1 text-center md:text-left">
                     <h1 className="text-4xl font-black tracking-tighter mb-1">{user.faceit_nickname}</h1>
-                    <p className="text-gray-500 font-mono text-sm mb-6">{shortenAddress(user.kas_address)}</p>
+                    <p className="text-gray-500 font-mono text-sm mb-6">{shortenAddress(user.kaspa_address)}</p>
 
                     <div className="flex flex-wrap justify-center md:justify-start gap-4">
                         <div className="px-3 py-1 bg-kaspa-border rounded border border-gray-700 text-xs font-bold text-gray-400">
                             ID: {user.faceit_id}
                         </div>
                         <div className="px-3 py-1 bg-orange-600/20 rounded border border-orange-500/30 text-xs font-bold text-orange-400">
-                            VERIFIED PLAYER
+                            {t('profile.verified')}
                         </div>
                         {faceitData && faceitData.elo > 0 && (
                             <div className="px-3 py-1 bg-kaspa-primary/10 rounded border border-kaspa-primary/30 text-xs font-bold text-kaspa-primary">
@@ -59,19 +61,19 @@ export function ProfilePage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="card text-center p-8">
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Gesamt Matches</span>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.total_matches')}</span>
                     <span className="text-4xl font-black text-white">{user.total_matches}</span>
                 </div>
                 <div className="card text-center p-8 border-b-4 border-b-green-500">
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Siege</span>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.wins')}</span>
                     <span className="text-4xl font-black text-green-500">{user.wins}</span>
                 </div>
                 <div className="card text-center p-8 border-b-4 border-b-red-500">
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Niederlagen</span>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.losses')}</span>
                     <span className="text-4xl font-black text-red-500">{user.losses}</span>
                 </div>
                 <div className="card text-center p-8 border-b-4 border-b-kaspa-primary">
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Win Rate</span>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.win_rate')}</span>
                     <span className="text-4xl font-black text-kaspa-primary">{winRate.toFixed(1)}%</span>
                 </div>
             </div>
@@ -79,19 +81,19 @@ export function ProfilePage() {
             {/* Financials */}
             <div className="card grid grid-cols-1 md:grid-cols-2 gap-8 p-10">
                 <div>
-                    <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-kaspa-primary pl-4">Gewinn Statistik</h3>
+                    <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-kaspa-primary pl-4">{t('profile.financials.title')}</h3>
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-400 text-sm">Gesamt umgesetzt</span>
+                            <span className="text-gray-400 text-sm">{t('profile.financials.total_wagered')}</span>
                             <span className="font-bold text-white">{formatKas(user.total_wagered_sompi)} KAS</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-400 text-sm">Gesamt gewonnen</span>
+                            <span className="text-gray-400 text-sm">{t('profile.financials.total_won')}</span>
                             <span className="font-bold text-kaspa-primary">+{formatKas(user.total_won_sompi)} KAS</span>
                         </div>
                         <div className="h-px bg-kaspa-border" />
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-400 text-sm font-bold">Netto Profit</span>
+                            <span className="text-gray-400 text-sm font-bold">{t('profile.financials.net_profit')}</span>
                             <span className="text-lg font-black text-emerald-500">+{(formatKas(user.total_won_sompi - (user.total_wagered_sompi / 2)))} KAS</span>
                         </div>
                     </div>
@@ -99,10 +101,10 @@ export function ProfilePage() {
 
                 <div className="flex items-center justify-center p-6 bg-kaspa-dark rounded-2xl border border-kaspa-border border-dashed">
                     <div className="text-center">
-                        <p className="text-[10px] text-gray-500 font-black uppercase mb-2">Player Rank</p>
+                        <p className="text-[10px] text-gray-500 font-black uppercase mb-2">{t('profile.rank')}</p>
                         <div className="text-6xl mb-2">🥈</div>
                         <p className="text-xl font-bold italic tracking-tighter">SILVER COMMANDER</p>
-                        <p className="text-[10px] text-gray-600 mt-2">Nächstes Level bei 10 Siegen</p>
+                        <p className="text-[10px] text-gray-600 mt-2">{t('profile.next_level', { count: 10 })}</p>
                     </div>
                 </div>
             </div>

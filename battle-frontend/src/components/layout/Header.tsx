@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { FaceitLoginButton } from '../auth/FaceitLoginButton';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useTranslation } from 'react-i18next';
 
 export function Header() {
     const navigate = useNavigate();
     const { testMode, setTestMode } = useAuthStore();
+    const { t } = useTranslation();
 
     return (
         <header className="bg-kaspa-card border-b border-kaspa-border sticky top-0 z-50">
@@ -16,9 +18,9 @@ export function Header() {
                     </Link>
 
                     <nav className="hidden md:flex items-center gap-6">
-                        <Link to="/lobby" className="text-gray-300 hover:text-white transition-colors">Lobby</Link>
-                        <Link to="/lobby/create" className="text-gray-300 hover:text-white transition-colors">Challenge erstellen</Link>
-                        <Link to="/history" className="text-gray-300 hover:text-white transition-colors">Verlauf</Link>
+                        <Link to="/lobby" className="text-gray-300 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
+                        <Link to="/lobby/create" className="text-gray-300 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
+                        <Link to="/history" className="text-gray-300 hover:text-white transition-colors">{t('navigation.history')}</Link>
                     </nav>
                 </div>
 
@@ -42,7 +44,7 @@ export function Header() {
                         onClick={() => navigate('/wallet/import')}
                         className="px-6 py-2 bg-kaspa-primary/10 hover:bg-kaspa-primary/20 border border-kaspa-primary/30 text-kaspa-primary rounded-lg font-bold transition-all flex items-center gap-2"
                     >
-                        Wallet
+                        {t('navigation.wallet')}
                     </button>
                     <div className="w-px h-6 bg-kaspa-border hidden sm:block" />
                     <FaceitLoginButton />

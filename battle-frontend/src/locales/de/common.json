@@ -1,0 +1,197 @@
+{
+    "navigation": {
+        "lobby": "Lobby",
+        "create_challenge": "Challenge erstellen",
+        "history": "Verlauf",
+        "wallet": "Wallet",
+        "faceit_login": "Login mit FACEIT",
+        "back_to_lobby": "ZUR LOBBY"
+    },
+    "hero": {
+        "beta_tag": "Beitritt Phase 1: OPEN BETA",
+        "title": "PLAY TO WIN <1>KASPA</1>",
+        "subtitle": "Die weltweit erste dezentrale Gaming-Wager-Plattform auf Kaspa. Sicher, blitzschnell und 100% Non-Custodial."
+    },
+    "sections": {
+        "what_is": "WAS IST KASPABATTLE?",
+        "what_is_content": "KaspaBattle ist eine dezentrale <1>Peer-to-Peer Gaming-Wager-Plattform</1> auf Kaspa. Zwei Spieler zahlen KAS in einen sicheren Smart-Contract-Escrow ein. Nach einem Match (z.B. CS2 auf FACEIT) wertet unser automatisiertes Oracle das Ergebnis aus und der Gewinner erhält automatisch den Payout.",
+        "how_it_works": "SO FUNKTIONIERT EIN KASPA BATTLE",
+        "how_it_works_steps": {
+            "1": "WALLET VERBINDEN & FACEIT LOGIN",
+            "2": "CHALLENGE ERSTELLEN / ANNEHMEN",
+            "3": "EINSATZ EINZAHLEN (Smart Contract Escrow)",
+            "4": "MATCH SPIELEN (z.B. CS2 auf FACEIT)",
+            "5": "ERGEBNIS AUTOMATISCH IMPORTIERT (Oracle)",
+            "6": "AUSZAHLUNG AUTOMATISCH (innerhalb Sekunden)"
+        },
+        "implemented_features": "WAS SCHON IMPLEMENTIERT IST (BETA)",
+        "already_live": "Bereits live",
+        "live_features": {
+            "faceit": "FACEIT-Login Integration",
+            "lobby": "Lobby & Challenge-Übersicht",
+            "escrow": "Escrow-Deposits auf Testnet",
+            "payout": "Automatische Payout-Simulation",
+            "history": "Match-History Basisversion"
+        },
+        "in_progress": "In Arbeit / Nächste Schritte",
+        "next_steps": {
+            "more_games": "Support für weitere Spiele",
+            "smart_contracts": "Echte L2-Smart-Contracts auf Kasplex",
+            "oracle": "Erweitertes Oracle-Netzwerk",
+            "tournament": "Turniermodus"
+        },
+        "why_kaspa": "WARUM KASPA?",
+        "features": {
+            "finality": {
+                "title": "Schnelle Finalität ~1s",
+                "text": "Transaktionen sind extrem schnell und final bestätigt."
+            },
+            "blocks": {
+                "title": "10 Blöcke pro Sekunde",
+                "text": "Die Power des stärksten BlockDAG-Netzwerks."
+            },
+            "fees": {
+                "title": "Sehr niedrige Gebühren",
+                "text": "Minimalste Kosten, ideal für Nano-Wetten geeignet."
+            },
+            "security": {
+                "title": "Proof-of-Work Sicherheit",
+                "text": "Nakamoto-Konsens für maximale Dezentralität."
+            }
+        },
+        "future": "DIE ZUKUNFT DES ESPORTS",
+        "future_subtitle": "MISSE DICH AN DER SCHNELLSTEN BLOCKCHAIN DER WELT",
+        "ready": "Bereit für dein Match?"
+    },
+    "lobby": {
+        "title": "Lobby-System",
+        "test_mode": "Test-Modus aktiv: Wallet-Integration wird priorisiert.",
+        "my_lobbies": "Meine Lobbies",
+        "available_challenges": "Verfügbare Herausforderungen"
+    },
+    "wallet": {
+        "import_title": "Wallet importieren",
+        "import_subtitle": "Bitte gib deine 12-Wort Seed-Phrase (Mnemonic) ein, um dein bestehendes Wallet wiederherzustellen.",
+        "seed_label": "Seed-Phrase (Mnemonic) oder Private Key",
+        "placeholder": "word1 word2 word3...",
+        "importing": "IMPORTIERE...",
+        "connect": "WALLET VERBINDEN",
+        "overview": "WALLET ÜBERSICHT",
+        "disconnect": "Wallet trennen",
+        "balance": "Guthaben",
+        "address": "Kaspa Adresse",
+        "copy_address": "Adresse kopieren",
+        "tx_history": "Transaktionsverlauf",
+        "tx_history_empty": "Transaktionshistorie wird in Kürze verfügbar sein.",
+        "backup_title": "Secret Recovery Phrase (Backup)",
+        "backup_text": "Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen. Mitarbeiter von KaspaBattle werden dich niemals danach fragen.",
+        "hover_to_show": "HOVER ZUM ANZEIGEN"
+    },
+    "profile": {
+        "level_unknown": "LVL UNBEKANNT",
+        "verified": "VERIFIED PLAYER",
+        "stats": {
+            "total_matches": "Gesamt Matches",
+            "wins": "Siege",
+            "losses": "Niederlagen",
+            "win_rate": "Win Rate"
+        },
+        "financials": {
+            "title": "Gewinn Statistik",
+            "total_wagered": "Gesamt umgesetzt",
+            "total_won": "Gesamt gewonnen",
+            "net_profit": "Netto Profit"
+        },
+        "rank": "Player Rank",
+        "next_level": "Nächstes Level bei {{count}} Siegen"
+    },
+    "challenge": {
+        "create": "Challenge erstellen",
+        "new": "Neue Challenge",
+        "stake": "Einsatz (KAS)",
+        "mode": "Modus",
+        "cancel": "Abbrechen",
+        "create_submit": "Erstellen",
+        "create_title": "Neue Challenge erstellen",
+        "select_game": "Spiel wählen",
+        "min_wager": "Min 10 KAS",
+        "preview": {
+            "title": "Gewinn-Vorschau",
+            "your_wager": "Dein Einsatz:",
+            "fees": "Pot-Gebühren (5%):",
+            "potential_win": "Möglicher Gewinn:"
+        },
+        "publish": "CHALLENGE VERÖFFENTLICHEN",
+        "wallet_needed": "Bitte verbinde dein Wallet, um fortzufahren."
+    },
+    "create_match": {
+        "title": "FORDERE JEMANDEN HERAUS",
+        "subtitle": "Wähle dein Spiel, deinen Einsatz und den Modus. Deine Challenge wird in der Lobby für alle Spieler sichtbar sein.",
+        "instant": "Instante Erstellung",
+        "escrow": "100% Escrow Schutz"
+    },
+    "footer": {
+        "copyright": "© 2026 KaspaBattle. Dezentrales Gaming auf Kaspa."
+    },
+    "validation": {
+        "wager_min_0": "Einsatz muss größer als 0 sein",
+        "wager_min": "Mindest-Einsatz: {{amount}} KAS",
+        "wager_max": "Maximal-Einsatz: {{amount}} KAS",
+        "invalid_amount": "Ungültiger Betrag"
+    },
+    "match": {
+        "load_error": "Fehler beim Laden",
+        "fetching_data": "Abrufen von Matching-Daten...",
+        "not_found": "MATCH NICHT GEFUNDEN",
+        "accept_error": "Fehler beim Annehmen des Matches",
+        "detail_title": "{{game}} Challenge",
+        "challenger": "Herausforderer",
+        "opponent": "Gegner",
+        "escrow_wallet": "Escrow Wallet",
+        "stake_per_player": "EINSATZ PRO SPIELER",
+        "total_pot": "GESAMT-POTT",
+        "status_actions": "Status & Aktionen",
+        "open_info": "Diese Challenge ist offen. Jeder kann beitreten und das Match starten.",
+        "accept_challenge": "CHALLENGE ANNEHMEN",
+        "deposit_stake": "EINSATZ EINZAHLEN",
+        "waiting_funding": "Warten auf Funding...",
+        "waiting_funding_info": "Sobald beide Spieler eingezahlt haben, wird das Match gesperrt und der Oracle beginnt das Tracking.",
+        "running": "MATCH LÄUFT...",
+        "running_info": "Spiele jetzt auf FACEIT. Das Ergebnis wird nach dem Spiel automatisch erfasst.",
+        "paid_out": "Gewinn Ausgezahlt",
+        "winner_message": "{{name}} hat gewonnen!",
+        "info": "Match Info",
+        "platform": "Plattform",
+        "network": "Netzwerk",
+        "fee": "Gebühr"
+    },
+    "deposit": {
+        "confirm_title": "Einzahlung bestätigen",
+        "info": "Du zahlst deinen Einsatz in die Escrow-Adresse des Matches ein. Die Funds werden dort gesperrt, bis der Sieger feststeht.",
+        "amount": "Betrag",
+        "your_balance": "Deine Balance",
+        "insufficient_funds": "Unzureichendes Guthaben",
+        "insufficient_funds_info": "Bitte lade dein Kaspa-Wallet auf, um fortzufahren.",
+        "cancel": "ABBRECHEN",
+        "signing": "SIGNIEREN...",
+        "pay_now": "JETZT EINZAHLEN",
+        "success_title": "Einzahlung erfolgreich!",
+        "success_info": "Deine Transaktion wurde an das Kaspa-Netzwerk gesendet. Das Match-Status wird in Kürze aktualisiert.",
+        "view_explorer": "TRANSATION IM EXPLORER ANSEHEN",
+        "close": "SCHLIESSEN"
+    },
+    "status": {
+        "OPEN": "Offen",
+        "FUNDED": "Funding läuft",
+        "LOCKED": "Sperre / Im Spiel",
+        "RESOLVED": "Beendet",
+        "PAID_OUT": "Ausgezahlt",
+        "DISPUTED": "Dispute",
+        "CANCELLED": "Abgebrochen"
+    },
+    "common": {
+        "loading": "Laden...",
+        "error": "Fehler: {{message}}",
+        "no_matches": "Bisher keine Matches abgeschlossen."
+    }
+}

@@ -13,12 +13,15 @@ import { MatchPage } from './pages/MatchPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { useAuthStore } from './stores/useAuthStore';
+import { LanguageToggle } from './components/LanguageToggle';
+import { useTranslation } from 'react-i18next';
 
 // Fallback for unknown routes goes to LandingPage
 
 export default function App() {
   const { isReady, error: wasmError } = useKaspaInit();
   const { setTokens, fetchUser } = useAuthStore();
+  const { t } = useTranslation();
 
   useBalance(); // Balance-Tracking im Hintergrund starten
 
@@ -29,7 +32,7 @@ export default function App() {
     const errorParam = params.get('error');
 
     if (token) {
-      const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const expires_at = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
       setTokens({ access_token: token, refresh_token: '', expires_at });
       fetchUser().catch(console.error);
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -47,15 +50,16 @@ export default function App() {
   if (wasmError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-kaspa-dark text-red-500 p-8 text-center">
+        <LanguageToggle />
         <div>
           <div className="text-5xl mb-6">⚠️</div>
-          <h1 className="text-2xl font-bold mb-2">Kritischer Fehler</h1>
+          <h1 className="text-2xl font-bold mb-2">{t('common.error_title', 'Kritischer Fehler')}</h1>
           <p className="font-mono text-sm opacity-70">WASM SDK: {wasmError}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-8 px-6 py-2 bg-kaspa-border hover:bg-gray-700 rounded-lg text-sm transition-colors"
           >
-            Neu laden
+            {t('common.reload', 'Neu laden')}
           </button>
         </div>
       </div>
@@ -65,11 +69,12 @@ export default function App() {
   if (!isReady) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-kaspa-dark text-white">
+        <LanguageToggle />
         <div className="w-64 h-1.5 bg-kaspa-border rounded-full overflow-hidden mb-4 shadow-inner">
           <div className="h-full bg-kaspa-primary animate-[shimmer_2s_infinite] w-full origin-left" />
         </div>
         <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-kaspa-primary animate-pulse">
-          Kaspa WASM SDK wird geladen...
+          {t('common.loading_sdk', 'Kaspa WASM SDK wird geladen...')}
         </span>
       </div>
     );

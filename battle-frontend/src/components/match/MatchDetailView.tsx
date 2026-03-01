@@ -7,11 +7,13 @@ import { DepositConfirmModal } from './DepositConfirmModal';
 import { acceptMatch } from '../../api/matches';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { KASPA_NETWORK } from '../../config/constants';
+import { useTranslation } from 'react-i18next';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const { user } = useAuthStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
+    const { t } = useTranslation();
     const game = SUPPORTED_GAMES.find(g => g.id === match.game_id);
 
     const wagerSompi = match.wager_amount_sompi || (match as any).stake_kas || 0;
@@ -27,7 +29,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
             await acceptMatch({ match_id: match.id });
             // Polling wird den Rest erledigen
         } catch (err) {
-            alert("Fehler beim Annehmen des Matches");
+            alert(t('match.accept_error'));
         } finally {
             setIsAccepting(false);
         }
@@ -46,7 +48,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     </div>
                     <div>
                         <h1 className="text-2xl font-black tracking-tight">{game?.name}</h1>
-                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">{matchMode} Challenge</p>
+                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t('match.detail_title', { game: matchMode })}</p>
                     </div>
                 </div>
 
@@ -63,7 +65,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         <div className="text-center">
                             <div className="w-16 h-16 bg-kaspa-border rounded-full mx-auto mb-3 flex items-center justify-center border-2 border-kaspa-primary/30">👤</div>
                             <span className="font-bold block">{match.player_a_faceit_nickname}</span>
-                            <span className="text-[9px] text-kaspa-primary uppercase font-black">Challenger</span>
+                            <span className="text-[9px] text-kaspa-primary uppercase font-black">{t('match.challenger')}</span>
                             <div className={`mt-2 h-1 w-full rounded-full ${match.player_a_deposit_tx_hash ? 'bg-kaspa-primary' : 'bg-gray-700'}`} />
                         </div>
 
@@ -76,7 +78,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                                 <>
                                     <div className="w-16 h-16 bg-kaspa-border rounded-full mx-auto mb-3 flex items-center justify-center border-2 border-kaspa-primary/30">👤</div>
                                     <span className="font-bold block">{match.player_b_faceit_nickname}</span>
-                                    <span className="text-[9px] text-blue-400 uppercase font-black">Opponent</span>
+                                    <span className="text-[9px] text-blue-400 uppercase font-black">{t('match.opponent')}</span>
                                     <div className={`mt-2 h-1 w-full rounded-full ${match.player_b_deposit_tx_hash ? 'bg-kaspa-primary' : 'bg-gray-700'}`} />
                                 </>
                             ) : (
@@ -87,7 +89,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                     {/* Escrow Details */}
                     <div className="card space-y-4">
-                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Escrow Wallet</h3>
+                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.escrow_wallet')}</h3>
                         <div className="flex items-center justify-between bg-kaspa-dark p-4 rounded-xl border border-kaspa-border">
                             <div className="font-mono text-sm overflow-hidden text-ellipsis whitespace-nowrap mr-4">
                                 {match.escrow_address}
@@ -103,11 +105,11 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                         <div className="grid grid-cols-2 gap-4 pt-2">
                             <div className="p-4 bg-kaspa-dark rounded-xl border border-kaspa-border">
-                                <span className="text-[10px] text-gray-500 font-bold block mb-1">EINSATZ PRO SPIELER</span>
+                                <span className="text-[10px] text-gray-500 font-bold block mb-1">{t('match.stake_per_player')}</span>
                                 <span className="text-xl font-black text-white">{formatKas(wagerSompi)} KAS</span>
                             </div>
                             <div className="p-4 bg-kaspa-primary/10 rounded-xl border border-kaspa-primary/20">
-                                <span className="text-[10px] text-kaspa-primary font-bold block mb-1">GESAMT-POTT</span>
+                                <span className="text-[10px] text-kaspa-primary font-bold block mb-1">{t('match.total_pot')}</span>
                                 <span className="text-xl font-black text-kaspa-primary">{formatKas(wagerSompi * 2)} KAS</span>
                             </div>
                         </div>
@@ -116,18 +118,18 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                 <div className="space-y-6">
                     <div className="card space-y-4">
-                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Status & Actions</h3>
+                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.status_actions')}</h3>
 
                         {match.status === 'OPEN' && !match.player_b_faceit_id && (
                             <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
-                                <p className="text-xs text-blue-400 font-medium">Diese Challenge ist offen. Jeder kann beitreten und das Match starten.</p>
+                                <p className="text-xs text-blue-400 font-medium">{t('match.open_info')}</p>
                                 {canAccept && (
                                     <button
                                         onClick={handleAccept}
                                         disabled={isAccepting}
                                         className="w-full btn-primary h-12 mt-4 flex items-center justify-center"
                                     >
-                                        {isAccepting ? '...' : 'CHALLENGE ANNEHMEN'}
+                                        {isAccepting ? '...' : t('match.accept_challenge')}
                                     </button>
                                 )}
                             </div>
@@ -139,30 +141,30 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                                     onClick={() => setIsDepositModalOpen(true)}
                                     className="w-full btn-primary h-12 shadow-lg shadow-kaspa-primary/20 animate-in fade-in zoom-in-95"
                                 >
-                                    EINSATZ EINZAHLEN
+                                    {t('match.deposit_stake')}
                                 </button>
                             )}
 
                         {match.status === 'FUNDED' && (
                             <div className="p-4 bg-yellow-900/10 border border-yellow-500/20 rounded-xl">
-                                <p className="text-xs text-yellow-500 font-bold mb-1">Warne auf Funding...</p>
-                                <p className="text-[10px] text-gray-500">Sobald beide Spieler eingezahlt haben, wird das Match gesperrt und der Oracle beginnt das Tracking.</p>
+                                <p className="text-xs text-yellow-500 font-bold mb-1">{t('match.waiting_funding')}</p>
+                                <p className="text-[10px] text-gray-500">{t('match.waiting_funding_info')}</p>
                             </div>
                         )}
 
                         {match.status === 'LOCKED' && (
                             <div className="text-center py-6">
                                 <div className="text-4xl animate-pulse mb-4">🎮</div>
-                                <h4 className="font-bold text-kaspa-primary">MATCH LÄUFT...</h4>
-                                <p className="text-[10px] text-gray-500 mt-2">Spiele jetzt auf FACEIT. Das Ergebnis wird nach dem Spiel automatisch erfasst.</p>
+                                <h4 className="font-bold text-kaspa-primary">{t('match.running')}</h4>
+                                <p className="text-[10px] text-gray-500 mt-2">{t('match.running_info')}</p>
                             </div>
                         )}
 
                         {match.status === 'PAID_OUT' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
                                 <div className="text-3xl mb-2">💎</div>
-                                <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">Gewinn Ausgezahlt</h4>
-                                <p className="text-xs text-white my-3 font-bold">{match.winner_faceit_nickname} hat gewonnen!</p>
+                                <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.paid_out')}</h4>
+                                <p className="text-xs text-white my-3 font-bold">{t('match.winner_message', { name: match.winner_faceit_nickname })}</p>
                                 <a href={explorerTxUrl(match.payout_tx_hash!)} target="_blank" className="text-[10px] text-emerald-400 underline font-mono">
                                     TX: {match.payout_tx_hash?.slice(0, 16)}...
                                 </a>
@@ -171,18 +173,18 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     </div>
 
                     <div className="card">
-                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Match Info</h3>
+                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">{t('match.info')}</h3>
                         <div className="space-y-3">
                             <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500 font-bold uppercase">Plattform</span>
+                                <span className="text-gray-500 font-bold uppercase">{t('match.platform')}</span>
                                 <span className="text-white">FACEIT</span>
                             </div>
                             <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500 font-bold uppercase">Netzwerk</span>
+                                <span className="text-gray-500 font-bold uppercase">{t('match.network')}</span>
                                 <span className="text-kaspa-primary uppercase">{KASPA_NETWORK}</span>
                             </div>
                             <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500 font-bold uppercase">Gebühr</span>
+                                <span className="text-gray-500 font-bold uppercase">{t('match.fee')}</span>
                                 <span className="text-white">5.00%</span>
                             </div>
                         </div>

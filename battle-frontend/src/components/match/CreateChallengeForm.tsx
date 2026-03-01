@@ -5,6 +5,7 @@ import { validateWagerAmount } from '../../utils/validation';
 import { kasToSompi } from '../../utils/format';
 import { createMatch } from '../../api/matches';
 import { useWalletStore } from '../../stores/useWalletStore';
+import { useTranslation } from 'react-i18next';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
@@ -14,6 +15,7 @@ export function CreateChallengeForm() {
     const [wager, setWager] = useState<number | string>(10);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { t } = useTranslation();
 
     // Using parseLocalFloat helper here to calculate potentialWin properly despite comma string inputs
     const wagerNumber = typeof wager === 'string' ? parseFloat(wager.replace(',', '.')) || 0 : wager;
@@ -46,13 +48,13 @@ export function CreateChallengeForm() {
         <div className="card max-w-lg mx-auto">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="text-kaspa-primary">🏆</span>
-                Neue Challenge erstellen
+                {t('challenge.create_title')}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Spiel-Auswahl */}
                 <div>
-                    <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">Spiel wählen</label>
+                    <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.select_game')}</label>
                     <div className="grid grid-cols-3 gap-3">
                         {SUPPORTED_GAMES.map((game) => (
                             <button
@@ -74,7 +76,7 @@ export function CreateChallengeForm() {
                 {/* Modus & Einsatz */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">Modus</label>
+                        <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.mode')}</label>
                         <select
                             value={mode}
                             onChange={(e) => setMode(e.target.value as any)}
@@ -85,7 +87,7 @@ export function CreateChallengeForm() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">Einsatz (KAS)</label>
+                        <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.stake')}</label>
                         <input
                             type="text"
                             inputMode="decimal"
@@ -93,7 +95,7 @@ export function CreateChallengeForm() {
                             onChange={(e) => setWager(e.target.value)}
                             className={`w-full bg-kaspa-dark border rounded-lg px-3 py-2 text-sm focus:border-kaspa-primary outline-none ${!validation.valid ? 'border-red-500' : 'border-kaspa-border'
                                 }`}
-                            placeholder="Min 10 KAS"
+                            placeholder={t('challenge.min_wager')}
                         />
                     </div>
                 </div>
@@ -101,22 +103,22 @@ export function CreateChallengeForm() {
                 {/* Gewinn-Vorschau */}
                 <div className="bg-kaspa-primary/5 border border-kaspa-primary/20 rounded-xl p-4">
                     <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs text-gray-400">Dein Einsatz:</span>
+                        <span className="text-xs text-gray-400">{t('challenge.preview.your_wager')}</span>
                         <span className="text-sm font-bold text-white">{wager} KAS</span>
                     </div>
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs text-gray-400">Pot-Gebühren (5%):</span>
+                        <span className="text-xs text-gray-400">{t('challenge.preview.fees')}</span>
                         <span className="text-sm font-bold text-red-400">-{wagerNumber * 0.1} KAS</span>
                     </div>
                     <div className="h-px bg-kaspa-primary/20 mb-3" />
                     <div className="flex justify-between items-center">
-                        <span className="text-sm font-bold text-kaspa-primary">Möglicher Gewinn:</span>
+                        <span className="text-sm font-bold text-kaspa-primary">{t('challenge.preview.potential_win')}</span>
                         <span className="text-xl font-black text-kaspa-primary">{potentialWin.toFixed(2)} KAS</span>
                     </div>
                 </div>
 
                 {!isConnected && (
-                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ Bitte verbinde dein Wallet, um fortzufahren.</p>
+                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {t('challenge.wallet_needed')}</p>
                 )}
 
                 {error && (
@@ -130,7 +132,7 @@ export function CreateChallengeForm() {
                 >
                     {isSubmitting ? '...' : (
                         <>
-                            <span className="relative z-10">CHALLENGE VERÖFFENTLICHEN</span>
+                            <span className="relative z-10">{t('challenge.publish')}</span>
                             <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                         </>
                     )}

@@ -1,17 +1,18 @@
 import { MIN_WAGER_KAS, MAX_WAGER_KAS } from '../config/constants';
+import i18n from '../i18n';
 
 export function validateWagerAmount(kasAmount: number): { valid: boolean; error?: string } {
     if (isNaN(kasAmount) || kasAmount <= 0) {
-        return { valid: false, error: 'Einsatz muss größer als 0 sein' };
+        return { valid: false, error: i18n.t('validation.wager_min_0') };
     }
     if (kasAmount < MIN_WAGER_KAS) {
-        return { valid: false, error: `Mindest-Einsatz: ${MIN_WAGER_KAS} KAS` };
+        return { valid: false, error: i18n.t('validation.wager_min', { amount: MIN_WAGER_KAS }) };
     }
     if (kasAmount > MAX_WAGER_KAS) {
-        return { valid: false, error: `Maximal-Einsatz: ${MAX_WAGER_KAS} KAS` };
+        return { valid: false, error: i18n.t('validation.wager_max', { amount: MAX_WAGER_KAS }) };
     }
     if (!Number.isFinite(kasAmount)) {
-        return { valid: false, error: 'Ungültiger Betrag' };
+        return { valid: false, error: i18n.t('validation.invalid_amount') };
     }
     return { valid: true };
 }

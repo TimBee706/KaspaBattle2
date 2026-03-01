@@ -1,6 +1,7 @@
 import { useEscrowDeposit } from '../../hooks/useEscrowDeposit';
 import { useWalletStore } from '../../stores/useWalletStore';
 import { formatKas, explorerTxUrl } from '../../utils/format';
+import { useTranslation } from 'react-i18next';
 
 interface DepositConfirmModalProps {
     isOpen: boolean;
@@ -13,6 +14,7 @@ interface DepositConfirmModalProps {
 export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }: DepositConfirmModalProps) {
     const { executeDeposit, isDepositing, depositTxHash } = useEscrowDeposit();
     const { balanceSompi } = useWalletStore();
+    const { t } = useTranslation();
 
     if (!isOpen) return null;
 
@@ -24,21 +26,21 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
             <div className="absolute inset-0 bg-kaspa-dark/90 backdrop-blur-sm" onClick={!isDepositing ? onClose : undefined} />
 
             <div className="card w-full max-w-md relative z-10 animate-in zoom-in-95 duration-200">
-                <h3 className="text-xl font-bold mb-4 uppercase tracking-tight">Einzahlung bestätigen</h3>
+                <h3 className="text-xl font-bold mb-4 uppercase tracking-tight">{t('deposit.confirm_title')}</h3>
 
                 {!depositTxHash ? (
                     <div className="space-y-6">
                         <p className="text-gray-400 text-sm">
-                            Du zahlst deinen Einsatz in die Escrow-Adresse des Matches ein. Die Funds werden dort gesperrt, bis der Sieger feststeht.
+                            {t('deposit.info')}
                         </p>
 
                         <div className="bg-kaspa-dark rounded-xl p-4 space-y-3 border border-kaspa-border">
                             <div className="flex justify-between text-xs">
-                                <span className="text-gray-500 uppercase font-bold">Betrag</span>
+                                <span className="text-gray-500 uppercase font-bold">{t('deposit.amount')}</span>
                                 <span className="text-white font-black">{formatKas(amountSompi)} KAS</span>
                             </div>
                             <div className="flex justify-between text-xs">
-                                <span className="text-gray-500 uppercase font-bold">Deine Balance</span>
+                                <span className="text-gray-500 uppercase font-bold">{t('deposit.your_balance')}</span>
                                 <span className={`font-black ${hasEnoughBalance ? 'text-kaspa-primary' : 'text-red-500'}`}>
                                     {formatKas(balanceSompi)} KAS
                                 </span>
@@ -49,8 +51,8 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                             <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex gap-3">
                                 <span className="text-xl">⚠️</span>
                                 <div>
-                                    <p className="text-red-400 text-xs font-bold">Unzureichendes Guthaben</p>
-                                    <p className="text-red-300/70 text-[10px]">Bitte lade dein Kaspa-Wallet auf, um fortzufahren.</p>
+                                    <p className="text-red-400 text-xs font-bold">{t('deposit.insufficient_funds')}</p>
+                                    <p className="text-red-300/70 text-[10px]">{t('deposit.insufficient_funds_info')}</p>
                                 </div>
                             </div>
                         )}
@@ -61,7 +63,7 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                                 disabled={isDepositing}
                                 className="flex-1 py-3 bg-kaspa-border hover:bg-gray-700 rounded-xl text-sm font-bold transition-colors"
                             >
-                                ABBRECHEN
+                                {t('deposit.cancel')}
                             </button>
                             <button
                                 onClick={() => executeDeposit(playerRole)}
@@ -71,18 +73,18 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                                 {isDepositing ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-kaspa-dark border-t-transparent rounded-full animate-spin" />
-                                        SIGNIEREN...
+                                        {t('deposit.signing')}
                                     </>
-                                ) : 'JETZT EINZAHLEN'}
+                                ) : t('deposit.pay_now')}
                             </button>
                         </div>
                     </div>
                 ) : (
                     <div className="text-center py-6 animate-in fade-in slide-in-from-bottom-2">
                         <div className="w-16 h-16 bg-kaspa-primary/20 text-kaspa-primary rounded-full flex items-center justify-center text-3xl mx-auto mb-6">✓</div>
-                        <h4 className="text-lg font-bold mb-2 uppercase">Einzahlung erfolgreich!</h4>
+                        <h4 className="text-lg font-bold mb-2 uppercase">{t('deposit.success_title')}</h4>
                         <p className="text-gray-400 text-xs mb-8">
-                            Deine Transaktion wurde an das Kaspa-Netzwerk gesendet. Das Match-Status wird in Kürze aktualisiert.
+                            {t('deposit.success_info')}
                         </p>
                         <a
                             href={explorerTxUrl(depositTxHash)}
@@ -90,13 +92,13 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                             rel="noopener noreferrer"
                             className="block w-full py-3 border border-kaspa-primary text-kaspa-primary text-xs font-bold rounded-xl mb-4 hover:bg-kaspa-primary/10 transition-colors"
                         >
-                            TRANSATION IM EXPLORER ANSEHEN
+                            {t('deposit.view_explorer')}
                         </a>
                         <button
                             onClick={onClose}
                             className="w-full py-2 text-gray-500 text-xs font-bold hover:text-white transition-colors"
                         >
-                            SCHLIESSEN
+                            {t('deposit.close')}
                         </button>
                     </div>
                 )}
