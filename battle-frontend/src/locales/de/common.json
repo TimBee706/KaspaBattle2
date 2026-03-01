@@ -2,7 +2,7 @@
     "navigation": {
         "lobby": "Lobby",
         "create_challenge": "Challenge erstellen",
-        "history": "Verlauf",
+        "history": "Historie",
         "wallet": "Wallet",
         "faceit_login": "Login mit FACEIT",
         "back_to_lobby": "ZUR LOBBY"
@@ -66,8 +66,9 @@
     "lobby": {
         "title": "Lobby-System",
         "test_mode": "Test-Modus aktiv: Wallet-Integration wird priorisiert.",
-        "my_lobbies": "Meine Lobbies",
-        "available_challenges": "Verfügbare Herausforderungen"
+        "my_lobbies": "Meine Lobbys",
+        "available_challenges": "Verfügbare Herausforderungen",
+        "create_challenge": "Challenge erstellen"
     },
     "wallet": {
         "import_title": "Wallet importieren",

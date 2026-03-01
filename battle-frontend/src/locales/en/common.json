@@ -67,7 +67,8 @@
         "title": "Lobby System",
         "test_mode": "Test mode active: Wallet integration prioritized.",
         "my_lobbies": "My Lobbies",
-        "available_challenges": "Available challenges"
+        "available_challenges": "Available challenges",
+        "create_challenge": "Create Challenge"
     },
     "wallet": {
         "import_title": "Import Wallet",

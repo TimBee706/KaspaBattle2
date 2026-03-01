@@ -80,6 +80,8 @@ export function WalletPage() {
     }
 
     // Connected State: Wallet Overview
+    const balance = balanceSompi / 100_000_000;
+
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center px-4">
@@ -112,8 +114,8 @@ export function WalletPage() {
                             <span className="text-red-500 text-3xl">—</span>
                         ) : (
                             <>
-                                <span>{(balanceSompi / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</span>
-                                <span className="text-xl text-gray-400">KAS</span>
+                                <span>{balance.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-xl text-gray-400 ml-2">KAS</span>
                             </>
                         )}
                     </div>
@@ -140,39 +142,36 @@ export function WalletPage() {
                 </div>
             </div>
 
-            {mnemonic && (
-                <div className="card p-8 border border-red-900/20 bg-red-900/5">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                            <span className="text-2xl">⚠️</span>
-                            <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
-                        </div>
-                        <button
-                            onClick={() => setShowMnemonic(!showMnemonic)}
-                            className="text-xs font-black uppercase tracking-widest bg-red-900/20 hover:bg-red-900-40 px-4 py-2 rounded-lg text-red-400 transition-all border border-red-900/30"
-                        >
-                            {showMnemonic ? `🙈 ${t('wallet.hide', 'Verbergen')}` : `👁 ${t('wallet.show_phrase', 'Recovery Phrase anzeigen')}`}
-                        </button>
+            <div className="card p-8 border border-red-900/20 bg-red-900/5">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">⚠️</span>
+                        <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
                     </div>
-
-                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                        {t('wallet.backup_text')}
-                    </p>
-
-                    {showMnemonic && (
-                        <div className="bg-kaspa-dark p-6 rounded-xl border border-kaspa-border">
-                            <div className="flex flex-wrap gap-2">
-                                {mnemonic.split(' ').map((word: string, i: number) => (
-                                    <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
-                                        <span className="text-gray-500 text-xs">{i + 1}</span>
-                                        <span className="font-mono text-kaspa-primary font-bold">{word}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
-            )}
+
+                <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                    {t('wallet.backup_text')}
+                </p>
+
+                {showMnemonic && mnemonic && (
+                    <div className="mnemonic-grid bg-kaspa-dark p-6 rounded-xl border border-kaspa-border mb-6 grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {mnemonic.split(' ').map((word: string, i: number) => (
+                            <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
+                                <span className="text-gray-500 text-xs font-bold">{i + 1}.</span>
+                                <span className="font-mono text-kaspa-primary font-bold">{word}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <button
+                    onClick={() => setShowMnemonic(prev => !prev)}
+                    className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-red-900/30 flex items-center justify-center gap-2"
+                >
+                    {showMnemonic ? '🙈 Verbergen' : '👁 Recovery Phrase anzeigen'}
+                </button>
+            </div>
         </div>
     );
 }

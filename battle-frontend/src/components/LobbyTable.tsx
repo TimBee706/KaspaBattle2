@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useWallet } from '../hooks/useWallet';
 import apiClient from '../api/client';
 
-export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyLobbies?: boolean }> = ({ matches, title, isMyLobbies }) => {
+export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyLobbies?: boolean, onLobbyClick?: (id: string) => void }> = ({ matches, title, isMyLobbies, onLobbyClick }) => {
     const { user, testMode } = useAuthStore();
     const kaspaAddress = user?.kaspa_address || null;
     const isTestUser = user?.display_name === "TestUser";
@@ -22,21 +22,39 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
     };
 
     return (
-        <div className="mb-8 p-4 bg-slate-800 rounded-lg">
-            <h2 className="text-xl font-bold mb-4 text-emerald-400">{title}</h2>
+        <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
+            <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">{title}</h2>
             <div className="flex flex-col gap-3">
-                {matches.length === 0 && <p className="text-slate-400">Keine Einträge.</p>}
+                {matches.length === 0 && <p className="text-slate-500 italic pl-2">Keine Einträge.</p>}
                 {matches.map(m => (
-                    <div key={m.id} className="bg-slate-900 border border-slate-700 p-4 rounded flex justify-between items-center text-white">
-                        <span>{m.game_id} | {m.match_mode ? m.match_mode : (m as any).mode} <span className="text-gray-400 text-sm ml-2">[{m.status}]</span></span>
-                        <div className="flex items-center gap-4">
-                            <span className="font-bold text-emerald-400">{(m.wager_amount_sompi || (m as any).stake_kas) / 100000000} KAS</span>
+                    <div
+                        key={m.id}
+                        onClick={() => onLobbyClick?.(m.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && onLobbyClick?.(m.id)}
+                        className="group bg-slate-900/60 border border-slate-700/50 p-5 rounded-xl flex justify-between items-center text-white hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all cursor-pointer select-none active:scale-[0.99]"
+                    >
+                        <div className="flex flex-col">
+                            <span className="font-black text-white tracking-tight group-hover:text-emerald-400 transition-colors uppercase">
+                                {m.game_id || 'CS2'} | {m.match_mode || (m as any).mode || 'BO1'}
+                            </span>
+                            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Status: {m.status}</span>
+                        </div>
+                        <div className="flex items-center gap-6">
+                            <span className="font-black text-xl text-emerald-400 tracking-tighter">
+                                {((m.wager_amount_sompi || (m as any).stake_kas || 0) / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS
+                            </span>
                             {!isMyLobbies && m.status === 'OPEN' && (
                                 <button
-                                    onClick={() => join(m.id, m.wager_amount_sompi / 100000000)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        join(m.id, (m.wager_amount_sompi || (m as any).stake_kas || 0) / 100_000_000);
+                                    }}
                                     disabled={loading === m.id || !kaspaAddress || (!faceitId && !isTestUser)}
-                                    className="bg-emerald-600 px-4 py-2 rounded font-bold disabled:opacity-50">
-                                    {loading === m.id ? 'Lädt...' : 'Join'}
+                                    className="bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 rounded-lg font-black uppercase tracking-tighter disabled:opacity-30 disabled:hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+                                >
+                                    {loading === m.id ? '...' : 'Join'}
                                 </button>
                             )}
                         </div>

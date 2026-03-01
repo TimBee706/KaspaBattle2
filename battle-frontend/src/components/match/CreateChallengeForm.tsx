@@ -2,22 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SUPPORTED_GAMES, FEE_WINNER_PERCENT } from '../../config/constants';
 import { validateWagerAmount } from '../../utils/validation';
-import { kasToSompi } from '../../utils/format';
-import { createMatch } from '../../api/matches';
 import { useWalletStore } from '../../stores/useWalletStore';
+import { useLobby } from '../../hooks/useLobby';
 import { useTranslation } from 'react-i18next';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
     const { isConnected } = useWalletStore();
+    const { createChallenge, isCreating } = useLobby();
+
     const [gameId, setGameId] = useState(SUPPORTED_GAMES[0].id);
-    const [mode, setMode] = useState<'bo1' | 'bo3'>('bo1');
+    const [mode, setMode] = useState<'BO1' | 'BO3'>('BO1');
     const [wager, setWager] = useState<number | string>(10);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { t } = useTranslation();
 
-    // Using parseLocalFloat helper here to calculate potentialWin properly despite comma string inputs
     const wagerNumber = typeof wager === 'string' ? parseFloat(wager.replace(',', '.')) || 0 : wager;
     const validation = validateWagerAmount(wagerNumber);
     const potentialWin = wagerNumber * 2 * (FEE_WINNER_PERCENT / 100);
@@ -26,21 +25,19 @@ export function CreateChallengeForm() {
         e.preventDefault();
         if (!validation.valid || !isConnected) return;
 
-        setIsSubmitting(true);
         setError(null);
 
         try {
-            const response = await createMatch({
-                game_id: gameId,
-                match_mode: mode,
-                wager_amount_sompi: kasToSompi(wager),
+            const result = await createChallenge({
+                stakeKas: wagerNumber,
+                mode: mode as any,
             });
 
-            navigate(`/match/${response.match.id}`);
+            if (result && result.id) {
+                navigate(`/lobby/${result.id}/escrow`);
+            }
         } catch (err: any) {
-            setError(err.response?.data || err.message);
-        } finally {
-            setIsSubmitting(false);
+            setError(err.message);
         }
     };
 
@@ -82,8 +79,8 @@ export function CreateChallengeForm() {
                             onChange={(e) => setMode(e.target.value as any)}
                             className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-sm focus:border-kaspa-primary outline-none"
                         >
-                            <option value="bo1">Best of 1</option>
-                            <option value="bo3">Best of 3</option>
+                            <option value="BO1">Best of 1</option>
+                            <option value="BO3">Best of 3</option>
                         </select>
                     </div>
                     <div>
@@ -127,10 +124,10 @@ export function CreateChallengeForm() {
 
                 <button
                     type="submit"
-                    disabled={!validation.valid || isSubmitting || !isConnected}
+                    disabled={!validation.valid || isCreating || !isConnected}
                     className="w-full btn-primary h-12 relative overflow-hidden group"
                 >
-                    {isSubmitting ? '...' : (
+                    {isCreating ? t('challenge.creating', 'Erstelle...') : (
                         <>
                             <span className="relative z-10">{t('challenge.publish')}</span>
                             <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
