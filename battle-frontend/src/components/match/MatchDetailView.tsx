@@ -8,9 +8,11 @@ import { acceptMatch } from '../../api/matches';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { KASPA_NETWORK } from '../../config/constants';
 import { useTranslation } from 'react-i18next';
+import { useMatchStore } from '../../stores/useMatchStore';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const { user } = useAuthStore();
+    const { setMatch } = useMatchStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const { t } = useTranslation();
@@ -136,16 +138,19 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         )}
 
                         {((match.status === 'OPEN' && isPlayerA && !match.player_a_deposit_tx_hash) ||
-                            ((match.status === 'OPEN' || match.status === 'FUNDED') && isPlayerB && !match.player_b_deposit_tx_hash)) && (
+                            ((match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerB && !match.player_b_deposit_tx_hash)) && (
                                 <button
-                                    onClick={() => setIsDepositModalOpen(true)}
+                                    onClick={() => {
+                                        setMatch(match);
+                                        setIsDepositModalOpen(true);
+                                    }}
                                     className="w-full btn-primary h-12 shadow-lg shadow-kaspa-primary/20 animate-in fade-in zoom-in-95"
                                 >
                                     {t('match.deposit_stake')}
                                 </button>
                             )}
 
-                        {match.status === 'FUNDED' && (
+                        {match.status === 'AWAITING_FUNDING' && (
                             <div className="p-4 bg-yellow-900/10 border border-yellow-500/20 rounded-xl">
                                 <p className="text-xs text-yellow-500 font-bold mb-1">{t('match.waiting_funding')}</p>
                                 <p className="text-[10px] text-gray-500">{t('match.waiting_funding_info')}</p>

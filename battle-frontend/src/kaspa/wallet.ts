@@ -81,18 +81,16 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     const addressStr = addressData.address.toString();
     console.log(`✅ Adresse erhalten: ${addressStr}`);
 
-    // (Das vorherige sdk hat .Wallet / .createAccount via mnemonic genutzt, dies ist oftmals
-    // asymmetrisch in JS Wrappern implementiert, wir gehen nun den direkten BIP32 Derivation Weg.)
+    // Generiere Escrow-Adresse (Index 1) – eine valide Testnet-Adresse mit korrekter Checksumme
+    const escrowAddress = publicKeyGenerator!.receiveAddress(KASPA_NETWORK, 1).toString();
+    console.log(`🔐 Escrow-Adresse generiert (Index 1): ${escrowAddress}`);
 
     // Stub für Account Object so dass bestehender Code nicht bricht
     const account = {
         receiveAddress: addressStr,
+        escrowAddress: escrowAddress,
         xpub: addressData.xpub,
         mnemonic: mnemonicPhrase,
-        send: (...args: any[]) => {
-            console.error("💣 DYNAMISCHER AUFRUF VON account.send() DETEKTIERT! Args:", args);
-            throw new Error("KasperBattle: account.send is legacy! Bitte sendDeposit(account, ...) nutzen.");
-        }
     };
 
     console.log(`✅ Kaspa Wallet (Raw Derivation) erfolgreich geladen! (Adresse: ${addressStr})`);

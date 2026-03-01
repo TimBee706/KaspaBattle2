@@ -45,4 +45,14 @@ pub struct Match {
     pub status: MatchStatus,
     pub external_match_id: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub wager_amount_sompi: i64,
+}
+
+impl Match {
+    pub fn calculate_wager(&mut self) {
+        // The DB field stake_kas actually stores the value in Sompi
+        // because the frontend converts it before sending.
+        self.wager_amount_sompi = self.stake_kas;
+    }
 }

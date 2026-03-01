@@ -4,8 +4,6 @@ import { useLobby } from '../hooks/useLobby';
 import { useWalletStore } from '../stores/useWalletStore';
 import { formatKas } from '../utils/format';
 import { useTranslation } from 'react-i18next';
-import { FEATURE_FLAGS } from '../config/featureFlags';
-import apiClient from '../api/client';
 
 export const EscrowPage: React.FC = () => {
     const { lobbyId } = useParams<{ lobbyId: string }>();
@@ -13,7 +11,6 @@ export const EscrowPage: React.FC = () => {
     const { t } = useTranslation();
     const { balanceSompi } = useWalletStore();
     const { handleLobbyClick, selectedLobby, isCreating: isProcessing } = useLobby();
-    const [isDeposited, setIsDeposited] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -31,18 +28,9 @@ export const EscrowPage: React.FC = () => {
 
         setError(null);
         try {
-            if (FEATURE_FLAGS.TEST_MODE) {
-                // Simulate deposit in Test Mode
-                await apiClient.post(`/lobbies/${lobby.id}/simulate-deposit`);
-                setIsDeposited(true);
-                setTimeout(() => {
-                    navigate('/lobby');
-                }, 2000);
-            } else {
-                // Production logic: Triggers wallet signature
-                // This would call the real deposit logic from useEscrowDeposit or similar
-                setError("Production deposit not yet implemented in this view.");
-            }
+            // Die Logik für die vollständige Einzahlung ist nun im DepositConfirmModal via MatchDetailView oder direkt
+            // Wir triggern entweder einen Context/Store oder verweisen auf MatchDetailView
+            setError("Einzahlung bitte über die Match-Detailansicht (Dashboard) starten.");
         } catch (err: any) {
             setError(err.message || "Einzahlung fehlgeschlagen");
         }
@@ -108,13 +96,13 @@ export const EscrowPage: React.FC = () => {
                                     {t('escrow.status', 'Status')}
                                 </span>
                                 <span className="text-kaspa-primary font-bold">
-                                    {isDeposited ? '✓ ' + t('escrow.confirmed', 'Eingezahlt') : '⏳ ' + t('escrow.pending', 'Warten...')}
+                                    ⏳ {t('escrow.pending', 'Warten...')}
                                 </span>
                             </div>
                         </div>
                     </div>
 
-                    {!hasEnoughBalance && !isDeposited && (
+                    {!hasEnoughBalance && (
                         <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⚠️</span>
                             <p className="text-red-400 text-xs font-bold">
@@ -131,10 +119,10 @@ export const EscrowPage: React.FC = () => {
 
                     <button
                         onClick={handleDeposit}
-                        disabled={!hasEnoughBalance || isProcessing || isDeposited}
+                        disabled={!hasEnoughBalance || isProcessing}
                         className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark h-14 rounded-2xl font-black uppercase tracking-tight text-lg shadow-xl shadow-kaspa-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                     >
-                        {isProcessing ? '...' : (isDeposited ? t('escrow.success', 'Erfolgreich!') : t('escrow.deposit_now', '💰 Jetzt einzahlen'))}
+                        {isProcessing ? '...' : t('escrow.deposit_now', '💰 Jetzt einzahlen')}
                     </button>
 
                     <div className="text-center">

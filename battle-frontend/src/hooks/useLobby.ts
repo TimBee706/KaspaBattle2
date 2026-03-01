@@ -40,11 +40,16 @@ export function useLobby() {
         try {
             // STEP 1 - TEST MODE: Direct creation, no escrow signature needed yet
             if (FEATURE_FLAGS.TEST_MODE) {
+                // Get escrow address from wallet account (generated at index 1)
+                const { account } = useWalletStore.getState();
+                const escrowAddr = (account as any)?.escrowAddress || address;
+
                 const response = await apiClient.post('/challenges', {
                     game_id: 'CS2',
                     stake_kas: Math.round(data.stakeKas * 100_000_000),
                     mode: data.mode,
-                    creator_address: address
+                    creator_address: address,
+                    escrow_address: escrowAddr,
                 });
                 if (response.data) addOrUpdateLobby(response.data);
                 return response.data;

@@ -2,6 +2,7 @@ use axum::{routing::get, Router};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
@@ -12,7 +13,19 @@ mod services;
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    // Load .env from cwd first, then try parent (workspace root)
+    if let Err(e) = dotenv() {
+        eprintln!("⚠️ dotenv() failed: {}", e);
+    }
+    // Also try parent directory in case running from battle-api/ subdirectory
+    if let Ok(cwd) = std::env::current_dir() {
+        let parent_env = cwd.join("../.env");
+        if parent_env.exists() {
+            if let Err(e) = dotenvy::from_path(&parent_env) {
+                eprintln!("⚠️ dotenvy::from_path() failed: {}", e);
+            }
+        }
+    }
 
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
@@ -21,9 +34,16 @@ async fn main() {
         .await
         .unwrap();
 
+    // One-time migration: add escrow_address column if missing
+    sqlx::query("ALTER TABLE matches ADD COLUMN IF NOT EXISTS escrow_address TEXT")
+        .execute(&pool)
+        .await
+        .expect("Failed to add escrow_address column");
+    eprintln!("✅ DB migration: escrow_address column ensured");
+
     let (tx, _) = broadcast::channel(100);
 
-    let auth_service = std::sync::Arc::new(battle_core::auth::AuthService::new(pool.clone()));
+    let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
 
     let faceit_config = battle_core::models::faceit::FaceitOAuthConfig {
         client_id: std::env::var("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
@@ -33,16 +53,93 @@ async fn main() {
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
     };
-    let faceit_service = std::sync::Arc::new(battle_core::faceit_oauth::FaceitOAuthService::new(
+    let faceit_service = Arc::new(battle_core::faceit_oauth::FaceitOAuthService::new(
         faceit_config,
         pool.clone(),
     ));
+
+    // ── battle-kaspa: Initialize Kaspa escrow infrastructure ──
+    let kaspa_node_url = std::env::var("KASPA_NODE_URL")
+        .unwrap_or_else(|_| "wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh".to_string());
+    let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-10".to_string());
+    let kaspa_mnemonic = std::env::var("KASPA_MNEMONIC").ok();
+
+    let escrow_wallet = Arc::new(
+        battle_kaspa::wallet::EscrowWallet::new(kaspa_mnemonic, &kaspa_network)
+            .expect("Failed to initialize EscrowWallet"),
+    );
+    eprintln!("✅ EscrowWallet initialized (network: {})", kaspa_network);
+
+    // Connect to Kaspa node (optional — don't crash if node is unreachable during dev)
+    let kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>> =
+        match battle_kaspa::rpc::RealKaspaClient::new(&kaspa_node_url, &kaspa_network).await {
+            Ok(client) => {
+                eprintln!("✅ Connected to Kaspa node: {}", kaspa_node_url);
+                Some(Arc::new(client))
+            }
+            Err(e) => {
+                eprintln!(
+                    "⚠️ Kaspa RPC connection failed (escrow features disabled): {}",
+                    e
+                );
+                None
+            }
+        };
+
+    let escrow_service = kaspa_rpc.as_ref().map(|rpc| {
+        Arc::new(battle_kaspa::escrow::EscrowService::new(
+            escrow_wallet.clone(),
+            rpc.clone(),
+        ))
+    });
+
+    // Initialize PayoutService (real TX signing + submission)
+    // Derive treasury address from TREASURY_MNEMONIC (or use TREASURY_ADDRESS directly)
+    let treasury_mnemonic_result = std::env::var("TREASURY_MNEMONIC");
+    eprintln!(
+        "🔍 TREASURY_MNEMONIC: {:?}",
+        treasury_mnemonic_result
+            .as_ref()
+            .map(|s| format!("{}...", &s[..20.min(s.len())]))
+    );
+    let treasury_address = if let Ok(treasury_mnemonic) = treasury_mnemonic_result {
+        let treasury_wallet =
+            battle_kaspa::wallet::EscrowWallet::new(Some(treasury_mnemonic), &kaspa_network)
+                .expect("Failed to initialize treasury wallet from TREASURY_MNEMONIC");
+        let (addr, _) = treasury_wallet
+            .derive_escrow_address("treasury-main")
+            .expect("Failed to derive treasury address");
+        let addr_str = addr.to_string();
+        eprintln!("✅ Treasury address derived: {}", addr_str);
+        addr_str
+    } else {
+        std::env::var("TREASURY_ADDRESS").unwrap_or_else(|_| {
+            "kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2".to_string()
+        })
+    };
+    let payout_service = kaspa_rpc.as_ref().map(|rpc| {
+        Arc::new(battle_kaspa::payout::PayoutService::new(
+            rpc.clone(),
+            treasury_address.clone(),
+            std::collections::HashMap::new(), // Keys registered dynamically per match
+        ))
+    });
+    if payout_service.is_some() {
+        eprintln!(
+            "✅ PayoutService initialized (treasury: {})",
+            treasury_address
+        );
+    }
 
     let state = api::AppState {
         pool,
         tx,
         auth_service,
         faceit_service,
+        escrow_wallet: Some(escrow_wallet),
+        escrow_service,
+        kaspa_rpc,
+        payout_service,
     };
 
     let app = Router::new()
@@ -51,6 +148,7 @@ async fn main() {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
+    eprintln!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
