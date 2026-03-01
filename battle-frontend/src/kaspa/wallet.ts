@@ -1,6 +1,7 @@
 import * as kaspa from 'kaspa-wasm';
 import { initKaspaWasm } from './init';
 import { getRpcClient } from './rpc';
+export { getRpcClient };
 import { KASPA_NETWORK } from '../config/constants';
 
 // Wallet Connection interface
@@ -145,6 +146,24 @@ export async function getBalance(account: any): Promise<number> {
     } catch (e) {
         console.warn("⚠️ Fehler beim Scannen der Balances", e);
         return 0;
+    }
+}
+
+/**
+ * Fetches balance for a single address via RPC
+ */
+export async function getBalanceByAddress(address: string): Promise<number> {
+    try {
+        const rpcClient = await getRpcClient();
+        const res = await rpcClient.getBalanceByAddress({ address });
+        if (res.balance) {
+            const bal = typeof res.balance === 'bigint' ? res.balance : BigInt(res.balance || 0);
+            return Number(bal);
+        }
+        return 0;
+    } catch (e) {
+        console.error(`[wallet] Error fetching balance for ${address}:`, e);
+        throw e;
     }
 }
 

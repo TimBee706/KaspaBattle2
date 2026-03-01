@@ -1,14 +1,24 @@
 import { useState } from 'react';
-import { useWalletConnect } from '../hooks/useWalletConnect';
-import { formatKas } from '../utils/format';
+import { useWallet } from '../hooks/useWallet';
 import { useTranslation } from 'react-i18next';
 
 export function WalletPage() {
     const {
-        isConnected, isConnecting, address, balanceSompi, error, mnemonic,
-        connectWithMnemonic, disconnect,
-    } = useWalletConnect();
+        isConnected,
+        isConnecting,
+        address,
+        balanceSompi,
+        isFetchingBalance,
+        balanceError,
+        error,
+        mnemonic,
+        connectWithMnemonic,
+        disconnect,
+        fetchBalance
+    } = useWallet();
+
     const [mnemonicInput, setMnemonicInput] = useState('');
+    const [showMnemonic, setShowMnemonic] = useState(false);
     const { t } = useTranslation();
 
     const handleImport = async (e?: React.FormEvent) => {
@@ -74,20 +84,38 @@ export function WalletPage() {
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center px-4">
                 <h1 className="text-3xl font-black tracking-tighter">{t('wallet.overview')}</h1>
-                <button
-                    onClick={disconnect}
-                    className="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 text-sm font-bold rounded-lg border border-red-900/30 transition-colors"
-                >
-                    {t('wallet.disconnect')}
-                </button>
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => fetchBalance(address)}
+                        disabled={isFetchingBalance}
+                        className="px-4 py-2 bg-kaspa-card hover:bg-kaspa-dark text-gray-400 hover:text-white text-sm font-bold rounded-lg border border-kaspa-border transition-colors disabled:opacity-50"
+                    >
+                        {isFetchingBalance ? '🔄' : '🔃'} {t('wallet.refresh', 'Aktualisieren')}
+                    </button>
+                    <button
+                        onClick={disconnect}
+                        className="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 text-sm font-bold rounded-lg border border-red-900/30 transition-colors"
+                    >
+                        {t('wallet.disconnect')}
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="card p-8 bg-gradient-to-br from-kaspa-card to-kaspa-dark border border-kaspa-primary/30 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-kaspa-primary/10 rounded-full blur-3xl" />
                     <h3 className="text-xs font-black text-kaspa-primary uppercase tracking-widest mb-2">{t('wallet.balance')}</h3>
-                    <div className="text-5xl font-black mb-4">
-                        {formatKas(balanceSompi)} <span className="text-xl text-gray-400">KAS</span>
+                    <div className="text-5xl font-black mb-4 flex items-baseline gap-2">
+                        {isFetchingBalance && balanceSompi === -1 ? (
+                            <span className="animate-pulse text-gray-500">...</span>
+                        ) : balanceError ? (
+                            <span className="text-red-500 text-3xl">—</span>
+                        ) : (
+                            <>
+                                <span>{(balanceSompi / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</span>
+                                <span className="text-xl text-gray-400">KAS</span>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -114,26 +142,35 @@ export function WalletPage() {
 
             {mnemonic && (
                 <div className="card p-8 border border-red-900/20 bg-red-900/5">
-                    <div className="flex items-center gap-3 mb-6">
-                        <span className="text-2xl">⚠️</span>
-                        <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">⚠️</span>
+                            <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
+                        </div>
+                        <button
+                            onClick={() => setShowMnemonic(!showMnemonic)}
+                            className="text-xs font-black uppercase tracking-widest bg-red-900/20 hover:bg-red-900-40 px-4 py-2 rounded-lg text-red-400 transition-all border border-red-900/30"
+                        >
+                            {showMnemonic ? `🙈 ${t('wallet.hide', 'Verbergen')}` : `👁 ${t('wallet.show_phrase', 'Recovery Phrase anzeigen')}`}
+                        </button>
                     </div>
+
                     <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                         {t('wallet.backup_text')}
                     </p>
-                    <div className="bg-kaspa-dark p-6 rounded-xl border border-kaspa-border relative group">
-                        <div className="flex flex-wrap gap-2 blur-md group-hover:blur-none transition-all duration-300">
-                            {mnemonic.split(' ').map((word: string, i: number) => (
-                                <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
-                                    <span className="text-gray-500 text-xs">{i + 1}</span>
-                                    <span className="font-mono text-kaspa-primary font-bold">{word}</span>
-                                </div>
-                            ))}
+
+                    {showMnemonic && (
+                        <div className="bg-kaspa-dark p-6 rounded-xl border border-kaspa-border">
+                            <div className="flex flex-wrap gap-2">
+                                {mnemonic.split(' ').map((word: string, i: number) => (
+                                    <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
+                                        <span className="text-gray-500 text-xs">{i + 1}</span>
+                                        <span className="font-mono text-kaspa-primary font-bold">{word}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="absolute inset-0 flex items-center justify-center group-hover:hidden bg-kaspa-dark/80 backdrop-blur-sm rounded-xl transition-opacity">
-                            <span className="text-xs font-black tracking-widest text-gray-400">{t('wallet.hover_to_show')}</span>
-                        </div>
-                    </div>
+                    )}
                 </div>
             )}
         </div>

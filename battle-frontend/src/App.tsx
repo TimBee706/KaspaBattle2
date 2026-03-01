@@ -15,6 +15,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { useAuthStore } from './stores/useAuthStore';
 import { LanguageToggle } from './components/LanguageToggle';
 import { useTranslation } from 'react-i18next';
+import { useWallet } from './hooks/useWallet';
 
 // Fallback for unknown routes goes to LandingPage
 
@@ -23,6 +24,7 @@ export default function App() {
   const { setTokens, fetchUser } = useAuthStore();
   const { t } = useTranslation();
 
+  useWallet(); // Restore wallet session & balance on boot
   useBalance(); // Balance-Tracking im Hintergrund starten
 
   useEffect(() => {
