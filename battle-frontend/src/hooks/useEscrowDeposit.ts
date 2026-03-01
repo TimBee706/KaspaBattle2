@@ -17,6 +17,13 @@ export function useEscrowDeposit() {
         setDepositing(true);
         try {
             // 1. TX an Escrow-Adresse über WASM SDK senden
+            console.log("🛠️ calling sendDeposit with:", {
+                accountType: typeof account,
+                hasMnemonic: !!(account as any)?.mnemonic,
+                escrowAddress: currentMatch.escrow_address,
+                amount: currentMatch.wager_amount_sompi || (currentMatch as any).stake_kas || 0
+            });
+
             const txHash = await sendDeposit(
                 account,
                 currentMatch.escrow_address,
@@ -32,7 +39,9 @@ export function useEscrowDeposit() {
 
             setDepositTxHash(txHash);
         } catch (err: any) {
-            setError(`Deposit fehlgeschlagen: ${err.message}`);
+            console.error('❌ [useEscrowDeposit] Deposit Error:', err);
+            const errorMsg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err) || "Unbekannter Fehler");
+            setError(`Deposit fehlgeschlagen: ${errorMsg}`);
         }
     }, [account, currentMatch, setDepositing, setDepositTxHash, setError]);
 

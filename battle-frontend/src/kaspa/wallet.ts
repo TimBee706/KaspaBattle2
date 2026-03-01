@@ -87,7 +87,11 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     const account = {
         receiveAddress: addressStr,
         xpub: addressData.xpub,
-        mnemonic: mnemonicPhrase
+        mnemonic: mnemonicPhrase,
+        send: (...args: any[]) => {
+            console.error("💣 DYNAMISCHER AUFRUF VON account.send() DETEKTIERT! Args:", args);
+            throw new Error("KasperBattle: account.send is legacy! Bitte sendDeposit(account, ...) nutzen.");
+        }
     };
 
     console.log(`✅ Kaspa Wallet (Raw Derivation) erfolgreich geladen! (Adresse: ${addressStr})`);
@@ -209,25 +213,47 @@ export async function sendDeposit(
     // Erster Receive-Address als Change-Adresse nutzen
     const changeAddress = publicKeyGenerator.receiveAddress(KASPA_NETWORK, 0).toString();
 
-    const { transactions } = await kaspa.createTransactions({
-        entries,
-        outputs: [{ address: escrowAddress, amount }],
-        priorityFee: 0n,
-        changeAddress,
-    });
+    let transactions;
+    try {
+        const result = await kaspa.createTransactions({
+            entries,
+            outputs: [{ address: escrowAddress, amount }],
+            priorityFee: 0n,
+            changeAddress,
+            networkId: KASPA_NETWORK,
+        });
+        transactions = result.transactions;
+        console.log(`✅ [sendDeposit] ${transactions.length} Transaktionen erstellt.`);
+    } catch (e: any) {
+        console.error("❌ [sendDeposit] Fehler bei createTransactions:", e);
+        // WASM Fehler sind oft Strings oder haben keine message property
+        const errorMsg = typeof e === 'string' ? e : (e?.message || JSON.stringify(e) || "Unbekannter WASM Fehler");
+        throw new Error(`Transaktionserstellung fehlgeschlagen: ${errorMsg}`);
+    }
 
     if (!transactions || transactions.length === 0) {
-        throw new Error("Transaktionserstellung fehlgeschlagen. Möglicherweise nicht genug Guthaben für Gebühren oder Betrag.");
+        throw new Error("Transaktionserstellung fehlgeschlagen: Keine Transaktionen generiert.");
     }
 
     // 4. Signieren und Senden
     let finalTxId = "";
-    for (const pending of transactions) {
-        console.log("✍️ Signiere Transaktion...");
-        await pending.sign(usedPrivateKeys);
-        console.log("📤 Übermittle an RPC...");
-        finalTxId = await pending.submit(rpc);
-        console.log(`✅ Transaktion gesendet! ID: ${finalTxId}`);
+    for (const [idx, pending] of transactions.entries()) {
+        console.log(`✍️ [sendDeposit] Signiere Transaktion ${idx + 1}/${transactions.length}...`);
+        try {
+            await pending.sign(usedPrivateKeys);
+        } catch (e: any) {
+            console.error(`❌ [sendDeposit] Fehler beim Signieren von TX ${idx + 1}:`, e);
+            throw new Error(`Signatur-Fehler: ${e.message || e}`);
+        }
+
+        console.log(`📤 [sendDeposit] Übermittle TX ${idx + 1} an RPC...`);
+        try {
+            finalTxId = await pending.submit(rpc);
+            console.log(`✅ [sendDeposit] Transaktion ${idx + 1} gesendet! ID: ${finalTxId}`);
+        } catch (e: any) {
+            console.error(`❌ [sendDeposit] Fehler beim Senden von TX ${idx + 1}:`, e);
+            throw new Error(`RPC-Submit-Fehler: ${e.message || e}`);
+        }
     }
 
     return finalTxId;

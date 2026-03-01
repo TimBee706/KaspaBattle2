@@ -36,6 +36,7 @@ pub struct User {
 pub struct Match {
     pub id: Uuid,
     pub onchain_match_id: Option<String>,
+    pub escrow_address: Option<String>,
     pub creator_user_id: Uuid,
     pub opponent_user_id: Option<Uuid>,
     pub game_id: String,

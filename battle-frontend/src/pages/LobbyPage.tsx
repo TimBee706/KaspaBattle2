@@ -1,17 +1,14 @@
 import React, { useEffect } from 'react';
 import { useLobbyStore } from '../stores/useLobbyStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { useLobbies } from '../hooks/useLobbies';
 import { LobbyTable } from '../components/LobbyTable';
 import { ChallengeModal } from '../components/ChallengeModal';
 import apiClient from '../api/client';
 import { WS_BASE_URL } from '../config/constants';
 
 export const LobbyPage: React.FC = () => {
-    useLobbies();
-    const { lobbies } = useLobbyStore();
+    const { lobbies, setLobbies, addOrUpdateLobby } = useLobbyStore();
     const { user, fetchUser, testMode, setTestMode } = useAuthStore();
-
 
     useEffect(() => {
         fetchUser().then(() => {
@@ -26,7 +23,6 @@ export const LobbyPage: React.FC = () => {
         return () => ws.close();
     }, [setLobbies, addOrUpdateLobby, fetchUser, setTestMode]);
 
-    const isMyLobby = (l: any) => l.creator_user_id === user?.id || l.opponent_user_id === user?.id;
     const myLobbies = lobbies.filter(m =>
         (user?.faceit_id && (m.player_a_faceit_id === user.faceit_id || m.player_b_faceit_id === user.faceit_id)) ||
         (user?.id && (m.creator_user_id === user.id || m.opponent_user_id === user.id))

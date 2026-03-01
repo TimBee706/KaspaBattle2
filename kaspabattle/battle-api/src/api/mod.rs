@@ -25,6 +25,12 @@ pub struct CreateReq {
     pub mode: MatchMode,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct DepositReq {
+    pub tx_hash: String,
+    pub player_role: String, // "A" oder "B"
+}
+
 use battle_core::auth::AuthService;
 use battle_core::faceit_oauth::FaceitOAuthService;
 use std::sync::Arc;
@@ -42,7 +48,8 @@ pub fn router() -> Router<AppState> {
         .route("/lobbies", get(get_lobbies))
         .route("/history", get(get_history))
         .route("/challenges", post(create_challenge))
-        .route("/challenges/:id/join", post(join_challenge))
+        .route("/matches/:id/accept", post(join_challenge))
+        .route("/matches/:id/deposit", post(submit_deposit))
         .route("/auth/me", get(get_me))
         .nest("/faceit", faceit::router())
 }
@@ -75,7 +82,7 @@ pub async fn get_me(
 }
 
 pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
-    let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status IN ('OPEN', 'LOCKED', 'AWAITING_FUNDING')")
+    let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, 'kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2' as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status IN ('OPEN', 'LOCKED', 'AWAITING_FUNDING')")
         .fetch_all(&state.pool).await.map_err(|e| {
             eprintln!("SQL Error in get_lobbies: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -84,7 +91,7 @@ pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match
 }
 
 pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
-    let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status = 'RESOLVED'")
+    let rows = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, 'kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2' as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status = 'RESOLVED'")
         .fetch_all(&state.pool).await.map_err(|e| {
             eprintln!("SQL Error in get_history: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -101,7 +108,7 @@ pub async fn create_challenge(
     let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let record = sqlx::query_as::<_, Match>(
-        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, 'kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2' as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
     )
     .bind(user_id).bind(&payload.game_id).bind(payload.stake_kas).bind(payload.mode)
     .fetch_one(&state.pool).await.map_err(|e| {
@@ -124,7 +131,7 @@ pub async fn join_challenge(
 
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let record = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET status = 'AWAITING_FUNDING', opponent_user_id = $1 WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "UPDATE matches SET status = 'AWAITING_FUNDING', opponent_user_id = $1 WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, 'kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2' as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
     )
     .bind(joiner_id).bind(id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::FORBIDDEN)?; // Fehlschlag (z.B. Self-Join) liefert 403
@@ -132,6 +139,35 @@ pub async fn join_challenge(
     let _ = state
         .tx
         .send(serde_json::to_string(&record).unwrap_or_default());
+    Ok(Json(record))
+}
+
+pub async fn submit_deposit(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<DepositReq>,
+) -> Result<Json<Match>, StatusCode> {
+    let field = if payload.player_role == "A" {
+        "player_a_deposit_tx_hash"
+    } else {
+        "player_b_deposit_tx_hash"
+    };
+
+    let query = format!(
+        "UPDATE matches SET {} = $1, status = CASE WHEN (player_a_deposit_tx_hash IS NOT NULL OR player_b_deposit_tx_hash IS NOT NULL) THEN 'FUNDED' ELSE status END WHERE id = $2 RETURNING id, onchain_match_id, 'kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2' as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at",
+        field
+    );
+
+    let record = sqlx::query_as::<_, Match>(&query)
+        .bind(&payload.tx_hash)
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            eprintln!("SQL Error in submit_deposit: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
     Ok(Json(record))
 }
 
