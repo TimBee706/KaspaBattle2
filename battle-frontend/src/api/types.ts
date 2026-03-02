@@ -1,5 +1,5 @@
 export type MatchMode = 'BO1' | 'BO3';
-export type MatchStatus = 'OPEN' | 'AWAITING_FUNDING' | 'LOCKED' | 'IN_GAME' | 'RESOLVED' | 'PAID_OUT' | 'DISPUTED' | 'CANCELLED';
+export type MatchStatus = 'DRAFT' | 'OPEN' | 'AWAITING_FUNDING' | 'FUNDED' | 'LOCKED' | 'IN_GAME' | 'RESOLVING' | 'RESOLVED' | 'PAID_OUT' | 'DISPUTED' | 'CANCELLED';
 
 export interface BattleMatch {
     id: string;                            // UUID

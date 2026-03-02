@@ -41,6 +41,22 @@ async fn main() {
         .expect("Failed to add escrow_address column");
     eprintln!("✅ DB migration: escrow_address column ensured");
 
+    // v0.2 migrations: deposit tracking + FaceID
+    let v02_migrations = [
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_tx_hash TEXT",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_tx_hash TEXT",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_confirmed BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_confirmed BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_faceid_hash TEXT",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_faceid_hash TEXT",
+    ];
+    for migration in &v02_migrations {
+        if let Err(e) = sqlx::query(migration).execute(&pool).await {
+            eprintln!("⚠️ v0.2 migration skipped (may already exist): {}", e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.2 columns ensured (deposit tracking + FaceID)");
+
     let (tx, _) = broadcast::channel(100);
 
     let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
@@ -146,10 +162,47 @@ async fn main() {
         .nest("/api/v1", api::router())
         .route("/ws", get(api::ws_handler))
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state.clone());
 
     eprintln!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
+    // ── Background Episode-Runner (v0.2) ──────────────────────────────────────
+    // Every 30s: advance all active match episodes (check deposits, trigger FACEIT)
+    tokio::spawn({
+        let ep_pool = state.pool.clone();
+        let ep_escrow = state.escrow_service.clone();
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+
+                let active_ids: Vec<(uuid::Uuid,)> = sqlx::query_as(
+                    "SELECT id FROM matches WHERE status IN \
+                     ('AWAITING_FUNDING', 'FUNDED', 'LOCKED')",
+                )
+                .fetch_all(&ep_pool)
+                .await
+                .unwrap_or_default();
+
+                for (match_id,) in active_ids {
+                    use crate::episodes::match_episode::MatchEpisode;
+                    use crate::episodes::EpisodeTrait;
+                    let ctx = (ep_pool.clone(), ep_escrow.clone());
+                    match MatchEpisode::initialize(&ctx, match_id).await {
+                        Ok(mut ep) => {
+                            if let Err(e) = ep.execute().await {
+                                eprintln!("⚠️ Episode runner {}: {}", match_id, e);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️ Episode init {}: {}", match_id, e);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     axum::serve(listener, app).await.unwrap();
 }

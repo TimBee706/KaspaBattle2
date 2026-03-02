@@ -7,11 +7,16 @@ use uuid::Uuid;
 #[sqlx(type_name = "match_status", rename_all = "SCREAMING_SNAKE_CASE")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MatchStatus {
-    Open,
-    AwaitingFunding,
-    Locked,
-    InGame,
-    Resolved,
+    Draft,           // Locally prepared, not yet published
+    Open,            // WAITING_FOR_PLAYER
+    AwaitingFunding, // PENDING_DEPOSITS
+    Funded,          // READY_TO_LOCK (both deposits confirmed)
+    Locked,          // IN_GAME (escrow locked, FACEIT running)
+    InGame,          // Actively in game on platform
+    Resolving,       // Oracle querying result
+    Resolved,        // Winner determined
+    PaidOut,         // Payout executed
+    Disputed,        // Dispute filed
     Cancelled,
 }
 
@@ -47,6 +52,22 @@ pub struct Match {
     pub created_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
     pub wager_amount_sompi: i64,
+
+    // ── v0.2 Deposit Tracking ──
+    #[sqlx(default)]
+    pub player_a_deposit_tx_hash: Option<String>,
+    #[sqlx(default)]
+    pub player_b_deposit_tx_hash: Option<String>,
+    #[sqlx(default)]
+    pub player_a_deposit_confirmed: Option<bool>,
+    #[sqlx(default)]
+    pub player_b_deposit_confirmed: Option<bool>,
+
+    // ── v0.2 FaceID (optional, off-chain hash) ──
+    #[sqlx(default)]
+    pub player_a_faceid_hash: Option<String>,
+    #[sqlx(default)]
+    pub player_b_faceid_hash: Option<String>,
 }
 
 impl Match {
@@ -54,5 +75,11 @@ impl Match {
         // The DB field stake_kas actually stores the value in Sompi
         // because the frontend converts it before sending.
         self.wager_amount_sompi = self.stake_kas;
+    }
+
+    /// Returns true if this match has both players' deposits confirmed
+    pub fn both_deposits_confirmed(&self) -> bool {
+        self.player_a_deposit_confirmed.unwrap_or(false)
+            && self.player_b_deposit_confirmed.unwrap_or(false)
     }
 }

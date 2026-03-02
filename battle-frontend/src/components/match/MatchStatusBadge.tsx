@@ -2,9 +2,13 @@ import type { MatchStatus } from '../../api/types';
 import { useTranslation } from 'react-i18next';
 
 const STATUS_CONFIG: Record<MatchStatus, { key: string; color: string; pulse?: boolean }> = {
+    DRAFT: { key: 'status.DRAFT', color: 'bg-gray-500' },
     OPEN: { key: 'status.OPEN', color: 'bg-blue-600' },
+    AWAITING_FUNDING: { key: 'status.AWAITING_FUNDING', color: 'bg-yellow-600', pulse: true },
     FUNDED: { key: 'status.FUNDED', color: 'bg-indigo-600', pulse: true },
     LOCKED: { key: 'status.LOCKED', color: 'bg-orange-600', pulse: true },
+    IN_GAME: { key: 'status.IN_GAME', color: 'bg-purple-600', pulse: true },
+    RESOLVING: { key: 'status.RESOLVING', color: 'bg-amber-600', pulse: true },
     RESOLVED: { key: 'status.RESOLVED', color: 'bg-green-600' },
     PAID_OUT: { key: 'status.PAID_OUT', color: 'bg-emerald-600' },
     DISPUTED: { key: 'status.DISPUTED', color: 'bg-red-600', pulse: true },

@@ -81,6 +81,9 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/deposit", post(submit_deposit))
         .route("/matches/:id/deposits", get(check_deposits))
         .route("/matches/:id/resolve", post(admin_resolve_match))
+        // ── v0.2 ──
+        .route("/matches/:id/faceid", post(submit_faceid_handler))
+        .route("/matches/:id/cancel", post(cancel_match_handler))
         .route("/lobbies/:id/simulate-deposit", post(simulate_deposit_test))
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/auth/me", get(get_me))
@@ -224,26 +227,93 @@ pub async fn submit_deposit(
     Path(id): Path<Uuid>,
     Json(payload): Json<DepositReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    // Log the deposit for auditing
     eprintln!(
         "📥 Deposit received: match={}, tx_hash={}, player_role={}",
         id, payload.tx_hash, payload.player_role
     );
 
-    // Update match status to LOCKED (exists in the match_status enum)
-    // We don't have deposit tx_hash columns in the DB yet, so just update status
-    let record = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET status = 'LOCKED' WHERE id = $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
-    )
+    // Step 1: Fetch the current match to determine player roles and current state
+    let m: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| {
+            eprintln!("❌ submit_deposit: match {} not found", id);
+            StatusCode::NOT_FOUND
+        })?;
+
+    // Step 2: Validate state — only accept deposits in AWAITING_FUNDING
+    use crate::models::MatchStatus;
+    if m.status != MatchStatus::AwaitingFunding {
+        eprintln!(
+            "⚠️ submit_deposit: match {} is in state {:?}, not AWAITING_FUNDING — rejecting deposit",
+            id, m.status
+        );
+        return Err(StatusCode::CONFLICT);
+    }
+
+    // Step 3: Determine which player column to update based on player_role
+    // player_role "A" = creator, "B" = opponent
+    let (tx_col, confirmed_col) = match payload.player_role.to_uppercase().as_str() {
+        "A" => ("player_a_deposit_tx_hash", "player_a_deposit_confirmed"),
+        "B" => ("player_b_deposit_tx_hash", "player_b_deposit_confirmed"),
+        _ => {
+            eprintln!(
+                "❌ submit_deposit: invalid player_role '{}'",
+                payload.player_role
+            );
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    // Step 4: Record this player's deposit TX hash and mark as confirmed
+    sqlx::query(&format!(
+        "UPDATE matches SET {} = $1, {} = true WHERE id = $2",
+        tx_col, confirmed_col
+    ))
+    .bind(&payload.tx_hash)
     .bind(id)
-    .fetch_one(&state.pool)
+    .execute(&state.pool)
     .await
     .map_err(|e| {
-        eprintln!("SQL Error in submit_deposit: {:?}", e);
+        eprintln!("❌ SQL error recording deposit: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    Ok(Json(record))
+    // Step 5: Check whether BOTH players have now deposited
+    let updated: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let a_confirmed = updated.player_a_deposit_confirmed.unwrap_or(false);
+    let b_confirmed = updated.player_b_deposit_confirmed.unwrap_or(false);
+
+    let final_match = if a_confirmed && b_confirmed {
+        // ✅ Both deposits received → advance to FUNDED (READY_TO_LOCK)
+        // Episode-runner will then transition FUNDED → LOCKED when it calls execute()
+        eprintln!("💰 Both deposits confirmed for match {} → FUNDED", id);
+        sqlx::query_as("UPDATE matches SET status = 'FUNDED' WHERE id = $1 RETURNING *")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        // ⏳ Only one deposit so far → stay in AWAITING_FUNDING (PENDING_DEPOSITS)
+        eprintln!(
+            "⏳ Deposit 1/2 confirmed for match {} → staying AWAITING_FUNDING (A={}, B={})",
+            id, a_confirmed, b_confirmed
+        );
+        updated
+    };
+
+    // Broadcast updated state via WebSocket
+    let _ = state
+        .tx
+        .send(serde_json::to_string(&final_match).unwrap_or_default());
+
+    Ok(Json(final_match))
 }
 
 /// Check deposit status for a match via EscrowService (on-chain balance check)
@@ -517,6 +587,87 @@ async fn execute_payout_for_match(
             }))
         }
     }
+}
+
+// ── v0.2: FaceID Endpoint ─────────────────────────────────────────────────
+
+/// Request body for FaceID hash submission
+#[derive(Deserialize)]
+pub struct FaceIdReq {
+    pub hash: String, // SHA-256 of biometric template (off-chain, anti-fraud only)
+}
+
+/// POST /matches/:id/faceid — optional FaceID hash upload
+///
+/// Player submits a hash of their FaceID verification. Not required for match to
+/// proceed (no blocker). Useful for dispute resolution.
+pub async fn submit_faceid_handler(
+    State(state): State<AppState>,
+    crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<FaceIdReq>,
+) -> Result<Json<Match>, StatusCode> {
+    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let m: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Determine player role (A = creator, B = opponent)
+    let col = if m.creator_user_id == user_id {
+        "player_a_faceid_hash"
+    } else if m.opponent_user_id == Some(user_id) {
+        "player_b_faceid_hash"
+    } else {
+        return Err(StatusCode::FORBIDDEN);
+    };
+
+    let updated: Match = sqlx::query_as(&format!(
+        "UPDATE matches SET {} = $1 WHERE id = $2 RETURNING *",
+        col
+    ))
+    .bind(&payload.hash)
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    eprintln!("🪪  Match {}: {} FaceID hash recorded", id, col);
+    Ok(Json(updated))
+}
+
+// ── v0.2: Cancel Endpoint ─────────────────────────────────────────────────
+
+/// POST /matches/:id/cancel — cancel an open or pending match
+///
+/// Only the match creator can cancel, and only while status is OPEN or AWAITING_FUNDING.
+/// Does NOT auto-refund deposits (manual process for now).
+pub async fn cancel_match_handler(
+    State(state): State<AppState>,
+    crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Match>, StatusCode> {
+    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Only creator can cancel, only from non-locked states
+    let updated: Match = sqlx::query_as(
+        "UPDATE matches SET status = 'CANCELLED' \
+         WHERE id = $1 \
+           AND creator_user_id = $2 \
+           AND status IN ('OPEN', 'AWAITING_FUNDING') \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    eprintln!("❌ Match {} cancelled by creator {}", id, user_id);
+    // TODO: trigger EscrowService.refund() when deposits exist
+    Ok(Json(updated))
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
