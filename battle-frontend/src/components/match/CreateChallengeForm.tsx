@@ -34,7 +34,7 @@ export function CreateChallengeForm() {
             });
 
             if (result && result.id) {
-                navigate(`/lobby/${result.id}/escrow`);
+                navigate(`/match/${result.id}`);
             }
         } catch (err: any) {
             setError(err.message);

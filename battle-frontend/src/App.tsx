@@ -12,7 +12,7 @@ import { CreateMatchPage } from './pages/CreateMatchPage';
 import { MatchPage } from './pages/MatchPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { EscrowPage } from './pages/EscrowPage';
+
 import { useAuthStore } from './stores/useAuthStore';
 import { LanguageToggle } from './components/LanguageToggle';
 import { useTranslation } from 'react-i18next';
@@ -93,7 +93,7 @@ export default function App() {
           {/* Geschützte Routen */}
           <Route path="lobby" element={<AuthGuard><LobbyPage /></AuthGuard>} />
           <Route path="lobby/create" element={<AuthGuard><CreateMatchPage /></AuthGuard>} />
-          <Route path="lobby/:lobbyId/escrow" element={<AuthGuard><EscrowPage /></AuthGuard>} />
+
           <Route path="lobby/:lobbyId" element={<AuthGuard><LobbyPage /></AuthGuard>} />
           <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
           <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
