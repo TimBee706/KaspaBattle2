@@ -4,9 +4,10 @@ export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-10';
 export const KASPA_EXPLORER_URL = 'https://tn10explorer.kaspa.org'; // Testnet Explorer
 export const SOMPI_PER_KAS = 100_000_000; // 1 KAS = 10^8 Sompi
 
-// KaspaBattle API
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
-export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws';
+// KaspaBattle API 
+// Uses relative paths by default so Vite Proxy handles CORS cleanly!
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || '/ws';
 
 // FACEIT OAuth
 // Client ID is public but must be set via VITE_FACEIT_CLIENT_ID env variable
