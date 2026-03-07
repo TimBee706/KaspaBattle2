@@ -494,7 +494,7 @@ mod tests {
         assert_eq!(info.challenge_id, "challenge-001");
         assert!(info.escrow_address.starts_with("kaspatest:"));
         assert_eq!(info.wager_amount_sompi, 5_000_000);
-        assert_eq!(info.wager_amount_kas, 50.0);
+        assert_eq!(info.wager_amount_kas, 0.05); // 5_000_000 Sompi = 0.05 KAS
     }
 
     #[tokio::test]
@@ -562,13 +562,13 @@ mod tests {
     fn test_payout_calculation() {
         let service = make_service();
 
-        // 50 KAS each = 100 KAS pot = 10_000_000 sompi
+        // 0.05 KAS each = 0.10 KAS pot = 10_000_000 sompi
         let breakdown = service.calculate_payout(10_000_000);
         assert_eq!(breakdown.total_pot, 10_000_000);
         assert_eq!(breakdown.platform_fee, 500_000); // 5%
         assert_eq!(breakdown.winner_amount, 9_500_000); // 95%
-        assert_eq!(breakdown.winner_amount_kas, 95.0);
-        assert_eq!(breakdown.platform_fee_kas, 5.0);
+        assert_eq!(breakdown.winner_amount_kas, 0.095); // 9_500_000 / 10^8
+        assert_eq!(breakdown.platform_fee_kas, 0.005); // 500_000 / 10^8
     }
 
     #[test]

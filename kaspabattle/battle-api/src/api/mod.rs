@@ -550,7 +550,10 @@ async fn execute_payout_for_match(
         player_a_faceit_id: String::new(),
         player_b_faceit_id: String::new(),
         faceit_match_id: m.external_match_id.clone(),
-        wager_amount_sompi: (m.stake_kas as u64) * 100_000, // KAS → sompi
+        // IMPORTANT: stake_kas stores the wager in Sompi (the frontend converts
+        // KAS → Sompi before POSTing to /challenges, so no multiplication here).
+        // See battle-frontend/src/hooks/useLobby.ts: stake_kas = stakeKas * 100_000_000
+        wager_amount_sompi: m.stake_kas as u64,
         escrow_address: escrow_address.to_string(),
         status: battle_core::models::match_::MatchStatus::Resolved,
         winner_kas_address: Some(winner_address.to_string()),

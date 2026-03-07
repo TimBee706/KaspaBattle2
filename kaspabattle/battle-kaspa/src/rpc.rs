@@ -14,7 +14,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-
 use tokio::sync::RwLock;
 
 // === Data Types ===
@@ -199,10 +198,7 @@ impl RealKaspaClient {
     }
 
     /// Attempt connection with exponential backoff.
-    async fn connect_with_retry(
-        &self,
-        max_retries: u32,
-    ) -> std::result::Result<(), KaspaError> {
+    async fn connect_with_retry(&self, max_retries: u32) -> std::result::Result<(), KaspaError> {
         use kaspa_wrpc_client::client::{ConnectOptions, ConnectStrategy};
 
         let options = ConnectOptions {
@@ -320,7 +316,7 @@ impl KaspaRpc for RealKaspaClient {
                     tx_id: entry.outpoint.transaction_id.to_string(),
                     output_index: entry.outpoint.index,
                     amount,
-                    amount_kas: amount as f64 / 100_000.0,
+                    amount_kas: amount as f64 / 100_000_000.0, // 1 KAS = 10^8 Sompi
                     is_coinbase: entry.utxo_entry.is_coinbase,
                     block_daa_score: entry.utxo_entry.block_daa_score,
                     script_public_key: Some(hex::encode(

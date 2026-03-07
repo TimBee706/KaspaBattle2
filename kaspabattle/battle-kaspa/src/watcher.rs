@@ -65,7 +65,7 @@ impl BlockchainWatcher {
             escrow_address: escrow_address.to_string(),
             total_balance,
             utxo_count: utxos.len() as u32,
-            total_balance_kas: total_balance as f64 / 100_000.0,
+            total_balance_kas: total_balance as f64 / 100_000_000.0, // 1 KAS = 10^8 Sompi
             utxos,
         })
     }
@@ -144,36 +144,37 @@ impl BlockchainWatcher {
 
         // If we couldn't attribute anything (no script data), fall back to
         // ordered heuristic: first wager sompi = player_a, second = player_b.
-        let (player_a_final, player_b_final) =
-            if player_a_credited == 0 && player_b_credited == 0 && escrow_status.total_balance > 0
-            {
-                tracing::warn!(
-                    "No script attribution data for escrow {}; falling back to ordered heuristic",
-                    escrow_status.escrow_address
-                );
-                // Ordered fallback: cumulate until wager reached
-                let mut cumulative = 0u64;
-                let mut a_contrib = 0u64;
-                let mut b_contrib = 0u64;
-                for utxo in &sorted_utxos {
-                    if utxo.is_coinbase {
-                        continue;
-                    }
-                    if cumulative < wager_per_player {
-                        let take = utxo.amount.min(wager_per_player - cumulative);
-                        a_contrib += take;
-                        if utxo.amount > take {
-                            b_contrib += utxo.amount - take;
-                        }
-                    } else {
-                        b_contrib += utxo.amount;
-                    }
-                    cumulative += utxo.amount;
+        let (player_a_final, player_b_final) = if player_a_credited == 0
+            && player_b_credited == 0
+            && escrow_status.total_balance > 0
+        {
+            tracing::warn!(
+                "No script attribution data for escrow {}; falling back to ordered heuristic",
+                escrow_status.escrow_address
+            );
+            // Ordered fallback: cumulate until wager reached
+            let mut cumulative = 0u64;
+            let mut a_contrib = 0u64;
+            let mut b_contrib = 0u64;
+            for utxo in &sorted_utxos {
+                if utxo.is_coinbase {
+                    continue;
                 }
-                (a_contrib, b_contrib)
-            } else {
-                (player_a_credited, player_b_credited)
-            };
+                if cumulative < wager_per_player {
+                    let take = utxo.amount.min(wager_per_player - cumulative);
+                    a_contrib += take;
+                    if utxo.amount > take {
+                        b_contrib += utxo.amount - take;
+                    }
+                } else {
+                    b_contrib += utxo.amount;
+                }
+                cumulative += utxo.amount;
+            }
+            (a_contrib, b_contrib)
+        } else {
+            (player_a_credited, player_b_credited)
+        };
 
         let player_a_deposited = player_a_final >= wager_per_player;
         let player_b_deposited = player_b_final >= wager_per_player;
@@ -206,8 +207,12 @@ fn script_matches(script: &str, address_fragment: &str) -> bool {
     // The script for a P2PK address contains a compressed public key (33 bytes).
     // For test compatibility with mock scripts, we also allow exact match on the
     // address string that was used as a placeholder key.
-    script.to_lowercase().contains(&address_fragment.to_lowercase())
-        || address_fragment.to_lowercase().contains(&script.to_lowercase())
+    script
+        .to_lowercase()
+        .contains(&address_fragment.to_lowercase())
+        || address_fragment
+            .to_lowercase()
+            .contains(&script.to_lowercase())
 }
 
 #[cfg(test)]
@@ -228,7 +233,7 @@ mod tests {
             escrow_address: "kaspatest:qescrow".to_string(),
             total_balance,
             utxo_count: utxos.len() as u32,
-            total_balance_kas: total_balance as f64 / 100_000.0,
+            total_balance_kas: total_balance as f64 / 100_000_000.0, // 1 KAS = 10^8 Sompi
             utxos,
         }
     }
@@ -272,12 +277,8 @@ mod tests {
     fn test_evaluate_deposits_none() {
         let (watcher, _) = make_watcher();
         let status = make_status(0, vec![]);
-        let eval = watcher.evaluate_deposits(
-            &status,
-            5_000_000,
-            "kaspatest:qalice",
-            "kaspatest:qbob",
-        );
+        let eval =
+            watcher.evaluate_deposits(&status, 5_000_000, "kaspatest:qalice", "kaspatest:qbob");
         assert!(!eval.player_a_deposited);
         assert!(!eval.player_b_deposited);
         assert!(!eval.both_deposited);
@@ -315,19 +316,21 @@ mod tests {
             ],
         );
 
-        let eval = watcher.evaluate_deposits(
-            &status,
-            5_000_000,
-            "kaspatest:qalice",
-            "kaspatest:qbob",
-        );
+        let eval =
+            watcher.evaluate_deposits(&status, 5_000_000, "kaspatest:qalice", "kaspatest:qbob");
 
         // Player A has deposited (her own contributions ≥ wager)
         assert!(eval.player_a_deposited, "Player A should be credited");
         // Player B has NOT deposited (no UTXOs from bob's address)
-        assert!(!eval.player_b_deposited, "Player B should NOT be credited when only player A deposited");
+        assert!(
+            !eval.player_b_deposited,
+            "Player B should NOT be credited when only player A deposited"
+        );
         // Must NOT trigger both_deposited
-        assert!(!eval.both_deposited, "both_deposited must be false when only one player deposited");
+        assert!(
+            !eval.both_deposited,
+            "both_deposited must be false when only one player deposited"
+        );
     }
 
     #[test]
@@ -358,12 +361,8 @@ mod tests {
             ],
         );
 
-        let eval = watcher.evaluate_deposits(
-            &status,
-            5_000_000,
-            "kaspatest:qalice",
-            "kaspatest:qbob",
-        );
+        let eval =
+            watcher.evaluate_deposits(&status, 5_000_000, "kaspatest:qalice", "kaspatest:qbob");
 
         assert!(eval.player_a_deposited);
         assert!(eval.player_b_deposited);
@@ -387,15 +386,14 @@ mod tests {
             }],
         );
 
-        let eval = watcher.evaluate_deposits(
-            &status,
-            5_000_000,
-            "kaspatest:qalice",
-            "kaspatest:qbob",
-        );
+        let eval =
+            watcher.evaluate_deposits(&status, 5_000_000, "kaspatest:qalice", "kaspatest:qbob");
 
         // Coinbase UTXO must be ignored — player A has not truly deposited
-        assert!(!eval.player_a_deposited, "Coinbase UTXOs must not count as deposits");
+        assert!(
+            !eval.player_a_deposited,
+            "Coinbase UTXOs must not count as deposits"
+        );
         assert!(!eval.both_deposited);
     }
 }

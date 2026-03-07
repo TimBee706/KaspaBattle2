@@ -39,7 +39,7 @@ pub struct BattleMatch {
     pub player_a_faceit_id: String,
     pub player_b_faceit_id: String,
     pub faceit_match_id: Option<String>,
-    pub wager_amount_sompi: u64, // in Sompi (1 KAS = 100_000 Sompi)
+    pub wager_amount_sompi: u64, // in Sompi (1 KAS = 100_000_000 Sompi = 10^8)
     pub escrow_address: String,
     pub status: MatchStatus,
     pub winner_kas_address: Option<String>,
