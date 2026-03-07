@@ -30,10 +30,15 @@ async-trait = "0.1"
 urlencoding = "2.1"
 ed25519-dalek = "2"
 rand = "0.8"
-# F-006: Rate limiting middleware
-actix-governor = "0.6"
+# F-006: Rate limiting middleware (tower-based, compatible with Axum)
+# actix-governor = "0.6"  # REMOVED: actix-web dependency, incompatible with axum
 # F-007: Constant-time comparison for Oracle key auth
 subtle = "2"
+# M-03/M-04: HMAC-SHA256 for webhook signature verification and admin key comparison
+hmac = "0.12"
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 [dev-dependencies]
 wiremock = "0.6"

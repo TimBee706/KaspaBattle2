@@ -1,6 +1,8 @@
+pub mod admin_guard;
 pub mod auth_guard;
 pub mod faceit;
 
+use crate::api::{admin_guard::AdminApiKey, auth_guard::SessionUser};
 use crate::models::{Match, MatchMode};
 use axum::{
     extract::{
@@ -84,7 +86,7 @@ pub fn router() -> Router<AppState> {
         // ── v0.2 ──
         .route("/matches/:id/faceid", post(submit_faceid_handler))
         .route("/matches/:id/cancel", post(cancel_match_handler))
-        .route("/lobbies/:id/simulate-deposit", post(simulate_deposit_test))
+        // NOTE: /lobbies/:id/simulate-deposit removed — test-only endpoint
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/auth/me", get(get_me))
         .nest("/faceit", faceit::router())
@@ -94,23 +96,6 @@ pub async fn get_me(
     State(_state): State<AppState>,
     user_opt: Option<crate::api::auth_guard::SessionUser>,
 ) -> Result<Json<battle_core::models::user::User>, StatusCode> {
-    if std::env::var("TEST_MODE").unwrap_or_default() == "true" {
-        return Ok(Json(battle_core::models::user::User {
-            id: "00000000-0000-0000-0000-000000000001".to_string(),
-            email: "test@example.com".to_string(),
-            email_verified: true,
-            password_hash: "".to_string(),
-            display_name: "TestUser".to_string(),
-            kaspa_address: Some(
-                "kaspatest:qzh86re35m2re7k7sxc6uqlp40st4vvmefsc0sv0uev49v3axm7jwcst6p7xs"
-                    .to_string(),
-            ),
-            created_at: "".to_string(),
-            updated_at: "".to_string(),
-            last_login_at: None,
-        }));
-    }
-
     match user_opt {
         Some(crate::api::auth_guard::SessionUser(user)) => Ok(Json(user)),
         None => Err(StatusCode::UNAUTHORIZED),
@@ -224,12 +209,16 @@ pub async fn join_challenge(
 
 pub async fn submit_deposit(
     State(state): State<AppState>,
+    session: SessionUser, // M-05: authentication required
     Path(id): Path<Uuid>,
     Json(payload): Json<DepositReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    eprintln!(
-        "📥 Deposit received: match={}, tx_hash={}, player_role={}",
-        id, payload.tx_hash, payload.player_role
+    let caller_id = &session.0.id;
+    tracing::info!(
+        "Deposit received: match={}, player_role={} caller={}",
+        id,
+        payload.player_role,
+        caller_id
     );
 
     // Step 1: Fetch the current match to determine player roles and current state
@@ -371,10 +360,11 @@ pub struct FaceitWebhookPayload {
 /// Body: { "winner": "A" } or { "winner": "B" }
 pub async fn admin_resolve_match(
     State(state): State<AppState>,
+    _admin: AdminApiKey, // M-03: admin API key required
     Path(id): Path<Uuid>,
     Json(payload): Json<ResolveReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    eprintln!("🔧 Admin resolve match {} → winner: {}", id, payload.winner);
+    tracing::info!("Admin resolve match {} → winner: {}", id, payload.winner);
 
     // Get the match
     let m = sqlx::query_as::<_, Match>(
@@ -418,17 +408,42 @@ pub async fn admin_resolve_match(
 
 /// Faceit webhook handler: POST /webhook/faceit
 /// Receives match completion events from Faceit
+///
+/// M-04: Validates the FaceIT webhook HMAC signature from the
+/// `Faceit-Signature` header to ensure requests are authentic.
 pub async fn faceit_webhook(
     State(state): State<AppState>,
-    Json(payload): Json<FaceitWebhookPayload>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Validate HMAC-SHA256 signature
+    let webhook_secret = std::env::var("FACEIT_WEBHOOK_SECRET").unwrap_or_default();
+    if !webhook_secret.is_empty() {
+        let signature = headers
+            .get("Faceit-Signature")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        if !verify_faceit_hmac(&body, &webhook_secret, signature) {
+            tracing::warn!("Faceit webhook: HMAC signature mismatch — rejecting request");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    } else {
+        tracing::warn!("FACEIT_WEBHOOK_SECRET not set — skipping signature validation (insecure!)");
+    }
+
+    // Deserialize body now that signature is verified
+    let payload: FaceitWebhookPayload =
+        serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     let event = payload.event.unwrap_or_default();
     let match_id = payload.match_id.unwrap_or_default();
     let winner_faceit_id = payload.winner_faceit_id.unwrap_or_default();
 
-    eprintln!(
-        "📨 Faceit webhook: event={}, match_id={}, winner={}",
-        event, match_id, winner_faceit_id
+    tracing::info!(
+        "Faceit webhook verified: event={}, match_id={}, winner={}",
+        event,
+        match_id,
+        winner_faceit_id
     );
 
     if event != "match_status_finished" && !event.is_empty() {
@@ -683,4 +698,35 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
             }
         }
     })
+}
+
+/// Verify a FaceIT webhook HMAC-SHA256 signature.
+///
+/// FaceIT signs POST bodies with HMAC-SHA256 using the webhook secret and
+/// sends the hex-encoded signature in the `Faceit-Signature` header.
+/// Returns `true` if the signature matches, `false` otherwise.
+fn verify_faceit_hmac(body: &[u8], secret: &str, signature: &str) -> bool {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    mac.update(body);
+    let result = mac.finalize().into_bytes();
+    let expected_hex = hex::encode(result);
+
+    // Constant-time comparison
+    let sig_bytes = signature.as_bytes();
+    let exp_bytes = expected_hex.as_bytes();
+    if sig_bytes.len() != exp_bytes.len() {
+        return false;
+    }
+    sig_bytes
+        .iter()
+        .zip(exp_bytes.iter())
+        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
 }
