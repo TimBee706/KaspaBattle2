@@ -1,4 +1,11 @@
-use axum::{routing::get, Router};
+use axum::{
+    http::{
+        header::{AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method,
+    },
+    routing::get,
+    Router,
+};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
@@ -158,10 +165,23 @@ async fn main() {
         payout_service,
     };
 
+    let frontend_url_str =
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let frontend_url = frontend_url_str.parse::<HeaderValue>().unwrap_or_else(|_| {
+        eprintln!("⚠️ Invalid FRONTEND_URL: {}", frontend_url_str);
+        "http://localhost:5173".parse::<HeaderValue>().unwrap()
+    });
+
+    let cors = CorsLayer::new()
+        .allow_origin(frontend_url)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+        .allow_credentials(true);
+
     let app = Router::new()
         .nest("/api/v1", api::router())
         .route("/ws", get(api::ws_handler))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(state.clone());
 
     eprintln!("🚀 KaspaBattle API running on 0.0.0.0:8080");
