@@ -88,8 +88,6 @@ If you prefer running the app locally for development (you still need a PostgreS
 
 ## Documentation
 
-### 🚀 **NEW: [KaspaBattle Lobby Integration v1.0 Guide](docs/KASPA_BATTLE_LOBBY_DOCS.md)**
-
 Comprehensive documentation for the newly released Lobby System, including architecture, frontend/backend flow, Smart Contract states, and deployment instructions. Look here for the ultimate Quickstart!
 
 For more detailed developer information, please refer to the following historical architecture guides:

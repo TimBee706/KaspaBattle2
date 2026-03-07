@@ -15,4 +15,10 @@ export default defineConfig({
             exclude: ['src/__tests__/**', 'src/vite-env.d.ts'],
         },
     },
+    server: {
+        allowedHosts: [
+            'nonminimal-secernent-ernestina.ngrok-free.dev',
+            '.ngrok-free.app'  // Wildcard für zukünftige ngrok‑Tunnels
+        ]
+    }
 });
