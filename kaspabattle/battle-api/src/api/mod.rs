@@ -192,9 +192,27 @@ pub async fn join_challenge(
 ) -> Result<Json<Match>, StatusCode> {
     let joiner_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let current_match: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // M-08 Validation
+    use battle_core::match_state::MatchAction;
+    current_match
+        .validate_action(&MatchAction::Join {
+            player_id: joiner_id.to_string(),
+            kaspa_address: user.kaspa_address.clone().unwrap_or_default(),
+        })
+        .map_err(|e| {
+            tracing::warn!("State machine rejected Join: {}", e);
+            StatusCode::CONFLICT
+        })?;
+
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET opponent_user_id = $1, status = 'AWAITING_FUNDING' WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "UPDATE matches SET opponent_user_id = $1, status = 'AWAITING_FUNDING' WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash"
     )
     .bind(joiner_id).bind(id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -231,15 +249,18 @@ pub async fn submit_deposit(
             StatusCode::NOT_FOUND
         })?;
 
-    // Step 2: Validate state — only accept deposits in AWAITING_FUNDING
-    use crate::models::MatchStatus;
-    if m.status != MatchStatus::AwaitingFunding {
-        eprintln!(
-            "⚠️ submit_deposit: match {} is in state {:?}, not AWAITING_FUNDING — rejecting deposit",
-            id, m.status
-        );
-        return Err(StatusCode::CONFLICT);
-    }
+    // Step 2: Validate state — only accept deposits in AWAITING_FUNDING/FUNDED
+    // M-08 validation
+    use battle_core::match_state::MatchAction;
+    m.validate_action(&MatchAction::DepositConfirmed {
+        player_id: caller_id.clone(),
+        tx_hash: payload.tx_hash.clone(),
+        amount: m.stake_kas as u64,
+    })
+    .map_err(|e| {
+        tracing::warn!("State machine rejected DepositConfirmed: {}", e);
+        StatusCode::CONFLICT
+    })?;
 
     // Step 3: Determine which player column to update based on player_role
     // player_role "A" = creator, "B" = opponent
@@ -367,31 +388,39 @@ pub async fn admin_resolve_match(
     tracing::info!("Admin resolve match {} → winner: {}", id, payload.winner);
 
     // Get the match
-    let m = sqlx::query_as::<_, Match>(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    let m = sqlx::query_as::<_, Match>("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let escrow_address = m.escrow_address.clone().unwrap_or_default();
     if escrow_address.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Determine winner and loser addresses
+    // Determine winner address
     let creator_addr = get_user_kaspa_address(&state.pool, m.creator_user_id).await?;
     let opponent_addr = match m.opponent_user_id {
         Some(uid) => get_user_kaspa_address(&state.pool, uid).await?,
         None => return Err(StatusCode::BAD_REQUEST), // No opponent yet
     };
 
-    let winner_address = match payload.winner.as_str() {
-        "A" | "a" | "creator" => &creator_addr,
-        "B" | "b" | "opponent" => &opponent_addr,
+    let (winner_address, winner_id) = match payload.winner.as_str() {
+        "A" | "a" | "creator" => (&creator_addr, m.creator_user_id.to_string()),
+        "B" | "b" | "opponent" => (&opponent_addr, m.opponent_user_id.unwrap().to_string()),
         _ => return Err(StatusCode::BAD_REQUEST),
     };
+
+    // M-08 Validation
+    use battle_core::match_state::MatchAction;
+    m.validate_action(&MatchAction::ResolveWinner {
+        winner_id: winner_id.clone(),
+    })
+    .map_err(|e| {
+        tracing::warn!("State machine rejected ResolveWinner: {}", e);
+        StatusCode::CONFLICT
+    })?;
 
     // Execute payout via PayoutService
     let result = execute_payout_for_match(&state, &m, &escrow_address, winner_address).await?;
@@ -669,21 +698,37 @@ pub async fn cancel_match_handler(
 ) -> Result<Json<Match>, StatusCode> {
     let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    // Only creator can cancel, only from non-locked states
+    let current_match: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // M-08 Validation
+    use battle_core::match_state::MatchAction;
+    current_match
+        .validate_action(&MatchAction::Cancel {
+            player_id: user_id.to_string(),
+            reason: "User cancelled match".to_string(),
+        })
+        .map_err(|e| {
+            tracing::warn!("State machine rejected Cancel: {}", e);
+            // Special case: if it conflicts, return 409
+            StatusCode::CONFLICT
+        })?;
+
+    // Transition authorized. EITHER player can cancel if the state machine allows it.
     let updated: Match = sqlx::query_as(
         "UPDATE matches SET status = 'CANCELLED' \
          WHERE id = $1 \
-           AND creator_user_id = $2 \
-           AND status IN ('OPEN', 'AWAITING_FUNDING') \
          RETURNING *",
     )
     .bind(id)
-    .bind(user_id)
     .fetch_one(&state.pool)
     .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    eprintln!("❌ Match {} cancelled by creator {}", id, user_id);
+    tracing::info!("❌ Match {} cancelled by {}", id, user_id);
     // TODO: trigger EscrowService.refund() when deposits exist
     Ok(Json(updated))
 }

@@ -1,3 +1,4 @@
+use battle_core::match_state::{transition, MatchAction, MatchState};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Type};
@@ -81,5 +82,45 @@ impl Match {
     pub fn both_deposits_confirmed(&self) -> bool {
         self.player_a_deposit_confirmed.unwrap_or(false)
             && self.player_b_deposit_confirmed.unwrap_or(false)
+    }
+
+    /// Converts the DB representation into the pure domain MatchState
+    pub fn to_state_machine(&self) -> MatchState {
+        match self.status {
+            MatchStatus::Draft | MatchStatus::Open => MatchState::WaitingForOpponent,
+            MatchStatus::AwaitingFunding => MatchState::WaitingForDeposits {
+                player_a_deposited: self.player_a_deposit_confirmed.unwrap_or(false),
+                player_b_deposited: self.player_b_deposit_confirmed.unwrap_or(false),
+            },
+            MatchStatus::Funded
+            | MatchStatus::Locked
+            | MatchStatus::InGame
+            | MatchStatus::Resolving => MatchState::Locked,
+            MatchStatus::Resolved | MatchStatus::PaidOut => MatchState::Resolved {
+                // Approximate winner_id (pure transition validation only requires the variant for most checks)
+                winner_id: String::new(),
+            },
+            MatchStatus::Disputed => MatchState::Disputed {
+                reason: String::new(),
+                disputed_by: String::new(),
+            },
+            MatchStatus::Cancelled => MatchState::Cancelled {
+                reason: String::new(),
+            },
+        }
+    }
+
+    /// Validates an action against the pure state machine logic (M-08)
+    pub fn validate_action(&self, action: &MatchAction) -> Result<MatchState, String> {
+        let current_state = self.to_state_machine();
+        let opponent_id = self.opponent_user_id.map(|id| id.to_string());
+
+        transition(
+            &current_state,
+            action,
+            &self.creator_user_id.to_string(),
+            opponent_id.as_deref(),
+        )
+        .map_err(|e| format!("{:?}", e))
     }
 }
