@@ -32,7 +32,7 @@ async fn main() {
         .max_connections(5)
         .connect(&db_url)
         .await
-        .unwrap();
+        .expect("Failed to connect to PostgreSQL. Is the database running?");
 
     // One-time migration: add escrow_address column if missing
     sqlx::query("ALTER TABLE matches ADD COLUMN IF NOT EXISTS escrow_address TEXT")

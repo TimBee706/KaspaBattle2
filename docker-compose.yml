@@ -1,20 +1,100 @@
 services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
-    image: postgres:16
-    ports: [ "5432:5432" ]
+    image: postgres:16-bookworm
+    restart: unless-stopped
     environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: kaspabattle
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Run init SQL on first start
+      - ./kaspabattle/migrations/202602280000_init_pg.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./kaspabattle/migrations/20260301_add_escrow_address.sql:/docker-entrypoint-initdb.d/02_escrow.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d kaspabattle" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Kaspa Node (Testnet-10) ─────────────────────────────────────────────────
+  kaspa-node:
+    build:
+      context: ./rusty-kaspa
+      dockerfile: docker/Dockerfile.kaspad
+    restart: unless-stopped
+    ports:
+      - "16110:16110" # P2P
+      - "16111:16111" # wRPC (WebSocket-RPC)
+    volumes:
+      - kaspa-data:/home/kaspa/.rusty-kaspa
+    command: >
+      kaspad --utxoindex --testnet --rpclisten=0.0.0.0:16110 --rpclisten-borsh=0.0.0.0:16111 --disable-upnp
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 16111 || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Rust Backend (battle-api) ────────────────────────────────────────────────
   backend:
     build:
       context: ./kaspabattle
       dockerfile: Dockerfile
-    ports: [ "8080:8080" ]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.docker
     environment:
+      # Override to use Docker service names instead of localhost
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
-    depends_on: [ postgres ]
+      KASPA_NODE_URL: ws://kaspa-node:16111
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kaspa-node:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:8080/api/v1/lobbies || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  # ── Vite / React Frontend ───────────────────────────────────────────────────
   frontend:
     build:
-      context: ./battle-frontend
-      dockerfile: Dockerfile
-    ports: [ "3000:3000" ]
+      context: .
+      dockerfile: battle-frontend/Dockerfile
+      target: dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+      VITE_WS_URL: ws://localhost:8080
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:5173 || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:
+    name: kaspabattle_pgdata
+  kaspa-data:
+    name: kaspabattle_kaspa_data
+
+networks:
+  default:
+    name: kaspabattle_net
