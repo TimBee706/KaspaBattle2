@@ -33,7 +33,7 @@ pub struct FaceitCallbackQuery {
 async fn faceit_callback(
     State(state): State<AppState>,
     Query(query): Query<FaceitCallbackQuery>,
-) -> Result<Redirect, axum::http::StatusCode> {
+) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
     // 1. Token Exchange -> User Info & Tokens holen
     let (info, tokens, _) = state
         .faceit_service
@@ -59,11 +59,21 @@ async fn faceit_callback(
         .save_faceit_link(&uid, &info, &tokens)
         .await;
 
-    // 3. Zurück ins Frontend mit Session Token
+    // 3. Zurück ins Frontend mit Session Token (HttpOnly Cookie)
     let frontend_url =
-        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5174".to_string());
-    Ok(Redirect::temporary(&format!(
-        "{}/?token={}",
-        frontend_url, session_token
-    )))
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+    let cookie_str = format!(
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800",
+        session_token
+    );
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::SEE_OTHER)
+        .header(axum::http::header::LOCATION, frontend_url)
+        .header(axum::http::header::SET_COOKIE, cookie_str)
+        .body(axum::body::Body::empty())
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(response)
 }

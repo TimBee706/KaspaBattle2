@@ -28,17 +28,43 @@ impl FromRequestParts<AppState> for SessionUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        // 1. Extract Bearer token from Authorization header
+        // 1. Extract Bearer token from Authorization header or Cookie
         let auth_header = parts
             .headers
             .get("Authorization")
-            .and_then(|value| value.to_str().ok())
-            .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization Header"))?;
+            .and_then(|v| v.to_str().ok());
 
-        if !auth_header.starts_with("Bearer ") {
-            return Err((StatusCode::UNAUTHORIZED, "Invalid Token Format"));
-        }
-        let token = &auth_header["Bearer ".len()..];
+        let token_opt = if let Some(header) = auth_header {
+            if header.starts_with("Bearer ") {
+                Some(header["Bearer ".len()..].to_string())
+            } else {
+                None
+            }
+        } else {
+            // Fallback: check "kaspabattle-auth" Cookie
+            parts
+                .headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|cookie_str| {
+                    cookie_str.split(';').find_map(|pair| {
+                        let mut kv = pair.splitn(2, '=');
+                        let key = kv.next()?.trim();
+                        let val = kv.next()?.trim();
+                        if key == "kaspabattle-auth" {
+                            Some(val.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                })
+        };
+
+        let token_str = token_opt.ok_or((
+            StatusCode::UNAUTHORIZED,
+            "Missing Authorization Header or Cookie",
+        ))?;
+        let token = token_str.as_str();
 
         // 2. Validate token against the sessions table
         let auth_service = AuthService::new(state.pool.clone());
