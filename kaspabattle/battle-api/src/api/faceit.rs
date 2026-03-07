@@ -60,12 +60,13 @@ async fn faceit_callback(
         .await;
 
     // 3. Zurück ins Frontend mit Session Token (HttpOnly Cookie)
-    let frontend_url =
-        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let is_secure = frontend_url.starts_with("https");
+    let same_site = if is_secure { "None" } else { "Lax" };
+    let secure_flag = if is_secure { "; Secure" } else { "" };
 
     let cookie_str = format!(
-        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800",
-        session_token
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
+        session_token, same_site, secure_flag
     );
 
     let response = axum::response::Response::builder()
