@@ -729,7 +729,20 @@ pub async fn cancel_match_handler(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     tracing::info!("❌ Match {} cancelled by {}", id, user_id);
-    // TODO: trigger EscrowService.refund() when deposits exist
+
+    // M-09: Trigger refund process if an escrow address exists
+    // PayoutService will check on-chain balance and execute refund if deposits exist
+    if let Some(escrow) = updated.escrow_address.as_ref() {
+        if !escrow.is_empty() {
+            let state_clone = state.clone();
+            let m_clone = updated.clone();
+            let escrow_clone = escrow.clone();
+            tokio::spawn(async move {
+                let _ = execute_refund_for_match(&state_clone, &m_clone, &escrow_clone).await;
+            });
+        }
+    }
+
     Ok(Json(updated))
 }
 
