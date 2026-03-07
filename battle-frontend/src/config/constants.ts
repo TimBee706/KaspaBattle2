@@ -9,8 +9,9 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws';
 
 // FACEIT OAuth
-export const FACEIT_CLIENT_ID = import.meta.env.VITE_FACEIT_CLIENT_ID || '139b1b6c-f499-4639-8272-4e07fc976588';
-export const FACEIT_REDIRECT_URI = import.meta.env.VITE_FACEIT_REDIRECT_URI || 'https://nonminimal-secernent-ernestina.ngrok-free.dev/api/v1/faceit/callback';
+// Client ID is public but must be set via VITE_FACEIT_CLIENT_ID env variable
+export const FACEIT_CLIENT_ID = import.meta.env.VITE_FACEIT_CLIENT_ID ?? '';
+export const FACEIT_REDIRECT_URI = import.meta.env.VITE_FACEIT_REDIRECT_URI ?? 'http://localhost:8080/api/v1/faceit/callback';
 export const FACEIT_AUTH_URL = 'https://accounts.faceit.com';
 export const FACEIT_SCOPES = 'openid profile email';
 

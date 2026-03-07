@@ -26,13 +26,21 @@ release/
 kaspabattle.db
 **/kaspabattle.db
 
-# Environment and Secrets
+# Environment and Secrets — NEVER commit real secrets!
 .env
 .env.local
 .env.*.local
 .env.docker
 *.pem
 *.key
+
+# Test / scratch data files with secrets — explicitly blocked
+Testdata.txt
+testdata.txt
+
+# Compiler error dumps
+compile_err.txt
+kaspabattle/compile_err.txt
 
 # Build artifacts
 *.exe
