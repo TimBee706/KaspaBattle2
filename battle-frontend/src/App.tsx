@@ -47,6 +47,12 @@ export default function App() {
       console.error("FACEIT Auth Fehler:", errorParam);
       alert(`Authentication Error: ${errorParam}`);
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (!useAuthStore.getState().isAuthenticated) {
+      // Cookie-based fallback: try to hydrate auth from HttpOnly cookie
+      // (withCredentials: true in apiClient sends the cookie automatically)
+      fetchUser().catch(() => {
+        // Silently fail — user simply isn't logged in
+      });
     }
   }, [setTokens, fetchUser]);
 

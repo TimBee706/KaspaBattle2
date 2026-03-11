@@ -85,6 +85,65 @@ impl FromRequestParts<AppState> for SessionUser {
     }
 }
 
+/// Lightweight session extractor: validates token but does NOT require a Kaspa wallet.
+/// Used for endpoints like `/auth/me` where FaceIT-only users must be allowed.
+pub struct SessionUserNoWallet(pub User);
+
+#[async_trait]
+impl FromRequestParts<AppState> for SessionUserNoWallet {
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        // Same token extraction logic as SessionUser
+        let auth_header = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok());
+
+        let token_opt = if let Some(header) = auth_header {
+            if header.starts_with("Bearer ") {
+                Some(header["Bearer ".len()..].to_string())
+            } else {
+                None
+            }
+        } else {
+            parts
+                .headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|cookie_str| {
+                    cookie_str.split(';').find_map(|pair| {
+                        let mut kv = pair.splitn(2, '=');
+                        let key = kv.next()?.trim();
+                        let val = kv.next()?.trim();
+                        if key == "kaspabattle-auth" {
+                            Some(val.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                })
+        };
+
+        let token_str = token_opt.ok_or((
+            StatusCode::UNAUTHORIZED,
+            "Missing Authorization Header or Cookie",
+        ))?;
+
+        let auth_service = AuthService::new(state.pool.clone());
+        let user = auth_service
+            .validate_session(&token_str)
+            .await
+            .map_err(|_| (StatusCode::UNAUTHORIZED, "Session invalid or expired"))?;
+
+        // NO wallet guard here — FaceIT-only users are allowed
+        Ok(SessionUserNoWallet(user))
+    }
+}
+
 /// Unit-test helper: a pre-built User that passes all guards.
 ///
 /// Only available inside `#[cfg(test)]` — never compiled into production builds.

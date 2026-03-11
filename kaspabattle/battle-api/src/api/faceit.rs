@@ -59,7 +59,7 @@ async fn faceit_callback(
         .save_faceit_link(&uid, &info, &tokens)
         .await;
 
-    // 3. Zurück ins Frontend mit Session Token (HttpOnly Cookie)
+    // 3. Zurück ins Frontend mit Session Token (Cookie + URL-Parameter)
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
 
@@ -72,9 +72,12 @@ async fn faceit_callback(
         session_token, same_site, secure_flag
     );
 
+    // Pass token as URL parameter so App.tsx can hydrate the auth store
+    let redirect_url = format!("{}?token={}", frontend_url, session_token);
+
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::SEE_OTHER)
-        .header(axum::http::header::LOCATION, frontend_url)
+        .header(axum::http::header::LOCATION, redirect_url)
         .header(axum::http::header::SET_COOKIE, cookie_str)
         .body(axum::body::Body::empty())
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;

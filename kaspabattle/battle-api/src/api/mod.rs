@@ -95,11 +95,47 @@ pub fn router() -> Router<AppState> {
 }
 
 pub async fn get_me(
-    State(_state): State<AppState>,
-    user_opt: Option<crate::api::auth_guard::SessionUser>,
-) -> Result<Json<battle_core::models::user::User>, StatusCode> {
+    State(state): State<AppState>,
+    user_opt: Option<crate::api::auth_guard::SessionUserNoWallet>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     match user_opt {
-        Some(crate::api::auth_guard::SessionUser(user)) => Ok(Json(user)),
+        Some(crate::api::auth_guard::SessionUserNoWallet(user)) => {
+            // Enrich with FaceIT data from faceit_links table
+            let faceit_row = sqlx::query(
+                "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url FROM faceit_links WHERE user_id = $1::uuid"
+            )
+            .bind(&user.id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten();
+
+            let (faceit_id, faceit_nickname, faceit_avatar) = if let Some(r) = faceit_row {
+                use sqlx::Row;
+                let fid: String = r.try_get("faceit_player_id").unwrap_or_default();
+                let fnick: String = r.try_get("faceit_nickname").unwrap_or_default();
+                let favatar: Option<String> = r.try_get("faceit_avatar_url").unwrap_or(None);
+                (fid, fnick, favatar.unwrap_or_default())
+            } else {
+                (String::new(), user.display_name.clone(), String::new())
+            };
+
+            Ok(Json(serde_json::json!({
+                "id": user.id,
+                "email": user.email,
+                "display_name": user.display_name,
+                "kaspa_address": user.kaspa_address,
+                "faceit_id": faceit_id,
+                "faceit_nickname": faceit_nickname,
+                "faceit_avatar": faceit_avatar,
+                "created_at": user.created_at,
+                "total_matches": 0,
+                "wins": 0,
+                "losses": 0,
+                "total_wagered_sompi": 0,
+                "total_won_sompi": 0,
+            })))
+        }
         None => Err(StatusCode::UNAUTHORIZED),
     }
 }
