@@ -23,9 +23,13 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const wagerSompi = match.wager_amount_sompi || (match as any).stake_kas || 0;
     const matchMode = match.match_mode || (match as any).mode || 'BO1';
 
-    const isPlayerA = user?.faceit_id === match.player_a_faceit_id;
-    const isPlayerB = user?.faceit_id === match.player_b_faceit_id;
-    const canAccept = match.status === 'OPEN' && !isPlayerA && user;
+    const isPlayerA = user?.faceit_id === match.player_a_faceit_id || user?.id === match.creator_user_id;
+    const isPlayerB = user?.faceit_id === match.player_b_faceit_id || user?.id === match.opponent_user_id;
+    // canAccept logic:
+    // User must be logged in. Match must be OPEN.
+    // User must not be the creator (playerA). User must not have already deposited.
+    const hasDeposited = (isPlayerA && !!match.player_a_deposit_tx_hash) || (isPlayerB && !!match.player_b_deposit_tx_hash);
+    const canAccept = match.status === 'OPEN' && !isPlayerA && !hasDeposited && !!user;
 
     const handleAccept = async () => {
         setIsAccepting(true);

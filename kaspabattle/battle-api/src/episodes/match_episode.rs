@@ -38,7 +38,7 @@ impl EpisodeTrait for MatchEpisode {
 
         let row = sqlx::query(
             "SELECT status, creator_user_id, opponent_user_id, \
-             escrow_address, wager_amount_sompi \
+             escrow_address, wager_amount_sompi, created_at \
              FROM matches WHERE id = $1 FOR UPDATE",
         )
         .bind(self.match_id)
@@ -50,6 +50,37 @@ impl EpisodeTrait for MatchEpisode {
         match status {
             // AwaitingFunding: check on-chain deposits
             MatchStatus::AwaitingFunding => {
+                let created_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("created_at")?;
+                if let Some(created) = created_at {
+                    if chrono::Utc::now() > created + chrono::Duration::minutes(15) {
+                        eprintln!(
+                            "⏳ Episode {}: AWAITING_FUNDING timeout reached",
+                            self.match_id
+                        );
+                        sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
+                            .bind(self.match_id)
+                            .execute(&mut *tx)
+                            .await?;
+
+                        if let Some(ref svc) = self.escrow_service {
+                            let addr: String = row.try_get("escrow_address")?;
+                            let wager: i64 = row.try_get("wager_amount_sompi")?;
+                            let _ = svc
+                                .refund(
+                                    &self.match_id.to_string(),
+                                    "",
+                                    "",
+                                    &addr,
+                                    wager as u64,
+                                )
+                                .await;
+                        }
+                        tx.commit().await?;
+                        let _ = self.poll().await; // just to make sure poll can be called or to cleanly exit
+                        return Ok(());
+                    }
+                }
+
                 if let Some(ref svc) = self.escrow_service {
                     let addr: String = row.try_get("escrow_address")?;
                     let wager: i64 = row.try_get("wager_amount_sompi")?;

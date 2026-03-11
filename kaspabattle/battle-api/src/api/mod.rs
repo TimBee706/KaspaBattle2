@@ -94,6 +94,7 @@ pub fn router() -> Router<AppState> {
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/auth/me", get(get_me))
         .route("/auth/wallet-login", post(wallet_login))
+        .route("/ws", get(ws_handler))
         .nest("/faceit", faceit::router())
 }
 
@@ -431,10 +432,10 @@ pub async fn submit_deposit(
         }
     };
 
-    // Step 4: Record this player's deposit TX hash and mark as confirmed
+    // Step 4: Record this player's deposit TX hash (DO NOT mark as confirmed yet - Episode handles this)
     sqlx::query(&format!(
-        "UPDATE matches SET {} = $1, {} = true WHERE id = $2",
-        tx_col, confirmed_col
+        "UPDATE matches SET {} = $1 WHERE id = $2",
+        tx_col
     ))
     .bind(&payload.tx_hash)
     .bind(id)
@@ -455,23 +456,14 @@ pub async fn submit_deposit(
     let a_confirmed = updated.player_a_deposit_confirmed.unwrap_or(false);
     let b_confirmed = updated.player_b_deposit_confirmed.unwrap_or(false);
 
-    let final_match = if a_confirmed && b_confirmed {
-        // ✅ Both deposits received → advance to FUNDED (READY_TO_LOCK)
-        // Episode-runner will then transition FUNDED → LOCKED when it calls execute()
-        eprintln!("💰 Both deposits confirmed for match {} → FUNDED", id);
-        sqlx::query_as("UPDATE matches SET status = 'FUNDED' WHERE id = $1 RETURNING *")
-            .bind(id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    } else {
-        // ⏳ Only one deposit so far → stay in AWAITING_FUNDING (PENDING_DEPOSITS)
-        eprintln!(
-            "⏳ Deposit 1/2 confirmed for match {} → staying AWAITING_FUNDING (A={}, B={})",
-            id, a_confirmed, b_confirmed
-        );
-        updated
-    };
+    // We no longer transition to FUNDED here. The MatchEpisode (Blockchain Watcher)
+    // is responsible for confirming the actual UTXO and setting the status.
+    eprintln!(
+        "⏳ Deposit TX recorded for match {}. Waiting for blockchain confirmation.",
+        id
+    );
+
+    let final_match = updated;
 
     // Broadcast updated state via WebSocket
     let _ = state
@@ -580,8 +572,8 @@ pub async fn admin_resolve_match(
     // Execute payout via PayoutService
     let result = execute_payout_for_match(&state, &m, &escrow_address, winner_address).await?;
 
-    // Update match status to RESOLVED
-    sqlx::query("UPDATE matches SET status = 'RESOLVED' WHERE id = $1")
+    // Update match status to PAID_OUT
+    sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
         .await
@@ -687,7 +679,7 @@ pub async fn faceit_webhook(
     let result = execute_payout_for_match(&state, &m, &escrow_address, &winner_address).await?;
 
     // Update match status
-    sqlx::query("UPDATE matches SET status = 'RESOLVED' WHERE id = $1")
+    sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
         .bind(m.id)
         .execute(&state.pool)
         .await
@@ -799,6 +791,38 @@ pub struct FaceIdReq {
     pub hash: String, // SHA-256 of biometric template (off-chain, anti-fraud only)
 }
 
+pub async fn ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(|socket| websocket(socket, state))
+}
+
+async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState) {
+    let (mut sender, mut receiver) = stream.split();
+    let mut rx = state.tx.subscribe();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            // axum 0.7 requires Utf8Bytes, which implements From<String>
+            if sender.send(axum::extract::ws::Message::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(_)) = receiver.next().await {
+            // keep-alive / ignore incoming messages
+        }
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+}
+
 /// POST /matches/:id/faceid — optional FaceID hash upload
 ///
 /// Player submits a hash of their FaceID verification. Not required for match to
@@ -901,17 +925,6 @@ pub async fn cancel_match_handler(
     Ok(Json(updated))
 }
 
-pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
-        let mut rx = state.tx.subscribe();
-        let (mut sender, _) = socket.split();
-        while let Ok(msg) = rx.recv().await {
-            if sender.send(Message::Text(msg)).await.is_err() {
-                break;
-            }
-        }
-    })
-}
 
 /// Verify a FaceIT webhook HMAC-SHA256 signature.
 ///

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { BattleMatch } from '../api/types';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../stores/useAuthStore';
 
 interface LobbyDetailProps {
     lobby: BattleMatch;
@@ -11,6 +12,7 @@ interface LobbyDetailProps {
 
 export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin, isJoining }) => {
     const { t } = useTranslation();
+    const { user } = useAuthStore();
 
     const wagerKas = (lobby.wager_amount_sompi || (lobby as any).stake_kas || 0) / 100_000_000;
 
@@ -97,7 +99,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                     >
                         {t('common.close', 'Schließen')}
                     </button>
-                    {lobby.status === 'OPEN' && onJoin && (
+                    {lobby.status === 'OPEN' && !!user && user.id !== lobby.creator_user_id && user.id !== lobby.opponent_user_id && onJoin && (
                         <button
                             onClick={() => onJoin(lobby.id, wagerKas)}
                             disabled={isJoining}
