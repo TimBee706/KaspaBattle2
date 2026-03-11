@@ -13,7 +13,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
     const join = async (id: string) => {
         setLoading(id);
         try {
-            await apiClient.post(`/challenges/${id}/join`);
+            await apiClient.post(`/matches/${id}/accept`);
             navigate(`/escrow/${id}`);
         } catch (e) { console.error(e); }
         finally { setLoading(null); }
@@ -43,7 +43,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                             <span className="font-black text-xl text-emerald-400 tracking-tighter">
                                 {((m.wager_amount_sompi || (m as any).stake_kas || 0) / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS
                             </span>
-                            {!isMyLobbies && m.status === 'OPEN' && (
+                            {!isMyLobbies && m.status === 'OPEN' && !m.opponent_user_id && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();

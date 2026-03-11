@@ -219,6 +219,7 @@ async fn main() {
     tokio::spawn({
         let ep_pool = state.pool.clone();
         let ep_escrow = state.escrow_service.clone();
+        let ep_tx = state.tx.clone();
         async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
@@ -234,7 +235,7 @@ async fn main() {
                 for (match_id,) in active_ids {
                     use crate::episodes::match_episode::MatchEpisode;
                     use crate::episodes::EpisodeTrait;
-                    let ctx = (ep_pool.clone(), ep_escrow.clone());
+                    let ctx = (ep_pool.clone(), ep_escrow.clone(), ep_tx.clone());
                     match MatchEpisode::initialize(&ctx, match_id).await {
                         Ok(mut ep) => {
                             if let Err(e) = ep.execute().await {

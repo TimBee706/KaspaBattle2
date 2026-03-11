@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use battle_kaspa::escrow::{DepositState, EscrowService};
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
+use tokio::sync::broadcast::Sender;
 use uuid::Uuid;
 
 /// Encapsulates one match's lifecycle as a kdapp-style Episode.
@@ -18,11 +19,12 @@ pub struct MatchEpisode {
     pub match_id: Uuid,
     pub db_pool: PgPool,
     pub escrow_service: Option<Arc<EscrowService>>,
+    pub tx: Sender<String>,
 }
 
 #[async_trait]
 impl EpisodeTrait for MatchEpisode {
-    type Context = (PgPool, Option<Arc<EscrowService>>);
+    type Context = (PgPool, Option<Arc<EscrowService>>, Sender<String>);
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
     async fn initialize(ctx: &Self::Context, match_id: Uuid) -> Result<Self, Self::Error> {
@@ -30,6 +32,7 @@ impl EpisodeTrait for MatchEpisode {
             match_id,
             db_pool: ctx.0.clone(),
             escrow_service: ctx.1.clone(),
+            tx: ctx.2.clone(),
         })
     }
 
@@ -99,6 +102,14 @@ impl EpisodeTrait for MatchEpisode {
                                 .bind(self.match_id)
                                 .execute(&mut *tx)
                                 .await?;
+                                
+                                // Fetch updated and broadcast
+                                if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>("SELECT * FROM matches WHERE id = $1").bind(self.match_id).fetch_one(&self.db_pool).await {
+                                    let mut m = updated;
+                                    m.calculate_wager();
+                                    let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+                                }
+
                                 eprintln!(
                                     "💰 Episode {}: AWAITING_FUNDING → FUNDED",
                                     self.match_id
@@ -141,6 +152,13 @@ impl EpisodeTrait for MatchEpisode {
                     .execute(&mut *tx)
                     .await?;
 
+                    // Fetch updated and broadcast
+                    if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>("SELECT * FROM matches WHERE id = $1").bind(self.match_id).fetch_one(&self.db_pool).await {
+                        let mut m = updated;
+                        m.calculate_wager();
+                        let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+                    }
+
                     eprintln!(
                         "🔒 Episode {}: FUNDED → LOCKED (faceit_id: {})",
                         self.match_id, external_id
@@ -165,6 +183,13 @@ impl EpisodeTrait for MatchEpisode {
         .bind(self.match_id)
         .execute(&self.db_pool)
         .await?;
+
+        // Fetch updated and broadcast
+        if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>("SELECT * FROM matches WHERE id = $1").bind(self.match_id).fetch_one(&self.db_pool).await {
+            let mut m = updated;
+            m.calculate_wager();
+            let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+        }
 
         eprintln!("❌ Episode {}: rolled back → CANCELLED", self.match_id);
         // TODO: trigger EscrowService.refund() if deposits were received

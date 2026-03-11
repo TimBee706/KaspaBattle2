@@ -362,7 +362,7 @@ pub async fn join_challenge(
 
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash"
+        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING *"
     )
     .bind(joiner_id)
     .bind(id)

@@ -25,11 +25,14 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
     const isPlayerA = user?.faceit_id === match.player_a_faceit_id || user?.id === match.creator_user_id;
     const isPlayerB = user?.faceit_id === match.player_b_faceit_id || user?.id === match.opponent_user_id;
-    // canAccept logic:
-    // User must be logged in. Match must be OPEN.
-    // User must not be the creator (playerA). User must not have already deposited.
-    const hasDeposited = (isPlayerA && !!match.player_a_deposit_tx_hash) || (isPlayerB && !!match.player_b_deposit_tx_hash);
-    const canAccept = match.status === 'OPEN' && !isPlayerA && !hasDeposited && !!user && (testMode || isFaceitConnected);
+
+    // Phase 1: Not yet accepted by anyone
+    const canAccept = match.status === 'OPEN' && !match.opponent_user_id && !isPlayerA && !!user && (testMode || isFaceitConnected);
+
+    // Phase 2: Accepted, but this user hasn't deposited
+    const needsDepositA = (match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerA && !match.player_a_deposit_tx_hash;
+    const needsDepositB = (match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerB && !!match.opponent_user_id && !match.player_b_deposit_tx_hash;
+    const needsDeposit = needsDepositA || needsDepositB;
 
     const handleAccept = async () => {
         setIsAccepting(true);
@@ -128,7 +131,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     <div className="card space-y-4">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.status_actions')}</h3>
 
-                        {match.status === 'OPEN' && !match.player_b_faceit_id && (
+                        {match.status === 'OPEN' && !match.opponent_user_id && (
                             <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
                                 <p className="text-xs text-blue-400 font-medium">{t('match.open_info')}</p>
                                 {!isFaceitConnected && !testMode && !isPlayerA && (
@@ -146,8 +149,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                             </div>
                         )}
 
-                        {((match.status === 'OPEN' && isPlayerA && !match.player_a_deposit_tx_hash) ||
-                            ((match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerB && !match.player_b_deposit_tx_hash)) && (
+                        {needsDeposit && (
                                 <button
                                     onClick={() => {
                                         setMatch(match);
