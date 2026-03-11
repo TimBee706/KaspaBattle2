@@ -39,6 +39,7 @@ hmac = "0.12"
 # Structured logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+md5 = "0.8.0"
 
 [dev-dependencies]
 wiremock = "0.6"

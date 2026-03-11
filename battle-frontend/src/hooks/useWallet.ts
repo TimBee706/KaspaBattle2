@@ -200,6 +200,31 @@ export function useWallet() {
         try {
             const connection = await importWallet(phrase);
 
+            // Generate a signature for backend authentication
+            // Note: Since this project runs Kaspa WASM in-memory, we can sign it directly 
+            // from the private key if needed, or simulate it until the WASM signature wrapper is ready.
+            const message = `KaspaBattle Login-Request: ${Date.now()}`;
+            // Simulating signature for now since kaspawasm signature APIs require proper Wallet/Key imports
+            const signature = "simulated_signature_" + Math.random().toString(36).substring(7);
+
+            // Fetch session token from backend
+            try {
+                const response = await apiClient.post('/auth/wallet-login', {
+                    kaspa_address: connection.address,
+                    message: message,
+                    signature: signature
+                });
+
+                const { session_token } = response.data;
+                useAuthStore.getState().setTokens({ access_token: session_token, refresh_token: '' });
+                // Fetch the user object now that we have a token
+                await useAuthStore.getState().fetchUser().catch(console.error);
+
+            } catch (apiError) {
+                console.error("[useWallet] Backend auth failed - check if backend is running", apiError);
+                // Proceed with local connect even if backend fails so they can still see balance
+            }
+
             // Update UI/Zustand
             setWalletConnection(null, connection.account, connection.address, phrase, 'mnemonic');
             updateKasAddress(connection.address);

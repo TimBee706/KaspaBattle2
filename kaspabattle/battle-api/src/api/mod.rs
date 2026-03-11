@@ -14,9 +14,10 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use battle_core::models::wallet_login::WalletLoginReq;
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -89,6 +90,7 @@ pub fn router() -> Router<AppState> {
         // NOTE: /lobbies/:id/simulate-deposit removed — test-only endpoint
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/auth/me", get(get_me))
+        .route("/auth/wallet-login", post(wallet_login))
         .nest("/faceit", faceit::router())
 }
 
@@ -100,6 +102,105 @@ pub async fn get_me(
         Some(crate::api::auth_guard::SessionUser(user)) => Ok(Json(user)),
         None => Err(StatusCode::UNAUTHORIZED),
     }
+}
+
+#[derive(Serialize)]
+pub struct AuthResponse {
+    pub user_id: String,
+    pub session_token: String,
+    pub display_name: String,
+}
+
+pub async fn wallet_login(
+    State(state): State<AppState>,
+    Json(payload): Json<WalletLoginReq>,
+) -> Result<Json<AuthResponse>, StatusCode> {
+    // 1. Kaspa Signatur verifizieren (kdapp/kaspa-wasm Logik)
+    // TODO: Actually verify the Kaspa signature when Kaspa integration is fully available.
+    // For now, we trust the incoming address since this is the first step of the fix
+    // (In production, replace this with a proper `verify_kaspa_signature(...)`).
+    let is_valid = !payload.signature.is_empty(); // dummy check
+
+    if !is_valid {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // 2. User in DB suchen oder neu anlegen (Guest)
+    let uuid_str = format!("{:x}", md5::compute(payload.kaspa_address.as_bytes()));
+    let fake_uuid = uuid::Uuid::parse_str(&format!(
+        "{}-{}-{}-{}-{}",
+        &uuid_str[0..8],
+        &uuid_str[8..12],
+        &uuid_str[12..16],
+        &uuid_str[16..20],
+        &uuid_str[20..32]
+    ))
+    .unwrap();
+
+    // Minimal find or create fallback:
+    let row = sqlx::query("SELECT id FROM users WHERE kaspa_address = $1")
+        .bind(&payload.kaspa_address)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let user_id: uuid::Uuid = if let Some(r) = row {
+        r.try_get("id").unwrap_or(fake_uuid)
+    } else {
+        let new_user_id = uuid::Uuid::new_v4();
+        let display_name = format!(
+            "Player_{}",
+            &payload
+                .kaspa_address
+                .chars()
+                .skip(6)
+                .take(6)
+                .collect::<String>()
+        );
+        let email = format!("{}@wallet.local", new_user_id);
+        let password_hash =
+            battle_core::auth::AuthService::hash_password(&uuid::Uuid::new_v4().to_string())
+                .unwrap_or_default();
+
+        sqlx::query("INSERT INTO users (id, email, password_hash, display_name, kaspa_address) VALUES ($1, $2, $3, $4, $5)")
+            .bind(new_user_id)
+            .bind(email)
+            .bind(password_hash)
+            .bind(&display_name)
+            .bind(&payload.kaspa_address)
+            .execute(&state.pool)
+            .await.map_err(|e| {
+                eprintln!("Error creating user: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        new_user_id
+    };
+
+    // 3. Session über AuthService generieren
+    let session_token = battle_core::auth::AuthService::generate_session_token();
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
+
+    sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
+        .bind(&session_token)
+        .bind(&user_id)
+        .bind(expires_at)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(AuthResponse {
+        user_id: user_id.to_string(),
+        session_token,
+        display_name: format!(
+            "Player_{}",
+            &payload
+                .kaspa_address
+                .chars()
+                .skip(6)
+                .take(6)
+                .collect::<String>()
+        ),
+    }))
 }
 
 pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
@@ -139,7 +240,7 @@ pub async fn create_challenge(
 
     // 1. INSERT match first (without escrow_address)
     let record = sqlx::query_as::<_, Match>(
-        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING *"
     )
     .bind(user_id).bind(&payload.game_id).bind(payload.stake_kas).bind(payload.mode)
     .fetch_one(&state.pool).await.map_err(|e| {
@@ -169,10 +270,13 @@ pub async fn create_challenge(
 
     // 3. UPDATE match with escrow address
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING *",
     )
-    .bind(&escrow_addr).bind(record.id)
-    .fetch_one(&state.pool).await.map_err(|e| {
+    .bind(&escrow_addr)
+    .bind(record.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
         eprintln!("SQL Error updating escrow_address: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -787,4 +891,70 @@ fn verify_faceit_hmac(body: &[u8], secret: &str, signature: &str) -> bool {
         .zip(exp_bytes.iter())
         .fold(0u8, |acc, (a, b)| acc | (a ^ b))
         == 0
+}
+
+/// Helper: execute refund for a cancelled match using PayoutService
+async fn execute_refund_for_match(
+    state: &AppState,
+    m: &Match,
+    escrow_address: &str,
+) -> Result<(String, String), StatusCode> {
+    let payout_svc = state.payout_service.as_ref().ok_or_else(|| {
+        eprintln!("❌ PayoutService not available");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    // Register escrow key with PayoutService (derive from wallet)
+    if let Some(ref wallet) = state.escrow_wallet {
+        let match_id_str = m.id.to_string();
+        if let Ok((addr, _)) = wallet.derive_escrow_address(&match_id_str) {
+            if let Ok(privkey) = wallet.get_private_key(&addr) {
+                payout_svc
+                    .register_escrow_key(escrow_address.to_string(), privkey)
+                    .await;
+                eprintln!("🔑 Escrow key registered for refund {}", escrow_address);
+            }
+        }
+    }
+
+    // Build a BattleMatch from DB data
+    let creator_addr = crate::api::get_user_kaspa_address(&state.pool, m.creator_user_id)
+        .await
+        .unwrap_or_else(|_| "unknown".to_string());
+    let opponent_addr = match m.opponent_user_id {
+        Some(uid) => crate::api::get_user_kaspa_address(&state.pool, uid)
+            .await
+            .unwrap_or_else(|_| "unknown".to_string()),
+        None => "unknown".to_string(), // Can be none if cancelled before join
+    };
+
+    let battle_match = battle_core::models::match_::BattleMatch {
+        id: m.id,
+        player_a_kas_address: creator_addr,
+        player_b_kas_address: opponent_addr,
+        player_a_faceit_id: String::new(),
+        player_b_faceit_id: String::new(),
+        faceit_match_id: m.external_match_id.clone(),
+        wager_amount_sompi: m.stake_kas as u64,
+        escrow_address: escrow_address.to_string(),
+        status: battle_core::models::match_::MatchStatus::Cancelled,
+        winner_kas_address: None,
+        payout_tx_hash: None,
+        oracle_result_signature: None,
+        created_at: m.created_at.unwrap_or_else(chrono::Utc::now),
+        locked_at: None,
+        resolved_at: None,
+        timeout_at: m.created_at.unwrap_or_else(chrono::Utc::now) + chrono::Duration::minutes(90),
+    };
+
+    match payout_svc.execute_refund(&battle_match).await {
+        Ok(res) => {
+            eprintln!("✅ Refund executed: TX A={}, TX B={}", res.0, res.1);
+            Ok(res)
+        }
+        Err(e) => {
+            eprintln!("❌ Refund failed: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
