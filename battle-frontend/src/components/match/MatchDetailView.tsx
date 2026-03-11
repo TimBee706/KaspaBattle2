@@ -13,7 +13,7 @@ import { useMatchStore } from '../../stores/useMatchStore';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { user, testMode, isFaceitConnected } = useAuthStore();
     const { setMatch } = useMatchStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
@@ -29,7 +29,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     // User must be logged in. Match must be OPEN.
     // User must not be the creator (playerA). User must not have already deposited.
     const hasDeposited = (isPlayerA && !!match.player_a_deposit_tx_hash) || (isPlayerB && !!match.player_b_deposit_tx_hash);
-    const canAccept = match.status === 'OPEN' && !isPlayerA && !hasDeposited && !!user;
+    const canAccept = match.status === 'OPEN' && !isPlayerA && !hasDeposited && !!user && (testMode || isFaceitConnected);
 
     const handleAccept = async () => {
         setIsAccepting(true);
@@ -131,6 +131,9 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         {match.status === 'OPEN' && !match.player_b_faceit_id && (
                             <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
                                 <p className="text-xs text-blue-400 font-medium">{t('match.open_info')}</p>
+                                {!isFaceitConnected && !testMode && !isPlayerA && (
+                                    <p className="text-xs text-yellow-500 mt-2 font-bold">FaceIT muss verbunden sein, um beizutreten.</p>
+                                )}
                                 {canAccept && (
                                     <button
                                         onClick={handleAccept}

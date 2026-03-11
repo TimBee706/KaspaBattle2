@@ -3,8 +3,6 @@ import { useLobbyStore } from '../stores/useLobbyStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { LobbyTable } from '../components/LobbyTable';
-import { LobbyDetail } from '../components/LobbyDetail';
-import { useLobby } from '../hooks/useLobby';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { WS_BASE_URL } from '../config/constants';
@@ -14,21 +12,15 @@ export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
     const { lobbies, setLobbies, addOrUpdateLobby } = useLobbyStore();
     const { user, fetchUser, testMode, setTestMode } = useAuthStore();
-    const {
-        selectedLobby,
-        isDetailOpen,
-        handleLobbyClick,
-        closeDetail
-    } = useLobby();
     const { t } = useTranslation();
     const { lobbyId } = useParams<{ lobbyId: string }>();
 
     // Support deep linking
     useEffect(() => {
         if (lobbyId) {
-            handleLobbyClick(lobbyId);
+            navigate(`/match/${lobbyId}`);
         }
-    }, [lobbyId, handleLobbyClick]);
+    }, [lobbyId, navigate]);
 
     useEffect(() => {
         fetchUser().then(() => {
@@ -78,15 +70,8 @@ export const LobbyPage: React.FC = () => {
             <LobbyTable
                 matches={openLobbies}
                 title={t('lobby.available_challenges')}
-                onLobbyClick={handleLobbyClick}
+                onLobbyClick={(id) => navigate(`/match/${id}`)}
             />
-
-            {isDetailOpen && selectedLobby && (
-                <LobbyDetail
-                    lobby={selectedLobby}
-                    onClose={closeDetail}
-                />
-            )}
         </div>
     );
 };
