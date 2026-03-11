@@ -61,6 +61,7 @@ pub async fn simulate_deposit_test(
 
 use battle_core::auth::AuthService;
 use battle_core::faceit_oauth::FaceitOAuthService;
+use battle_core::faceit_data::FaceitDataService;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -69,11 +70,13 @@ pub struct AppState {
     pub tx: broadcast::Sender<String>,
     pub auth_service: Arc<AuthService>,
     pub faceit_service: Arc<FaceitOAuthService>,
+    pub faceit_data_service: Option<Arc<FaceitDataService>>,
     pub escrow_wallet: Option<Arc<battle_kaspa::wallet::EscrowWallet>>,
     pub escrow_service: Option<Arc<battle_kaspa::escrow::EscrowService>>,
     pub kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>>,
     pub payout_service: Option<Arc<battle_kaspa::payout::PayoutService>>,
 }
+
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -102,7 +105,7 @@ pub async fn get_me(
         Some(crate::api::auth_guard::SessionUserNoWallet(user)) => {
             // Enrich with FaceIT data from faceit_links table
             let faceit_row = sqlx::query(
-                "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url FROM faceit_links WHERE user_id = $1::uuid"
+                "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url, faceit_elo, faceit_skill_level FROM faceit_links WHERE user_id = $1::uuid"
             )
             .bind(&user.id)
             .fetch_optional(&state.pool)
@@ -110,14 +113,17 @@ pub async fn get_me(
             .ok()
             .flatten();
 
-            let (faceit_id, faceit_nickname, faceit_avatar) = if let Some(r) = faceit_row {
+            let (faceit_connected, faceit_id, faceit_nickname, faceit_avatar, faceit_elo, faceit_skill_level) = if let Some(r) = &faceit_row {
                 use sqlx::Row;
                 let fid: String = r.try_get("faceit_player_id").unwrap_or_default();
                 let fnick: String = r.try_get("faceit_nickname").unwrap_or_default();
                 let favatar: Option<String> = r.try_get("faceit_avatar_url").unwrap_or(None);
-                (fid, fnick, favatar.unwrap_or_default())
+                let felo: Option<i32> = r.try_get("faceit_elo").unwrap_or(None);
+                let fskill: Option<i32> = r.try_get("faceit_skill_level").unwrap_or(None);
+                (true, fid, fnick, favatar.unwrap_or_default(), felo, fskill)
             } else {
-                (String::new(), user.display_name.clone(), String::new())
+                // NOT connected: do NOT fallback to display_name for faceit_nickname
+                (false, String::new(), String::new(), String::new(), None, None)
             };
 
             Ok(Json(serde_json::json!({
@@ -125,9 +131,12 @@ pub async fn get_me(
                 "email": user.email,
                 "display_name": user.display_name,
                 "kaspa_address": user.kaspa_address,
+                "faceit_connected": faceit_connected,
                 "faceit_id": faceit_id,
                 "faceit_nickname": faceit_nickname,
                 "faceit_avatar": faceit_avatar,
+                "faceit_elo": faceit_elo,
+                "faceit_skill_level": faceit_skill_level,
                 "created_at": user.created_at,
                 "total_matches": 0,
                 "wins": 0,
@@ -352,10 +361,16 @@ pub async fn join_challenge(
 
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET opponent_user_id = $1, status = 'AWAITING_FUNDING' WHERE id = $2 AND status = 'OPEN' AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash"
+        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash"
     )
-    .bind(joiner_id).bind(id)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .bind(joiner_id)
+    .bind(id)
+    .bind(crate::models::MatchStatus::AwaitingFunding)
+    .bind(crate::models::MatchStatus::Open)
+    .fetch_one(&state.pool).await.map_err(|e| {
+        tracing::error!("Failed to update match status in join_challenge: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     updated.calculate_wager();
 

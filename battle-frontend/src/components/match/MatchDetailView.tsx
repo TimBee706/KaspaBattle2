@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { BattleMatch } from '../../api/types';
 import { formatKas, explorerAddressUrl, explorerTxUrl } from '../../utils/format';
 import { SUPPORTED_GAMES } from '../../config/constants';
@@ -11,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatchStore } from '../../stores/useMatchStore';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
+    const navigate = useNavigate();
     const { user } = useAuthStore();
     const { setMatch } = useMatchStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -29,7 +31,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
         setIsAccepting(true);
         try {
             await acceptMatch({ match_id: match.id });
-            // Polling wird den Rest erledigen
+            navigate(`/escrow/${match.id}`);
         } catch (err) {
             alert(t('match.accept_error'));
         } finally {

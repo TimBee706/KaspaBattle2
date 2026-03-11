@@ -20,10 +20,38 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 // Response Interceptor: 401 → Token Refresh oder Logout
+// + faceit_reauth_required Handling
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        const errorCode = error.response?.data?.error;
+
+        // FACEIT token expired beyond refresh → clear FACEIT status, don't logout
+        if (status === 401 && errorCode === 'faceit_reauth_required') {
+            const store = useAuthStore.getState();
+            if (store.user) {
+                // Clear FACEIT connection without full logout
+                useAuthStore.setState({
+                    isFaceitConnected: false,
+                    user: {
+                        ...store.user,
+                        faceit_connected: false,
+                        faceit_id: '',
+                        faceit_nickname: '',
+                        faceit_avatar: '',
+                        faceit_elo: null,
+                        faceit_skill_level: null,
+                    },
+                });
+            }
+            // Dispatch custom event so UI components can show reconnect banner
+            window.dispatchEvent(new CustomEvent('faceit-reauth-required'));
+            return Promise.reject(error);
+        }
+
+        // Regular 401: session expired
+        if (status === 401) {
             const { tokens, logout, refreshAccessToken } = useAuthStore.getState();
             if (tokens?.refresh_token) {
                 try {

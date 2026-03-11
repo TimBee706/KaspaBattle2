@@ -71,8 +71,11 @@ export interface UserProfile {
     id: string;
     faceit_id: string;
     faceit_nickname: string;
-    display_name?: string;               // Backend property / TestUser
+    faceit_connected: boolean;               // Backend-verifizierter FACEIT-Status
+    display_name?: string;                   // Backend property / TestUser
     faceit_avatar: string;
+    faceit_elo: number | null;               // Gecachte ELO aus faceit_links
+    faceit_skill_level: number | null;       // FACEIT Level 1-10
     kaspa_address: string;
     total_matches: number;
     wins: number;
@@ -99,9 +102,11 @@ export interface FaceitProfileResponse {
     faceit_player_id: string;
     nickname: string;
     avatar_url: string | null;
-    game_id: string;
+    country: string;
     elo: number;
     skill_level: number;
+    games: string[];
+    faceit_url: string;
     is_cached: boolean;
 }
 

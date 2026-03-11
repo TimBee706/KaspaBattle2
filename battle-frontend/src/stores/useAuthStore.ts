@@ -9,6 +9,7 @@ interface AuthState {
     isAuthenticated: boolean;
     walletConnected: boolean;
     testMode: boolean;
+    isFaceitConnected: boolean;
 
     setAuth: (user: UserProfile, tokens: AuthTokens) => void;
     setTokens: (tokens: AuthTokens) => void;
@@ -28,16 +29,27 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             walletConnected: false,
             testMode: false,
+            isFaceitConnected: false,
 
-            setAuth: (user, tokens) => set({ user, tokens, isAuthenticated: true }),
+            setAuth: (user, tokens) => set({
+                user,
+                tokens,
+                isAuthenticated: true,
+                isFaceitConnected: user.faceit_connected === true && !!user.faceit_id,
+            }),
             setTokens: (tokens) => set({ tokens }),
             fetchUser: async () => {
                 const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
-                set({ user: res.data, isAuthenticated: true });
+                const user = res.data;
+                set({
+                    user,
+                    isAuthenticated: true,
+                    isFaceitConnected: user.faceit_connected === true && !!user.faceit_id,
+                });
             },
 
             logout: () => {
-                set({ user: null, tokens: null, isAuthenticated: false, walletConnected: false });
+                set({ user: null, tokens: null, isAuthenticated: false, walletConnected: false, isFaceitConnected: false });
                 sessionStorage.clear();
             },
 

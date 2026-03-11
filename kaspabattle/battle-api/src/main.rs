@@ -64,6 +64,19 @@ async fn main() {
     }
     eprintln!("✅ DB migration: v0.2 columns ensured (deposit tracking + FaceID)");
 
+    // v0.3 migrations: FACEIT cache columns
+    let v03_migrations = [
+        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_elo INTEGER",
+        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_skill_level INTEGER",
+        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_cache_updated_at TIMESTAMPTZ",
+    ];
+    for migration in &v03_migrations {
+        if let Err(e) = sqlx::query(migration).execute(&pool).await {
+            eprintln!("⚠️ v0.3 migration skipped (may already exist): {}", e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.3 FACEIT cache columns ensured");
+
     let (tx, _) = broadcast::channel(100);
 
     let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
@@ -154,11 +167,24 @@ async fn main() {
         );
     }
 
+    // ── FACEIT Data API Service (for profile/stats endpoints) ──
+    let faceit_data_service = match std::env::var("FACEIT_DATA_API_KEY") {
+        Ok(api_key) if !api_key.is_empty() => {
+            eprintln!("✅ FaceitDataService initialized (API key set)");
+            Some(Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key)))
+        }
+        _ => {
+            eprintln!("⚠️ FACEIT_DATA_API_KEY not set — /faceit/profile and /faceit/stats will be unavailable");
+            None
+        }
+    };
+
     let state = api::AppState {
         pool,
         tx,
         auth_service,
         faceit_service,
+        faceit_data_service,
         escrow_wallet: Some(escrow_wallet),
         escrow_service,
         kaspa_rpc,
