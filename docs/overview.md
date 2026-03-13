@@ -1,48 +1,30 @@
 # Project Overview
 
-KaspaBattle is designed to revolutionize competitive gaming by bringing transparency and decentralization to esports wagering.
+KaspaBattle is a decentralized P2P esports wagering platform built on the Kaspa blockchain. It enables players to create and join challenges, wager KAS on match outcomes, and receive instant payouts in a non-custodial, trustless environment.
 
-## The Problem
+## Key Features
 
-Esports wagering today suffers from two major issues:
+- **Full Lobby System**: Live overview of open challenges, easy creation and joining of matches.
+- **P2P Esports Wagers**: Challenge other players and wager KAS on FACEIT match outcomes.
+- **Non-Custodial Escrow**: Funds held in per-match escrow addresses via multisig contracts.
+- **Automated FACEIT Integration**: Automatic match creation and result verification.
+- **Oracle-Based Resolution**: Match results fetched from FACEIT API with verification.
+- **Fast Settlements**: Instant payouts using Kaspa's high-throughput DAG.
+- **Secure Architecture**: PKCE OAuth, comprehensive error handling, multi-layer security.
 
-1. **Centralization/Trust**: Players must trust a third-party platform to hold their funds and accurately report match results.
-2. **Speed**: Withdrawals and payouts can take days due to legacy banking and manual verification processes.
+## Technology Stack
 
-## The Solution
+- **Frontend**: React 18, Vite, TypeScript, TailwindCSS, Kaspa WASM SDK
+- **Backend**: Rust (Axum, PostgreSQL, battle-core, battle-kaspa)
+- **Blockchain**: Kaspa (rusty-kaspa node, RPC, wallet)
+- **External**: FACEIT API for player data and match results
 
-KaspaBattle solves these by:
+## Project Structure
 
-1. **Non-Custodial Escrow**: Using per-match unique addresses on the Kaspa DAG. Users interact with the protocol without handing over custody of their KAS until the match is resolved.
-2. **Oracle Automation**: Authenticated Oracles pull data directly from gaming platforms (like FACEIT) to resolve matches instantly.
-3. **Kaspa DAG**: Leveraging the fastest PoW blockchain to provide sub-second block times and near-instant transaction finality.
+- `kaspabattle/`: Rust workspace (battle-api, battle-core, battle-kaspa)
+- `battle-frontend/`: React SPA
+- `rusty-kaspa/`: Full Kaspa node implementation
+- `docs/`: Technical documentation
 
-## The Match Cycle
-
-A typical wager follows these 8 steps:
-
-1. **Create Challenge**: Player A creates a match with specific wager amounts and game rules.
-2. **Join Match**: Player B joins the challenge.
-3. **Escrow Generation**: The system generates a unique Kaspa escrow address for the match.
-4. **Deposits**: Both players send their KAS wager to the escrow address.
-5. **Locking**: The Backend Watcher detects both deposits and locks the match.
-6. **Match Play**: The players compete in the linked game (e.g., a CS2 match on FACEIT).
-7. **Resolution**: The Oracle fetches the match result and signs a resolution transaction.
-8. **Payout**: The platform automatically splits the escrow: 95% to the winner, 5% to the platform (treasury).
-
-## Target Audience
-
-- **Competitive Amateurs**: Players who want "skin in the game" for their daily matches.
-- **Pro Teams**: High-stakes competitive matches with guaranteed payouts.
-- **Streamers**: Interactive wagering for their communities.
-
-## Technical Foundations
-
-KaspaBattle is built for performance:
-
-- **Scalability**: Kaspa's 10 BPS (and future higher rates) ensures we can handle thousands of concurrent matches.
-- **Safety**: Rust provides memory safety and high performance for the core logic.
-- **Accessibility**: A browser-based React frontend allows anyone with a KAS wallet to participate.
-
----
-[← Back to README](../README.md) | [Architecture →](architecture.md)
+For detailed architecture, see [Architecture](architecture.md).
+For getting started, see the [README](../README.md).

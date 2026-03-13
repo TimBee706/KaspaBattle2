@@ -1,86 +1,71 @@
 # Backend Documentation
 
-The KaspaBattle backend is a high-performance Rust application designed to manage match states, monitor the blockchain, and execute payouts.
+The KaspaBattle backend consists of Rust services for API, domain logic, and Kaspa integration.
 
 ## Project Structure
 
 The backend is organized as a Cargo workspace:
 
-- **`battle-api`**: The entry point. Handles HTTP requests, authentication, and routing.
-- **`battle-kaspa`**: Contains logic for blockchain interaction, including the `PayoutService` and `KaspaRpc` abstractions.
-- **`battle-core`**: Defines the shared domain models, states, and error types.
+- **`battle-api`**: Axum-based REST API server
+- **`battle-core`**: Shared Rust library for domain logic
+- **`battle-kaspa`**: Kaspa blockchain integration library
 
 ## Core Services
 
-### 1. Watcher Task (`watcher_task.rs`)
+### battle-api
 
-A background loop that polls the Kaspa node for balance changes on active escrow addresses.
+**Entry Point:** `main.rs` - Sets up database, routes, starts server.
 
-- **Deposit Detection**: Automatically transitions matches to `Funded` when both players have contributed.
-- **Timeout Refunds**: Identifies matches that stayed in `WaitingForDeposits` too long and triggers automatic refunds.
+**Routes:**
+- `/api/v1/auth`: Authentication endpoints (register, login, logout, me, set_kaspa_address)
+- `/api/v1/faceit`: FACEIT OAuth (link, login, callback)
+- `/api/v1/oracle`: Oracle job management (create, get)
+- `/api/v1/matches`: Match operations (create, list, deposit, payout)
 
-### 2. Payout Service (`payout.rs`)
+**Key Services:**
+- `AuthService`: Session management
+- `FaceitOAuth`: FACEIT integration
+- `OracleService`: Result verification
 
-Handles the final step of the match cycle.
+### battle-core
 
-- **Transaction Building**: Uses `kaspa-consensus-core` types to build real transactions.
-- **Signing**: Uses Schnorr signatures with the match-specific private keys.
-- **Submission**: Sends the signed `RpcTransaction` to the node.
+**Modules:**
+- `auth`: Authentication services
+- `faceit_data`: FACEIT API integration
+- `match_state`: Match state machine
+- `models`: Domain models (User, Match, etc.)
+- `oracle`: Match result verification
+- `types`: Common types
 
-### 4. Auth Service (`auth.rs`)
+**Public APIs:**
+- `AuthService`: Handles user authentication
+- `MatchStateMachine`: Manages match lifecycle
+- `OracleService`: Verifies match results via FACEIT
 
-Handles user lifecycle and session management.
+### battle-kaspa
 
-- **Registration/Login**: Uses Argon2 for secure password hashing.
-- **Session Management**: Secure random token generation with expiry tracking.
-- **Identity**: Manages user profiles and linked Kaspa addresses.
+**Modules:**
+- `escrow`: Multisig escrow management
+- `rpc`: Kaspa RPC client
+- `wallet`: Wallet operations
+- `watcher`: Transaction monitoring
 
-### 5. FACEIT OAuth Service (`faceit_oauth.rs`)
+**Public APIs:**
+- `EscrowManager`: Creates and manages escrow addresses
+- `KaspaRpc`: Client for Kaspa node RPC
+- `PayoutService`: Handles payout transactions
 
-Integrates with FACEIT Identity Provider.
+## API Endpoints
 
-- **PKCE Flow**: Implements Proof Key for Code Exchange (PKCE) for secure mobile/SPA auth.
-- **Token Management**: Handles access/refresh token lifecycle.
-- **Profile Linking**: Securely links KaspaBattle users to FACEIT player IDs.
-
-## API Endpoints (v1)
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | Create a new account |
-| `POST` | `/api/v1/auth/login` | Authenticate and get session |
-| `GET` | `/api/v1/auth/me` | Get current user profile |
-| `GET` | `/api/v1/faceit/link` | Start FACEIT OAuth flow |
-| `GET` | `/api/v1/faceit/status` | Get linked account status |
+See [API Reference](api/index.md) for detailed endpoint documentation.
 
 ## Database Schema
 
-The system uses SQLite (via SQLx) with the following core tables:
-
-- **`users`**: Stores user profiles, emails (hashed), and Kaspa addresses.
-- **`sessions`**: Manages active user sessions.
-- **`faceit_links`**: Maps internal users to verified FACEIT player identities.
-- **`matches`**: Tracks match state, escrow details, and payout status.
+Uses PostgreSQL with core tables for users, sessions, faceit_links, matches.
 
 ## Configuration
 
-The backend is configured via environment variables:
+Environment variables for database, Kaspa node, FACEIT OAuth, admin tokens.
 
-```env
-DATABASE_URL=sqlite://matches.db
-KASPA_NODE_URL=127.0.0.1:17110
-KASPA_NETWORK=testnet-10
-ORACLE_API_KEYS=key-alpha,key-beta
-FACEIT_CLIENT_ID=your-id
-FACEIT_CLIENT_SECRET=your-secret
-```
-
-## Running Locally
-
-1. Navigate to the backend folder: `cd kaspabattle`.
-2. Install dependencies: `cargo build`.
-3. Run the API: `cargo run -p battle-api`.
-4. Run tests: `cargo test --workspace`.
-
----
-[Architecture ←](architecture.md) | [Home ↑](../README.md) | [Frontend →](frontend.md)
+For build and deployment, see [Build & Deployment](build.md).
+For testing, see [Tests & Quality](tests.md).

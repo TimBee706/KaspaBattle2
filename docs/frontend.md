@@ -1,63 +1,60 @@
 # Frontend Documentation
 
-The KaspaBattle frontend is a React application that provides a responsive interface for players to manage challenges, connect their wallets, and monitor match status.
+The KaspaBattle frontend is a React/TypeScript SPA for user interaction.
 
 ## Tech Stack
 
-- **Framework**: React 18
-- **Build Tool**: Vite
+- **Framework**: React 18 with Vite
 - **State Management**: Zustand
 - **Routing**: React Router 6
-- **Styling**: Tailwind CSS
-- **Kaspa Integration**: `kaspa-wasm` SDK
+- **Styling**: TailwindCSS
+- **Kaspa Integration**: kaspa-wasm SDK
 
 ## Key Components
 
-### 1. Wallet Provider
+### App.tsx
+Main application component with routing.
 
-Integrates the Kaspa WASM SDK.
+### Pages
+- `LandingPage`: Entry point
+- `LobbyPage`: Match browsing and creation
+- `CreateMatchPage`: New match setup
+- `MatchPage`: Active match interface
+- `WalletPage`: Wallet management
+- `HistoryPage`: Match history
+- `ProfilePage`: User profile
+- `EscrowPage`: Deposit interface
 
-- **Connection**: Detects and connects to browser wallets or manages local BIP-39 mnemonics.
-- **Synchronization**: Uses wRPC to listen for incoming transactions and balance updates.
-
-### 2. Match Lobby
-
-A real-time list of available challenges.
-
-- **Filtering**: Allows users to find matches by stake or game type.
-- **Real-time Updates**: Polling or wRPC hooks to show status changes instantly.
-
-### 3. Escrow Interface
-
-Displays the unique deposit address for a match.
-
-- **QR Codes**: Easy deposit via mobile wallets.
-- **Status Progress**: Visual indicator for "A deposited", "B deposited", and "Locked".
-
-## Feature Highlights
-
-- **Kaspa WASM Integration**: We use the official Kaspa WASM bindings for sub-second synchronization and transaction signing.
-- **FACEIT Integration**: Users log in via FACEIT OAuth to link their gaming profiles.
-- **Responsive Design**: Optimized for both desktop (during play) and mobile (to monitor status/deposits).
+### Hooks
+- `useKaspaInit`: Initializes WASM Kaspa client
+- `useWallet`: Wallet state management
+- `useBalance`: Balance tracking
+- `useAuthStore`: User authentication
+- `useLobbyStore`: Match lobby state
 
 ## Project Structure
 
-```text
-src/
-├── components/   # Reusable UI elements (Buttons, Cards, Modals)
-├── hooks/        # Custom React hooks (useKaspa, useMatch)
-├── pages/        # Main route views (Lobby, MatchDetail, Profile)
-├── store/        # Zustand state stores
-├── types/        # TypeScript interfaces
-└── utils/        # Kaspa helpers, formatting, etc.
+```
+battle-frontend/
+├── src/
+│   ├── App.tsx
+│   ├── main.tsx
+│   ├── components/
+│   ├── pages/
+│   ├── stores/
+│   ├── hooks/
+│   ├── api/
+│   └── config/
+├── package.json
+├── vite.config.ts
+└── tailwind.config.js
 ```
 
 ## Running Locally
 
-1. Navigate to the frontend folder: `cd battle-frontend`.
-2. Install dependencies: `npm install`.
-3. Start the dev server: `npm run dev`.
-4. Build for production: `npm run build`.
+1. `cd battle-frontend`
+2. `npm install`
+3. `npm run dev`
 
----
-[Backend ←](backend.md) | [Kaspa Integration →](kaspa-integration.md)
+For build and deployment, see [Build & Deployment](build.md).
+For testing, see [Tests & Quality](tests.md).
