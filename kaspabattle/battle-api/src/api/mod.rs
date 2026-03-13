@@ -1,6 +1,7 @@
 pub mod admin_guard;
 pub mod auth_guard;
 pub mod faceit;
+pub mod multisig;
 
 use crate::api::{admin_guard::AdminApiKey, auth_guard::SessionUser};
 use crate::models::{Match, MatchMode};
@@ -75,6 +76,7 @@ pub struct AppState {
     pub escrow_service: Option<Arc<battle_kaspa::escrow::EscrowService>>,
     pub kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>>,
     pub payout_service: Option<Arc<battle_kaspa::payout::PayoutService>>,
+    pub multisig_service: Option<Arc<battle_kaspa::multisig::service::MultisigEscrowService>>,
 }
 
 
@@ -96,6 +98,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/wallet-login", post(wallet_login))
         .route("/ws", get(ws_handler))
         .nest("/faceit", faceit::router())
+        .nest("/multisig", multisig::router())
 }
 
 pub async fn get_me(
