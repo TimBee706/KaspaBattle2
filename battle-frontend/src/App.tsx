@@ -32,6 +32,8 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const code = params.get('code');
+    const state = params.get('state');
     const linked = params.get('linked');
     const errorParam = params.get('error');
 
@@ -40,6 +42,16 @@ export default function App() {
       setTokens({ access_token: token, refresh_token: '', expires_at });
       fetchUser().catch(console.error);
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (code && state) {
+      // FaceIT redirected with ?code=&state= to the frontend instead of the backend callback.
+      // Forward these params to the backend callback endpoint which exchanges the code for a session token.
+      console.log('🔄 FaceIT OAuth code received, forwarding to backend...');
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+      const callbackUrl = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+
+      // Use fetch with redirect: 'follow' — the backend will respond with a 303 redirect to /?token=xxx
+      // We use window.location to follow the full redirect chain
+      window.location.href = callbackUrl;
     } else if (linked) {
       // Optionale Erfolgsmeldung für reines Account-Linking
       fetchUser().catch(console.error);
@@ -50,7 +62,6 @@ export default function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (!useAuthStore.getState().isAuthenticated) {
       // Cookie-based fallback: try to hydrate auth from HttpOnly cookie
-      // (withCredentials: true in apiClient sends the cookie automatically)
       fetchUser().catch(() => {
         // Silently fail — user simply isn't logged in
       });

@@ -5,7 +5,7 @@ import { useTranslation, Trans } from 'react-i18next';
 
 export function LandingPage() {
     // 4. Auth/Wallet-Logik: isAuthenticated und walletConnected aus dem Store holen
-    const { isAuthenticated, walletConnected } = useAuthStore();
+    const { isAuthenticated, walletConnected, isFaceitConnected } = useAuthStore();
     const { t } = useTranslation();
 
     return (
@@ -147,7 +147,11 @@ export function LandingPage() {
 
                 {/* Vertikal gestackte Buttons (Stacked) */}
                 <div className="flex flex-col items-center justify-center gap-4 max-w-sm mx-auto">
-                    {(!isAuthenticated || !walletConnected) ? (
+                    {(isAuthenticated && (walletConnected || isFaceitConnected)) ? (
+                        <Link to="/lobby" className="btn-primary w-full px-12 py-5 text-xl shadow-[0_0_30px_rgba(112,199,186,0.3)] hover:shadow-[0_0_50px_rgba(112,199,186,0.5)] transition-shadow text-kaspa-dark font-black flex items-center justify-center">
+                            {t('navigation.back_to_lobby')}
+                        </Link>
+                    ) : (
                         <>
                             <Link to="/wallet/import" className="btn-primary w-full px-10 py-5 text-lg bg-kaspa-primary hover:bg-kaspa-primary/80 flex items-center gap-3 text-kaspa-dark font-black">
                                 🔌 {t('wallet.connect')}
@@ -156,10 +160,6 @@ export function LandingPage() {
                                 🎮 {t('navigation.faceit_login')}
                             </button>
                         </>
-                    ) : (
-                        <Link to="/lobby" className="btn-primary w-full px-12 py-5 text-xl shadow-[0_0_30px_rgba(112,199,186,0.3)] hover:shadow-[0_0_50px_rgba(112,199,186,0.5)] transition-shadow text-kaspa-dark font-black flex items-center justify-center">
-                            {t('navigation.back_to_lobby')}
-                        </Link>
                     )}
                 </div>
             </section>
