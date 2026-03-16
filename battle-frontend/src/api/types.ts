@@ -76,7 +76,7 @@ export interface UserProfile {
     faceit_avatar: string;
     faceit_elo: number | null;               // Gecachte ELO aus faceit_links
     faceit_skill_level: number | null;       // FACEIT Level 1-10
-    kaspa_address: string;
+    kaspa_address: string | null;
     total_matches: number;
     wins: number;
     losses: number;

@@ -167,6 +167,49 @@ async fn main() {
         );
     }
 
+    // Initialize MultisigEscrowService (2-of-3 P2SH escrows)
+    let multisig_service = kaspa_rpc.as_ref().and_then(|rpc| {
+        // Determine network prefix
+        let prefix = if kaspa_network.contains("mainnet") {
+            kaspa_addresses::Prefix::Mainnet
+        } else {
+            kaspa_addresses::Prefix::Testnet
+        };
+
+        // Derive oracle private key from ORACLE_PRIVATE_KEY env or deterministic fallback
+        let oracle_sk_hex = std::env::var("ORACLE_PRIVATE_KEY").unwrap_or_else(|_| {
+            // Deterministic fallback: SHA256("kaspabattle-oracle-v1")
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(b"kaspabattle-oracle-v1");
+            hex::encode(hasher.finalize())
+        });
+
+        let oracle_sk_bytes: [u8; 32] = match hex::decode(&oracle_sk_hex) {
+            Ok(bytes) if bytes.len() == 32 => bytes.try_into().unwrap(),
+            _ => {
+                eprintln!("⚠️ Invalid ORACLE_PRIVATE_KEY — MultisigEscrowService disabled");
+                return None;
+            }
+        };
+
+        match battle_kaspa::multisig::service::MultisigEscrowService::new(
+            rpc.clone(),
+            prefix,
+            oracle_sk_bytes,
+            treasury_address.clone(),
+        ) {
+            Ok(service) => {
+                eprintln!("✅ MultisigEscrowService initialized (prefix: {:?})", prefix);
+                Some(Arc::new(service))
+            }
+            Err(e) => {
+                eprintln!("⚠️ MultisigEscrowService failed: {} — disabled", e);
+                None
+            }
+        }
+    });
+
     // ── FACEIT Data API Service (for profile/stats endpoints) ──
     let faceit_data_service = match std::env::var("FACEIT_DATA_API_KEY") {
         Ok(api_key) if !api_key.is_empty() => {
@@ -189,6 +232,7 @@ async fn main() {
         escrow_service,
         kaspa_rpc,
         payout_service,
+        multisig_service,
     };
 
     let frontend_url_str =

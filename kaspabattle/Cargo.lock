@@ -447,6 +447,7 @@ dependencies = [
  "futures",
  "hex",
  "hmac",
+ "kaspa-addresses",
  "log",
  "md5",
  "rand 0.8.5",

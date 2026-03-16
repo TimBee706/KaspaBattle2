@@ -1,0 +1,1 @@
+ALTER TYPE match_status ADD VALUE 'FUNDED';

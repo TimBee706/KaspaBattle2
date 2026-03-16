@@ -25,7 +25,8 @@ export function formatKas(sompi: number, minDecimals = 2, maxDecimals = 8): stri
     });
 }
 
-export function shortenAddress(address: string, prefixLen = 10, suffixLen = 6): string {
+export function shortenAddress(address: string | null | undefined, prefixLen = 10, suffixLen = 6): string {
+    if (!address) return '—';
     if (address.length <= prefixLen + suffixLen + 3) return address;
     return `${address.slice(0, prefixLen)}...${address.slice(-suffixLen)}`;
 }

@@ -1,11 +1,11 @@
 # ─── Stage 1: Install cargo-chef for dependency caching ───────────────────────
-FROM rust:1.80-bookworm AS chef
+FROM rust:1.88-bookworm AS chef
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
-RUN cargo install cargo-chef --locked
+RUN cargo install cargo-chef
 WORKDIR /app
 
 # ─── Stage 2: Compute recipe (dependency fingerprint) ─────────────────────────
@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /sbin/nologin battle

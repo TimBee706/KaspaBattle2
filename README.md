@@ -19,13 +19,68 @@ By leveraging Kaspa's high-throughput DAG architecture and real-time settlement,
 - **Secure Architecture**: PKCE for OAuth, comprehensive error handling, and multi-layer security protections.
 - **Modern UI**: Clean React/TypeScript frontend (Tailwind + shadcn) with integrated Kaspa WASM wallet support.
 
+## Architecture
+
+KaspaBattle follows a layered architecture with three main components:
+
+### High-Level Architecture
+
+```mermaid
+graph TB
+    subgraph "Frontend Layer"
+        FE[React SPA<br/>battle-frontend]
+        WASM[WASM Kaspa SDK<br/>kaspa-wasm]
+    end
+
+    subgraph "Backend Layer"
+        API[REST API<br/>battle-api]
+        CORE[Domain Logic<br/>battle-core]
+        KASPA_INT[Kaspa Integration<br/>battle-kaspa]
+    end
+
+    subgraph "Blockchain Layer"
+        NODE[Kaspa Node<br/>rusty-kaspa/kaspad]
+        CONS[Consensus<br/>rusty-kaspa/consensus]
+        WALLET[Wallet<br/>rusty-kaspa/wallet]
+        RPC[RPC<br/>rusty-kaspa/rpc]
+    end
+
+    subgraph "External Services"
+        FACEIT[FACEIT API]
+        DB[(PostgreSQL)]
+    end
+
+    FE --> API
+    FE --> WASM
+    WASM --> RPC
+
+    API --> CORE
+    API --> KASPA_INT
+    API --> DB
+
+    KASPA_INT --> RPC
+    KASPA_INT --> WALLET
+
+    CORE --> FACEIT
+
+    NODE --> CONS
+    NODE --> RPC
+    NODE --> WALLET
+```
+
+- **Frontend Layer**: React SPA with Kaspa WASM integration for wallet and RPC
+- **Backend Layer**: Rust services for API, authentication, match management, and Kaspa operations
+- **Blockchain Layer**: Kaspa node providing consensus, wallet, and RPC services
+- **External Services**: FACEIT for player/match data, PostgreSQL for state
+
 ## Project Structure
 
 - `kaspabattle/`: Rust workspace containing the backend services.
-  - `battle-api/`: Actix-Web REST API (v1 / v2 endpoints).
-  - `battle-kaspa/`: Kaspa blockchain integration (RPC, Payouts, Watchers).
-  - `battle-core/`: Shared models, authentication services, and core match state machine.
+  - `battle-api/`: Axum REST API server.
+  - `battle-kaspa/`: Kaspa blockchain integration.
+  - `battle-core/`: Shared domain logic and models.
 - `battle-frontend/`: React + Vite frontend application.
+- `rusty-kaspa/`: Full Kaspa node implementation.
 - `docs/`: Comprehensive project documentation.
 
 ## Getting Started
@@ -88,18 +143,18 @@ If you prefer running the app locally for development (you still need a PostgreS
 
 ## Documentation
 
-Comprehensive documentation for the newly released Lobby System, including architecture, frontend/backend flow, Smart Contract states, and deployment instructions. Look here for the ultimate Quickstart!
+Comprehensive technical documentation generated from the source code:
 
-For more detailed developer information, please refer to the following historical architecture guides:
+- [Technical Overview](docs/INDEX.md) — High-level architecture, components, and Mermaid diagrams.
+- [Module Reference](docs/modules/core.md) — Detailed reference for all major modules and crates.
+- [API Reference](docs/api/index.md) — REST API endpoints, RPC methods, and CLI commands.
+- [Data Models](docs/models/index.md) — Structs, enums, and data structures.
+- [Use Cases & Flows](docs/flows/index.md) — Typical user journeys and system processes.
+- [Build & Deployment](docs/build.md) — Setup, configuration, and deployment instructions.
+- [Tests & Quality](docs/tests.md) — Testing structure and quality assurance.
 
-- [Whitepaper](docs/Whitepaper.md) — Comprehensive technical foundation, vision, and tokenomics.
-- [Project Overview](docs/overview.md) — Vision, Problem/Solution, and Match Cycle.
-- [Architecture](docs/architecture.md) — Technical stack and data flows.
-- [Lobby Integration](docs/lobby-integration.md) — Detailed architecture, state machines, and workflows of the lobby.
-- [Backend Development](docs/backend.md) — Rust services and API details.
-- [Frontend Development](docs/frontend.md) — React, WASM, and UI components.
-- [Kaspa Integration](docs/kaspa-integration.md) — How we use the Kaspa SDK.
-- [Security](docs/security.md) — Security measures and audit summary.
+Legacy documentation (may be outdated):
+- [Whitepaper](docs/Whitepaper.md) — Original technical foundation and vision.
 - [Contributing](docs/contributing.md) — Development guidelines.
 
 ---
