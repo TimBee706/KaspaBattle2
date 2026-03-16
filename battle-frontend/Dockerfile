@@ -13,7 +13,7 @@ COPY rusty-kaspa/wasm/web/kaspa /kaspa-wasm-local
 # Patch package.json to reference the copied wasm (in-container absolute path)
 RUN sed -i 's|file:../rusty-kaspa/wasm/web/kaspa|file:/kaspa-wasm-local|g' package.json
 
-RUN npm ci
+RUN npm install
 
 # ─── Development target (used by docker-compose default) ───────────────────────
 FROM base AS dev
