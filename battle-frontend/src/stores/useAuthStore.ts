@@ -41,6 +41,12 @@ export const useAuthStore = create<AuthState>()(
             fetchUser: async () => {
                 const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
                 const user = res.data;
+                if (import.meta.env.DEV) {
+                    const prev = get().user;
+                    if (prev?.faceit_connected && !user.faceit_connected) {
+                        console.warn('[AuthStore] ⚠️ fetchUser would lose FACEIT data!', { prev, next: user });
+                    }
+                }
                 set({
                     user,
                     isAuthenticated: true,
