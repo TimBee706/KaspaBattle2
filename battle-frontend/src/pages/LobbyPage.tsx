@@ -35,9 +35,10 @@ export const LobbyPage: React.FC = () => {
         return () => ws.close();
     }, [setLobbies, addOrUpdateLobby, fetchUser, setTestMode]);
 
+    // myLobbies: matches where the current user is creator or opponent
+    // NOTE: backend returns creator_user_id/opponent_user_id, NOT player_a_faceit_id
     const myLobbies = lobbies.filter(m =>
-        (user?.faceit_id && (m.player_a_faceit_id === user.faceit_id || m.player_b_faceit_id === user.faceit_id)) ||
-        (user?.id && (m.creator_user_id === user.id || m.opponent_user_id === user.id))
+        user?.id && (m.creator_user_id === user.id || m.opponent_user_id === user.id)
     );
     const openLobbies = lobbies.filter(m => m.status === 'OPEN' && !myLobbies.includes(m));
 

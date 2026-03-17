@@ -1,6 +1,24 @@
 export type MatchMode = 'BO1' | 'BO3';
 export type MatchStatus = 'DRAFT' | 'OPEN' | 'AWAITING_FUNDING' | 'FUNDED' | 'LOCKED' | 'IN_GAME' | 'RESOLVING' | 'RESOLVED' | 'PAID_OUT' | 'DISPUTED' | 'CANCELLED';
 
+// ── Payment Status Types ──
+export interface PlayerPaymentInfo {
+    paid: boolean;
+    confirmed_sompi: number;
+    payment_count: number;
+    min_confirmations: number;
+}
+
+export interface PaymentStatus {
+    escrow_address: string;
+    required_per_player_sompi: number;
+    min_confirmations_required: number;
+    playerA: PlayerPaymentInfo;
+    playerB: PlayerPaymentInfo;
+    both_paid: boolean;
+}
+
+
 export interface BattleMatch {
     id: string;                            // UUID
     creator_user_id?: string;              // UUID

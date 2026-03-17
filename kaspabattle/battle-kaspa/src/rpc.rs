@@ -123,6 +123,10 @@ pub trait KaspaRpc: Send + Sync {
     /// F-003: Get current fee estimate from the network.
     /// Returns sompi-per-gram fee rates for normal and low-priority transactions.
     async fn get_fee_estimate(&self) -> std::result::Result<FeeEstimate, KaspaError>;
+
+    /// Get the current virtual DAA score from the node.
+    /// Used to compute confirmation depth: current_daa - utxo.block_daa_score = confirmations.
+    async fn get_current_daa_score(&self) -> std::result::Result<u64, KaspaError>;
 }
 
 // === Real Kaspa Client ===
@@ -413,6 +417,19 @@ impl KaspaRpc for RealKaspaClient {
                 })
             }
         }
+    }
+
+    /// Fetch the current virtual DAA score from get_server_info.
+    async fn get_current_daa_score(&self) -> std::result::Result<u64, KaspaError> {
+        use kaspa_rpc_core::api::rpc::RpcApi;
+
+        let info = self
+            .inner
+            .get_server_info()
+            .await
+            .map_err(|e| KaspaError::RpcError(format!("get_server_info failed: {}", e)))?;
+
+        Ok(info.virtual_daa_score)
     }
 }
 

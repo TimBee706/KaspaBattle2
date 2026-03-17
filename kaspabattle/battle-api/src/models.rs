@@ -69,6 +69,12 @@ pub struct Match {
     pub player_a_faceid_hash: Option<String>,
     #[sqlx(default)]
     pub player_b_faceid_hash: Option<String>,
+
+    // ── v0.4 Per-player deposit amount tracking ──
+    #[sqlx(default)]
+    pub player_a_deposit_amount_sompi: Option<i64>,
+    #[sqlx(default)]
+    pub player_b_deposit_amount_sompi: Option<i64>,
 }
 
 impl Match {

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useLobbyStore } from '../stores/useLobbyStore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { explorerTxUrl } from '../utils/format';
 
 export const HistoryPage: React.FC = () => {
     const { history, setHistory } = useLobbyStore();
@@ -38,7 +39,7 @@ export const HistoryPage: React.FC = () => {
                             </span>
                             {m.payout_tx_hash && (
                                 <a
-                                    href={`https://explorer.kaspa.org/txs/${m.payout_tx_hash}`}
+                                    href={explorerTxUrl(m.payout_tx_hash)}
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={(e) => e.stopPropagation()}

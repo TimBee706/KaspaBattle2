@@ -39,7 +39,7 @@ export function useEscrowDeposit() {
             }
 
             if (!currentMatch.escrow_address) {
-                throw new Error("Keine Escrow-Adresse vorhanden.");
+                throw new Error("Escrow-Adresse noch nicht generiert. Bitte die Seite neu laden oder kurz warten.");
             }
 
             // 2. TX an Escrow-Adresse über WASM SDK senden

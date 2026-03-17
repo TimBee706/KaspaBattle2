@@ -2,7 +2,7 @@ import apiClient from './client';
 import type {
     BattleMatch, CreateMatchRequest, CreateMatchResponse,
     MatchListResponse, SubmitDepositRequest, AcceptMatchRequest,
-    InitiateDisputeRequest, LobbyFilters,
+    InitiateDisputeRequest, LobbyFilters, PaymentStatus,
 } from './types';
 
 export async function createMatch(data: CreateMatchRequest): Promise<CreateMatchResponse> {
@@ -52,5 +52,11 @@ export async function getMyMatches(page = 1, perPage = 20): Promise<MatchListRes
 
 export async function initiateDispute(data: InitiateDisputeRequest): Promise<BattleMatch> {
     const res = await apiClient.post<BattleMatch>(`/matches/${data.match_id}/dispute`, { reason: data.reason });
+    return res.data;
+}
+
+/** Fetch per-player on-chain deposit confirmation status from the backend. */
+export async function getPaymentStatus(matchId: string): Promise<PaymentStatus> {
+    const res = await apiClient.get<PaymentStatus>(`/matches/${matchId}/payment-status`);
     return res.data;
 }

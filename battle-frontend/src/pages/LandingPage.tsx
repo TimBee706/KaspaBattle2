@@ -129,17 +129,14 @@ export function LandingPage() {
             <section className="py-24 border-t border-kaspa-border text-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-t from-kaspa-primary/10 to-transparent -z-10" />
                 <h2 className="text-4xl md:text-6xl font-black mb-6 uppercase tracking-tighter">{t('sections.future')}</h2>
-                <p className="text-xl text-kaspa-primary mb-12 max-w-2xl mx-auto font-bold tracking-wide">
+                <p className="text-xl text-kaspa-primary mb-4 max-w-2xl mx-auto font-bold tracking-wide">
                     {t('sections.future_subtitle')}
                 </p>
 
-                {/* Abstraktes Kaspa Logo / Grafik */}
-                <div className="mb-12 flex justify-center text-8xl font-black text-kaspa-primary opacity-20 relative">
-                    <div className="absolute inset-0 blur-3xl bg-kaspa-primary/20 rounded-full w-40 h-40 mx-auto" />
+                {/* Kaspa Battle Logo */}
+                <div className="mb-4 flex justify-center relative">
                     <span className="relative z-10 flex items-center justify-center">
-                        <svg viewBox="0 0 500 500" className="w-32 h-32 fill-current">
-                            <path d="M250 0C111.9 0 0 111.9 0 250s111.9 250 250 250 250-111.9 250-250S388.1 0 250 0zm103.1 278.4-44.4-44.4 78.4-78.4h-71L250 221.7l-66.2-66.2h-71l78.4 78.4-44.4 44.4h71l32.1-32.1 32.1 32.1h71z" />
-                        </svg>
+                        <img src="/kaspa-battle_logo.svg" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
                     </span>
                 </div>
 

@@ -21,6 +21,8 @@ pub struct MockKaspaClient {
     connected: Arc<Mutex<bool>>,
     /// Controls `is_synced()` response for testing node-not-ready scenarios.
     synced: Arc<Mutex<bool>>,
+    /// Controls `get_current_daa_score()` response (default: 1000).
+    current_daa_score: Arc<Mutex<u64>>,
 }
 
 impl MockKaspaClient {
@@ -32,6 +34,7 @@ impl MockKaspaClient {
             submitted_tx_ids: Arc::new(Mutex::new(Vec::new())),
             connected: Arc::new(Mutex::new(true)),
             synced: Arc::new(Mutex::new(true)),
+            current_daa_score: Arc::new(Mutex::new(1000)),
         }
     }
 
@@ -41,6 +44,13 @@ impl MockKaspaClient {
         *client.synced.lock().expect("lock") = synced;
         client
     }
+
+    /// Set the current DAA score (for testing confirmation logic).
+    pub fn set_daa_score(&self, score: u64) {
+        let mut s = self.current_daa_score.lock().expect("lock poisoned");
+        *s = score;
+    }
+
 
     /// Set the balance for an address (in sompi).
     pub fn set_balance(&self, address: &str, balance: u64) {
@@ -156,6 +166,11 @@ impl KaspaRpc for MockKaspaClient {
             normal_bucket_feerate: 1.0,
             low_bucket_feerate: 0.5,
         })
+    }
+
+    async fn get_current_daa_score(&self) -> Result<u64, KaspaError> {
+        let score = self.current_daa_score.lock().expect("lock poisoned");
+        Ok(*score)
     }
 }
 

@@ -3,7 +3,7 @@ pub mod auth_guard;
 pub mod faceit;
 
 use crate::api::{admin_guard::AdminApiKey, auth_guard::SessionUser};
-use crate::models::{Match, MatchMode};
+use crate::models::{Match, MatchMode, MatchStatus};
 use axum::{
     extract::{
         ws::{Message, WebSocketUpgrade},
@@ -75,6 +75,8 @@ pub struct AppState {
     pub escrow_service: Option<Arc<battle_kaspa::escrow::EscrowService>>,
     pub kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>>,
     pub payout_service: Option<Arc<battle_kaspa::payout::PayoutService>>,
+    /// Watcher used by the payment-status endpoint and episode runner
+    pub blockchain_watcher: Option<Arc<battle_kaspa::watcher::BlockchainWatcher>>,
 }
 
 
@@ -86,6 +88,7 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/accept", post(join_challenge))
         .route("/matches/:id/deposit", post(submit_deposit))
         .route("/matches/:id/deposits", get(check_deposits))
+        .route("/matches/:id/payment-status", get(get_payment_status))
         .route("/matches/:id/resolve", post(admin_resolve_match))
         // ── v0.2 ──
         .route("/matches/:id/faceid", post(submit_faceid_handler))
@@ -159,93 +162,131 @@ pub struct AuthResponse {
 
 pub async fn wallet_login(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<WalletLoginReq>,
 ) -> Result<Json<AuthResponse>, StatusCode> {
-    // 1. Kaspa Signatur verifizieren (kdapp/kaspa-wasm Logik)
-    // TODO: Actually verify the Kaspa signature when Kaspa integration is fully available.
-    // For now, we trust the incoming address since this is the first step of the fix
-    // (In production, replace this with a proper `verify_kaspa_signature(...)`).
-    let is_valid = !payload.signature.is_empty(); // dummy check
-
-    if !is_valid {
+    // 1. Signatur prüfen (minimal — TODO: echte Kaspa-Signatur-Verifikation)
+    if payload.signature.is_empty() {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // 2. User in DB suchen oder neu anlegen (Guest)
+    // 2. Prüfen ob der Caller BEREITS authentifiziert ist (FaceIT-Session aktiv?)
+    let existing_token_opt = {
+        let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
+        if let Some(h) = auth_header {
+            if h.starts_with("Bearer ") { Some(h["Bearer ".len()..].to_string()) } else { None }
+        } else {
+            headers.get(axum::http::header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|cookie_str| {
+                    cookie_str.split(';').find_map(|pair| {
+                        let mut kv = pair.splitn(2, '=');
+                        let key = kv.next()?.trim();
+                        let val = kv.next()?.trim();
+                        if key == "kaspabattle-auth" { Some(val.to_string()) } else { None }
+                    })
+                })
+        }
+    };
+
+    let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
+
+    // Wenn bereits authentifiziert → Wallet an bestehenden User verknüpfen
+    if let Some(existing_token) = existing_token_opt {
+        if let Ok(existing_user) = auth_service.validate_session(&existing_token).await {
+            // Erst: kaspa_address von einem alten Guest-User freigeben falls UNIQUE-Konflikt besteht
+            // (z.B. wenn diese Adresse bereits einem Wallet-only User gehörte)
+            let conflict = sqlx::query(
+                "SELECT id FROM users WHERE kaspa_address = $1 AND id != $2"
+            )
+            .bind(&payload.kaspa_address)
+            .bind(&existing_user.id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            if conflict.is_some() {
+                eprintln!("[wallet_login] Clearing kaspa_address from conflicting guest user");
+                sqlx::query(
+                    "UPDATE users SET kaspa_address = NULL WHERE kaspa_address = $1 AND id != $2"
+                )
+                .bind(&payload.kaspa_address)
+                .bind(&existing_user.id)
+                .execute(&state.pool)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            }
+
+            // Jetzt sicher: kaspa_address am bestehenden User setzen
+            sqlx::query("UPDATE users SET kaspa_address = $1 WHERE id = $2")
+                .bind(&payload.kaspa_address)
+                .bind(&existing_user.id)
+                .execute(&state.pool)
+                .await
+                .map_err(|e| {
+                    eprintln!("[wallet_login] UPDATE kaspa_address failed: {e}");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            // Bestehende Session zurückgeben — Token NICHT ändern!
+            return Ok(Json(AuthResponse {
+                user_id: existing_user.id.to_string(),
+                session_token: existing_token,
+                display_name: existing_user.display_name,
+            }));
+        }
+    }
+
+    // 3. Nicht eingeloggt → wie bisher: User suchen oder neu anlegen
     let uuid_str = format!("{:x}", md5::compute(payload.kaspa_address.as_bytes()));
     let fake_uuid = uuid::Uuid::parse_str(&format!(
         "{}-{}-{}-{}-{}",
-        &uuid_str[0..8],
-        &uuid_str[8..12],
-        &uuid_str[12..16],
-        &uuid_str[16..20],
-        &uuid_str[20..32]
-    ))
-    .unwrap();
+        &uuid_str[0..8], &uuid_str[8..12], &uuid_str[12..16],
+        &uuid_str[16..20], &uuid_str[20..32]
+    )).unwrap();
 
-    // Minimal find or create fallback:
     let row = sqlx::query("SELECT id FROM users WHERE kaspa_address = $1")
         .bind(&payload.kaspa_address)
         .fetch_optional(&state.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let user_id: uuid::Uuid = if let Some(r) = row {
-        r.try_get("id").unwrap_or(fake_uuid)
+    let (user_id, display_name_str) = if let Some(r) = row {
+        let uid: uuid::Uuid = r.try_get("id").unwrap_or(fake_uuid);
+        let dn: String = r.try_get("display_name").unwrap_or_else(|_|
+            format!("Player_{}", &payload.kaspa_address.chars().skip(6).take(6).collect::<String>())
+        );
+        (uid, dn)
     } else {
         let new_user_id = uuid::Uuid::new_v4();
         let display_name = format!(
             "Player_{}",
-            &payload
-                .kaspa_address
-                .chars()
-                .skip(6)
-                .take(6)
-                .collect::<String>()
+            &payload.kaspa_address.chars().skip(6).take(6).collect::<String>()
         );
         let email = format!("{}@wallet.local", new_user_id);
-        let password_hash =
-            battle_core::auth::AuthService::hash_password(&uuid::Uuid::new_v4().to_string())
-                .unwrap_or_default();
+        let password_hash = battle_core::auth::AuthService::hash_password(&uuid::Uuid::new_v4().to_string())
+            .unwrap_or_default();
 
         sqlx::query("INSERT INTO users (id, email, password_hash, display_name, kaspa_address) VALUES ($1, $2, $3, $4, $5)")
-            .bind(new_user_id)
-            .bind(email)
-            .bind(password_hash)
-            .bind(&display_name)
-            .bind(&payload.kaspa_address)
-            .execute(&state.pool)
-            .await.map_err(|e| {
+            .bind(new_user_id).bind(email).bind(password_hash).bind(&display_name).bind(&payload.kaspa_address)
+            .execute(&state.pool).await.map_err(|e| {
                 eprintln!("Error creating user: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
-        new_user_id
+        (new_user_id, display_name)
     };
 
-    // 3. Session über AuthService generieren
+    // 4. Session generieren
     let session_token = battle_core::auth::AuthService::generate_session_token();
     let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
-
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-        .bind(&session_token)
-        .bind(&user_id)
-        .bind(expires_at)
-        .execute(&state.pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .bind(&session_token).bind(&user_id).bind(expires_at)
+        .execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(AuthResponse {
         user_id: user_id.to_string(),
         session_token,
-        display_name: format!(
-            "Player_{}",
-            &payload
-                .kaspa_address
-                .chars()
-                .skip(6)
-                .take(6)
-                .collect::<String>()
-        ),
+        display_name: display_name_str,
     }))
 }
 
@@ -284,46 +325,67 @@ pub async fn create_challenge(
 ) -> Result<Json<Match>, StatusCode> {
     let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 1. INSERT match first (without escrow_address)
-    let record = sqlx::query_as::<_, Match>(
-        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING *"
-    )
-    .bind(user_id).bind(&payload.game_id).bind(payload.stake_kas).bind(payload.mode)
-    .fetch_one(&state.pool).await.map_err(|e| {
-        eprintln!("SQL Error in create_challenge: {:?}", e);
+    // Require wallet — address derivation is purely cryptographic (no Kaspa node needed).
+    let wallet = state.escrow_wallet.as_ref().ok_or_else(|| {
+        tracing::error!("EscrowWallet not initialized — cannot generate escrow address");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    // Use a DB transaction so that if ANYTHING fails after INSERT,
+    // the half-created match row is automatically rolled back.
+    let mut db_tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to start DB transaction: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Generate escrow address using EscrowService (deterministic from match ID)
-    let escrow_addr = if let Some(ref escrow_svc) = state.escrow_service {
-        match escrow_svc.create_escrow(&record.id.to_string(), payload.stake_kas as u64) {
-            Ok(info) => {
-                eprintln!(
-                    "📝 Escrow created via EscrowService: {} (index {})",
-                    info.escrow_address, info.derivation_index
-                );
-                info.escrow_address
-            }
-            Err(e) => {
-                eprintln!("⚠️ EscrowService failed, using client address: {}", e);
-                payload.escrow_address.clone().unwrap_or_default()
-            }
-        }
-    } else {
-        // Fallback: use client-provided address
-        payload.escrow_address.clone().unwrap_or_default()
-    };
+    // 1. INSERT match (escrow_address will be set below — use a temp placeholder).
+    let record = sqlx::query_as::<_, Match>(
+        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
+    )
+    .bind(user_id)
+    .bind(&payload.game_id)
+    .bind(payload.stake_kas)
+    .bind(payload.mode)
+    .fetch_one(&mut *db_tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("SQL Error in create_challenge INSERT: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
-    // 3. UPDATE match with escrow address
+    // 2. Derive escrow address deterministically from match UUID.
+    //    Pure BIP44 derivation — no Kaspa node connection required.
+    let (escrow_addr_obj, derivation_index) = wallet
+        .derive_escrow_address(&record.id.to_string())
+        .map_err(|e| {
+            tracing::error!("Failed to derive escrow address for match {}: {}", record.id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let escrow_addr = escrow_addr_obj.to_string();
+
+    tracing::info!(
+        match_id = %record.id,
+        escrow_address = %escrow_addr,
+        derivation_index,
+        "Escrow address derived"
+    );
+
+    // 3. UPDATE match with the freshly-derived escrow address.
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING *",
+        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at",
     )
     .bind(&escrow_addr)
     .bind(record.id)
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *db_tx)
     .await
     .map_err(|e| {
-        eprintln!("SQL Error updating escrow_address: {:?}", e);
+        tracing::error!("SQL Error updating escrow_address for match {}: {:?}", record.id, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // 4. Commit the transaction — both rows are now consistent.
+    db_tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit match creation transaction: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -340,13 +402,20 @@ pub async fn join_challenge(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Match>, StatusCode> {
+    tracing::info!(match_id = %id, caller = %user.id, "join_challenge called");
+
     let joiner_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let current_match: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+    let current_match: Match = sqlx::query_as(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
+    )
         .bind(id)
         .fetch_one(&state.pool)
         .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+        .map_err(|e| {
+            tracing::error!(match_id = %id, "join_challenge: failed to load match: {:?}", e);
+            StatusCode::NOT_FOUND
+        })?;
 
     // M-08 Validation
     use battle_core::match_state::MatchAction;
@@ -362,7 +431,7 @@ pub async fn join_challenge(
 
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING *"
+        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
     )
     .bind(joiner_id)
     .bind(id)
@@ -396,27 +465,33 @@ pub async fn submit_deposit(
     );
 
     // Step 1: Fetch the current match to determine player roles and current state
-    let m: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+    let m: Match = sqlx::query_as(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, player_a_deposit_tx_hash, player_b_deposit_tx_hash FROM matches WHERE id = $1"
+    )
         .bind(id)
         .fetch_one(&state.pool)
         .await
-        .map_err(|_| {
-            eprintln!("❌ submit_deposit: match {} not found", id);
+        .map_err(|e| {
+            tracing::error!("submit_deposit: match {} not found: {:?}", id, e);
             StatusCode::NOT_FOUND
         })?;
 
-    // Step 2: Validate state — only accept deposits in AWAITING_FUNDING/FUNDED
-    // M-08 validation
-    use battle_core::match_state::MatchAction;
-    m.validate_action(&MatchAction::DepositConfirmed {
-        player_id: caller_id.clone(),
-        tx_hash: payload.tx_hash.clone(),
-        amount: m.stake_kas as u64,
-    })
-    .map_err(|e| {
-        tracing::warn!("State machine rejected DepositConfirmed: {}", e);
-        StatusCode::CONFLICT
-    })?;
+    // Step 2: Allow deposits when match is OPEN or AWAITING_FUNDING.
+    // OPEN = player depositing before opponent has joined (valid — escrow address exists).
+    // The state machine transition to FUNDED is handled by the episode runner after UTXO confirmation.
+    let is_deposit_allowed = matches!(m.status, MatchStatus::Open | MatchStatus::AwaitingFunding);
+    if !is_deposit_allowed {
+        tracing::warn!(
+            match_id = %id,
+            status = ?m.status,
+            "Deposit rejected: match not in a depositable state (OPEN/AWAITING_FUNDING)"
+        );
+        eprintln!(
+            "❌ Deposit rejected for match {}: status is {:?}",
+            id, m.status
+        );
+        return Err(StatusCode::CONFLICT);
+    }
 
     // Step 3: Determine which player column to update based on player_role
     // player_role "A" = creator, "B" = opponent
@@ -431,6 +506,28 @@ pub async fn submit_deposit(
             return Err(StatusCode::BAD_REQUEST);
         }
     };
+
+    // Step 3b: Double-deposit guard — prevent overwriting an existing tx_hash
+    let existing_tx: Option<String> = match payload.player_role.to_uppercase().as_str() {
+        "A" => m.player_a_deposit_tx_hash.clone(),
+        "B" => m.player_b_deposit_tx_hash.clone(),
+        _ => None,
+    };
+
+    if let Some(ref existing) = existing_tx {
+        tracing::warn!(
+            match_id = %id,
+            player_role = %payload.player_role,
+            existing_tx = %existing,
+            new_tx = %payload.tx_hash,
+            "⚠️ Double deposit attempt blocked"
+        );
+        eprintln!(
+            "⚠️ Double deposit blocked: match={}, role={}, existing_tx={}",
+            id, payload.player_role, existing
+        );
+        return Err(StatusCode::CONFLICT);
+    }
 
     // Step 4: Record this player's deposit TX hash (DO NOT mark as confirmed yet - Episode handles this)
     sqlx::query(&format!(
@@ -447,11 +544,16 @@ pub async fn submit_deposit(
     })?;
 
     // Step 5: Check whether BOTH players have now deposited
-    let updated: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
+    let updated: Match = sqlx::query_as(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
+    )
         .bind(id)
         .fetch_one(&state.pool)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("submit_deposit: failed to re-fetch match {}: {:?}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let a_confirmed = updated.player_a_deposit_confirmed.unwrap_or(false);
     let b_confirmed = updated.player_b_deposit_confirmed.unwrap_or(false);
@@ -508,6 +610,99 @@ pub async fn check_deposits(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// Detailed per-player payment status from the `payments` table.
+///
+/// GET /api/v1/matches/:id/payment-status
+///
+/// Returns:
+/// ```json
+/// {
+///   "escrow_address": "kaspatest:...",
+///   "required_per_player_sompi": 5000000,
+///   "min_confirmations_required": 10,
+///   "playerA": { "paid": true, "confirmed_sompi": 5000000, "payment_count": 1, "min_confirmations": 15 },
+///   "playerB": { "paid": false, "confirmed_sompi": 0, "payment_count": 0, "min_confirmations": 0 },
+///   "both_paid": false
+/// }
+/// ```
+pub async fn get_payment_status(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Fetch match basics
+    let row: (Option<String>, i64, Option<bool>, Option<bool>) = sqlx::query_as(
+        "SELECT escrow_address, stake_kas, player_a_deposit_confirmed, player_b_deposit_confirmed \
+         FROM matches WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let escrow_address = row.0.unwrap_or_default();
+    let required_per_player_sompi = row.1 as u64;
+    let player_a_db_confirmed = row.2.unwrap_or(false);
+    let player_b_db_confirmed = row.3.unwrap_or(false);
+
+    const MIN_CONF: i32 = 10;
+
+    // Aggregate from payments table
+    let payment_rows: Vec<(String, Option<i64>, Option<i32>, Option<i64>)> = sqlx::query_as(
+        "SELECT player_role, \
+         SUM(amount_sompi)::BIGINT AS total_sompi, \
+         MIN(confirmations) AS min_confirmations, \
+         COUNT(*)::BIGINT AS payment_count \
+         FROM payments WHERE match_id = $1 \
+         GROUP BY player_role",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let find_role = |role: &str| -> (u64, i32, i64) {
+        payment_rows
+            .iter()
+            .find(|r| r.0 == role)
+            .map(|r| (
+                r.1.unwrap_or(0) as u64,
+                r.2.unwrap_or(0),
+                r.3.unwrap_or(0),
+            ))
+            .unwrap_or((0, 0, 0))
+    };
+
+    let (a_sompi, a_min_conf, a_count) = find_role("A");
+    let (b_sompi, b_min_conf, b_count) = find_role("B");
+
+    // A player is considered "paid" if either:
+    // (a) the DB confirms it via deposit_confirmed flag (set by episode runner), or
+    // (b) the payments table shows enough sompi with enough confirmations
+    let player_a_paid = player_a_db_confirmed
+        || (a_sompi >= required_per_player_sompi && a_min_conf >= MIN_CONF);
+    let player_b_paid = player_b_db_confirmed
+        || (b_sompi >= required_per_player_sompi && b_min_conf >= MIN_CONF);
+
+    Ok(Json(serde_json::json!({
+        "escrow_address": escrow_address,
+        "required_per_player_sompi": required_per_player_sompi,
+        "min_confirmations_required": MIN_CONF,
+        "playerA": {
+            "paid": player_a_paid,
+            "confirmed_sompi": a_sompi,
+            "payment_count": a_count,
+            "min_confirmations": a_min_conf,
+        },
+        "playerB": {
+            "paid": player_b_paid,
+            "confirmed_sompi": b_sompi,
+            "payment_count": b_count,
+            "min_confirmations": b_min_conf,
+        },
+        "both_paid": player_a_paid && player_b_paid,
+    })))
 }
 
 /// Request body for admin manual match resolution

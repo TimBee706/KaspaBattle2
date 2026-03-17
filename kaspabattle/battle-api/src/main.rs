@@ -20,6 +20,16 @@ mod services;
 
 #[tokio::main]
 async fn main() {
+    // ── Structured Logging ──────────────────────────────────────────────────
+    // Without this, ALL tracing::info!/warn!/error! calls are silently dropped.
+    // RUST_LOG env var controls verbosity, e.g. RUST_LOG=battle_api=debug,battle_kaspa=debug,info
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "battle_api=debug,battle_kaspa=debug,info".parse().unwrap()),
+        )
+        .init();
+
     // Load .env from cwd first, then try parent (workspace root)
     if let Err(e) = dotenv() {
         eprintln!("⚠️ dotenv() failed: {}", e);
@@ -76,6 +86,77 @@ async fn main() {
         }
     }
     eprintln!("✅ DB migration: v0.3 FACEIT cache columns ensured");
+
+    // v0.4 migrations: payment detection system
+    // 1. Extend match_status enum (ADD VALUE IF NOT EXISTS is idempotent)
+    let enum_variants = [
+        "FUNDED", "PAID_OUT", "DISPUTED", "RESOLVING", "IN_GAME", "DRAFT",
+    ];
+    for variant in &enum_variants {
+        let sql = format!(
+            "DO $$ BEGIN \
+             IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid = 'match_status'::regtype AND enumlabel = '{}') \
+             THEN ALTER TYPE match_status ADD VALUE '{}'; END IF; END $$",
+            variant, variant
+        );
+        if let Err(e) = sqlx::query(&sql).execute(&pool).await {
+            eprintln!("⚠️ v0.4 enum migration skipped for {}: {}", variant, e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.4 match_status enum variants ensured");
+
+    // 2. Create payments table for on-chain UTXO tracking
+    let create_payments = "
+        CREATE TABLE IF NOT EXISTS payments (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+            player_id UUID REFERENCES users(id),
+            player_role TEXT NOT NULL CHECK (player_role IN ('A', 'B')),
+            tx_id TEXT NOT NULL,
+            amount_sompi BIGINT NOT NULL,
+            block_daa_score BIGINT NOT NULL DEFAULT 0,
+            confirmations INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(tx_id, match_id)
+        )";
+    if let Err(e) = sqlx::query(create_payments).execute(&pool).await {
+        eprintln!("⚠️ v0.4 payments table migration failed: {}", e);
+    } else {
+        eprintln!("✅ DB migration: v0.4 payments table ensured");
+    }
+
+    // 3. Add wager_amount_sompi to matches (mirrors stake_kas but preserves the domain field)
+    let v04_columns = [
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS wager_amount_sompi BIGINT",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_amount_sompi BIGINT",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_amount_sompi BIGINT",
+    ];
+    for migration in &v04_columns {
+        if let Err(e) = sqlx::query(migration).execute(&pool).await {
+            eprintln!("⚠️ v0.4 column migration skipped (may already exist): {}", e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.4 payment tracking columns ensured");
+
+    // v0.5 migrations: deposit integrity constraints
+    // First: clear duplicate (match_id, player_role) rows that block index creation
+    let v05_cleanup = "DELETE FROM payments p1 USING payments p2 \
+         WHERE p1.ctid < p2.ctid \
+         AND p1.match_id = p2.match_id \
+         AND p1.player_role = p2.player_role";
+    if let Err(e) = sqlx::query(v05_cleanup).execute(&pool).await {
+        eprintln!("⚠️ v0.5 dedup skipped: {}", e);
+    }
+    let v05_migrations = [
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_match_player_role \
+         ON payments (match_id, player_role)",
+    ];
+    for migration in &v05_migrations {
+        if let Err(e) = sqlx::query(migration).execute(&pool).await {
+            eprintln!("⚠️ v0.5 migration skipped: {}", e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.5 deposit integrity constraints ensured");
 
     let (tx, _) = broadcast::channel(100);
 
@@ -179,6 +260,16 @@ async fn main() {
         }
     };
 
+    // ── BlockchainWatcher (per-player UTXO attribution + confirmation tracking) ──
+    let blockchain_watcher = kaspa_rpc.as_ref().map(|rpc| {
+        let watcher = battle_kaspa::watcher::BlockchainWatcher::new(
+            rpc.clone(),
+            std::time::Duration::from_secs(5),
+        );
+        eprintln!("✅ BlockchainWatcher initialized");
+        Arc::new(watcher)
+    });
+
     let state = api::AppState {
         pool,
         tx,
@@ -189,6 +280,7 @@ async fn main() {
         escrow_service,
         kaspa_rpc,
         payout_service,
+        blockchain_watcher,
     };
 
     let frontend_url_str =
@@ -214,39 +306,58 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
-    // ── Background Episode-Runner (v0.2) ──────────────────────────────────────
-    // Every 30s: advance all active match episodes (check deposits, trigger FACEIT)
+    // ── Background Episode-Runner (v0.4) ──────────────────────────────────────
+    // Polls every 5s for AWAITING_FUNDING matches (fast confirmation detection),
+    // every 30s for FUNDED and LOCKED matches.
     tokio::spawn({
         let ep_pool = state.pool.clone();
         let ep_escrow = state.escrow_service.clone();
+        let ep_watcher = state.blockchain_watcher.clone();
+        let ep_rpc = state.kaspa_rpc.clone();
         let ep_tx = state.tx.clone();
         async move {
+            // First poll runs immediately on startup (catch-up for deposits made while backend was down)
+            tracing::info!("🚀 Episode runner starting — performing initial catch-up poll");
+            eprintln!("🚀 Episode runner: initial catch-up poll (no delay)");
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-
                 let active_ids: Vec<(uuid::Uuid,)> = sqlx::query_as(
                     "SELECT id FROM matches WHERE status IN \
-                     ('AWAITING_FUNDING', 'FUNDED', 'LOCKED')",
+                     ('OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED')",
                 )
                 .fetch_all(&ep_pool)
                 .await
                 .unwrap_or_default();
 
+                if !active_ids.is_empty() {
+                    eprintln!(
+                        "🔄 Episode runner: polling {} active match(es)",
+                        active_ids.len()
+                    );
+                }
+
                 for (match_id,) in active_ids {
                     use crate::episodes::match_episode::MatchEpisode;
                     use crate::episodes::EpisodeTrait;
-                    let ctx = (ep_pool.clone(), ep_escrow.clone(), ep_tx.clone());
+                    let ctx = (
+                        ep_pool.clone(),
+                        ep_escrow.clone(),
+                        ep_tx.clone(),
+                        ep_watcher.clone(),
+                        ep_rpc.clone(),
+                    );
                     match MatchEpisode::initialize(&ctx, match_id).await {
                         Ok(mut ep) => {
                             if let Err(e) = ep.execute().await {
-                                eprintln!("⚠️ Episode runner {}: {}", match_id, e);
+                                tracing::error!(match_id = %match_id, error = %e, "Episode runner failed");
                             }
                         }
                         Err(e) => {
-                            eprintln!("⚠️ Episode init {}: {}", match_id, e);
+                            tracing::error!(match_id = %match_id, error = %e, "Episode init failed");
                         }
                     }
                 }
+                // Sleep after poll (not before) so first cycle runs immediately
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         }
     });

@@ -129,7 +129,11 @@ export function ProfilePage() {
 
                 <div className="flex-1 text-center md:text-left">
                     <h1 className="text-4xl font-black tracking-tighter mb-1">{displayName}</h1>
-                    <p className="text-gray-500 font-mono text-sm mb-6">{shortenAddress(user.kaspa_address)}</p>
+                    <p className="text-gray-500 font-mono text-sm mb-6">
+                        {user.kaspa_address
+                            ? shortenAddress(user.kaspa_address)
+                            : <span className="text-yellow-500/70 text-xs">⚠️ Kein Kaspa Wallet verbunden</span>}
+                    </p>
 
                     <div className="flex flex-wrap justify-center md:justify-start gap-3">
                         <div className="px-3 py-1 bg-kaspa-border rounded border border-gray-700 text-xs font-bold text-gray-400">

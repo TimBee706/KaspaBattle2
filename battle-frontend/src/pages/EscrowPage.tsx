@@ -5,34 +5,105 @@ import { formatKas } from '../utils/format';
 import { useTranslation } from 'react-i18next';
 import { useEscrowDeposit } from '../hooks/useEscrowDeposit';
 import { useMatchPolling } from '../hooks/useMatchPolling';
+import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { useMatchStore } from '../stores/useMatchStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { SOMPI_PER_KAS } from '../config/constants';
 
+// ─── Helper: deposit progress bar ─────────────────────────────────────────────
+interface DepositCardProps {
+    label: string;
+    info: { paid: boolean; confirmed_sompi: number; min_confirmations: number; payment_count: number };
+    required: number;
+    minConf: number;
+    isCurrentPlayer: boolean;
+}
+
+const DepositCard: React.FC<DepositCardProps> = ({ label, info, required, minConf, isCurrentPlayer }) => {
+    const pct = Math.min(100, required > 0 ? Math.round((info.confirmed_sompi / required) * 100) : 0);
+    const confPct = Math.min(100, minConf > 0 ? Math.round((info.min_confirmations / minConf) * 100) : 0);
+
+    return (
+        <div className={`rounded-xl p-4 border transition-all duration-500 ${
+            info.paid
+                ? 'bg-green-900/20 border-green-500/40'
+                : 'bg-kaspa-card border-kaspa-border'
+        }`}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    {label}
+                    {isCurrentPlayer && (
+                        <span className="ml-2 text-kaspa-primary">(Du)</span>
+                    )}
+                </span>
+                <span className={`text-xs font-bold ${info.paid ? 'text-green-400' : 'text-gray-500'}`}>
+                    {info.paid ? '✅ Bestätigt' : info.payment_count > 0 ? '⏳ Confirmations...' : '⏳ Warte...'}
+                </span>
+            </div>
+
+            {/* Amount bar */}
+            <div className="mb-2">
+                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                    <span>{formatKas(info.confirmed_sompi)} KAS</span>
+                    <span>{formatKas(required)} KAS</span>
+                </div>
+                <div className="h-1.5 bg-kaspa-dark rounded-full overflow-hidden">
+                    <div
+                        className={`h-full rounded-full transition-all duration-700 ${info.paid ? 'bg-green-500' : 'bg-kaspa-primary'}`}
+                        style={{ width: `${pct}%` }}
+                    />
+                </div>
+            </div>
+
+            {/* Confirmation bar (only visible when UTXOs detected but not yet confirmed) */}
+            {info.payment_count > 0 && !info.paid && (
+                <div>
+                    <div className="flex justify-between text-[10px] text-gray-600 mb-1">
+                        <span>{info.min_confirmations}/{minConf} Confirmations</span>
+                        <span>{confPct}%</span>
+                    </div>
+                    <div className="h-1 bg-kaspa-dark rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-yellow-500/60 rounded-full transition-all duration-700"
+                            style={{ width: `${confPct}%` }}
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 export const EscrowPage: React.FC = () => {
     const { lobbyId } = useParams<{ lobbyId: string }>();
     const navigate = useNavigate();
     const { t } = useTranslation();
-    
+
     const { user } = useAuthStore();
     const { balanceSompi } = useWalletStore();
-    useMatchPolling(lobbyId ?? null); // Polles the full match detail
-    
-    const { currentMatch, isLoading, error: matchError } = useMatchStore();
+
+    // Match polling: real-time WS + HTTP fallback
+    useMatchPolling(lobbyId ?? null);
+    // Payment confirmation polling: 3s while AWAITING_FUNDING
+    usePaymentStatus(lobbyId ?? null);
+
+    const { currentMatch, isLoading, error: matchError, paymentStatus } = useMatchStore();
     const { executeDeposit, isDepositing, depositTxHash } = useEscrowDeposit();
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Auto-redirect when deposit tx hash comes in
+    // Auto-redirect: either after local TX success OR when backend confirms FUNDED
     useEffect(() => {
-        if (depositTxHash && lobbyId) {
-            // Short delay to let the user see the success checkmark briefly if we had a dedicated success state, 
-            // but for simplicity we just redirect back to match page
-            const timer = setTimeout(() => {
-                navigate(`/match/${lobbyId}`);
-            }, 1000);
+        const shouldRedirect =
+            depositTxHash || currentMatch?.status === 'FUNDED' || currentMatch?.status === 'LOCKED';
+        if (shouldRedirect && lobbyId) {
+            const timer = setTimeout(() => navigate(`/match/${lobbyId}`), 1500);
             return () => clearTimeout(timer);
         }
-    }, [depositTxHash, lobbyId, navigate]);
+    }, [depositTxHash, currentMatch?.status, lobbyId, navigate]);
 
+    // ── Early returns ─────────────────────────────────────────────────────────
     if (matchError || localError) {
         return (
             <div className="container mx-auto px-4 py-12 max-w-2xl text-center">
@@ -47,49 +118,63 @@ export const EscrowPage: React.FC = () => {
     }
 
     if (isLoading && !currentMatch) {
-         return (
+        return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-kaspa-primary"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-kaspa-primary" />
             </div>
         );
     }
 
-    if (!currentMatch) {
-        return null;
-    }
+    if (!currentMatch) return null;
 
     const wagerAmountSompi = currentMatch.wager_amount_sompi || (currentMatch as any).stake_kas || 0;
+    const wagerKas = wagerAmountSompi / SOMPI_PER_KAS;
     const hasEnoughBalance = (balanceSompi || 0) >= wagerAmountSompi;
 
-    // Determine player role
-    const isPlayerA = user?.faceit_id === currentMatch.player_a_faceit_id;
+    // Determine player role — backend returns creator_user_id / opponent_user_id, not faceit fields
+    const isPlayerA = user?.id === currentMatch.creator_user_id;
     const playerRole = isPlayerA ? 'A' : 'B';
+
+    const myPayment = paymentStatus ? (isPlayerA ? paymentStatus.playerA : paymentStatus.playerB) : null;
+    const iHavePaid = myPayment?.paid ?? !!depositTxHash;
+    const successState = iHavePaid || currentMatch.status === 'FUNDED';
 
     const handleDepositClick = async () => {
         setLocalError(null);
         try {
             await executeDeposit(playerRole);
         } catch (err: any) {
-            setLocalError(err.message || "Einzahlung fehlgeschlagen");
+            setLocalError(err.message || 'Einzahlung fehlgeschlagen');
         }
     };
 
     return (
         <div className="container mx-auto px-4 py-12 max-w-2xl">
             <div className="card border-2 border-kaspa-primary/30 p-8 animate-in fade-in zoom-in-95 duration-500">
+
+                {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="w-20 h-20 bg-kaspa-primary/20 text-kaspa-primary rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
-                        {depositTxHash ? '✓' : '⚔️'}
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 transition-all duration-500 ${
+                        successState
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-kaspa-primary/20 text-kaspa-primary'
+                    }`}>
+                        {successState ? '✓' : '⚔️'}
                     </div>
                     <h1 className="text-3xl font-black uppercase tracking-tight mb-2">
-                         {depositTxHash ? t('deposit.success_title', 'Erfolgreich!') : t('escrow.title', 'Challenge erstellt!')}
+                        {successState
+                            ? t('deposit.success_title', 'Erfolgreich!')
+                            : t('escrow.title', 'Challenge erstellt!')}
                     </h1>
                     <p className="text-gray-400">
-                        {depositTxHash ? t('deposit.success_info', 'Einzahlung bestätigt. Weiterleitung...') : t('escrow.subtitle', 'Zahle deinen Einsatz ein, um die Challenge zu aktivieren.')}
+                        {successState
+                            ? t('deposit.success_info', 'Einzahlung bestätigt. Weiterleitung...')
+                            : t('escrow.subtitle', 'Zahle deinen Einsatz ein, um die Challenge zu aktivieren.')}
                     </p>
                 </div>
 
                 <div className="space-y-6">
+                    {/* Escrow Info */}
                     <div className="bg-kaspa-dark/50 rounded-2xl p-6 border border-kaspa-border">
                         <div className="mb-6">
                             <label className="text-[10px] text-gray-500 uppercase font-black block mb-2 tracking-widest">
@@ -111,27 +196,58 @@ export const EscrowPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 uppercase font-black block mb-1">
-                                    {t('escrow.amount', 'Einsatz')}
+                                    {t('escrow.amount', 'Einsatz pro Spieler')}
                                 </span>
                                 <span className="text-xl font-black text-white">
-                                    {formatKas(wagerAmountSompi)} KAS
+                                    {wagerKas.toLocaleString()} KAS
                                 </span>
                             </div>
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 uppercase font-black block mb-1">
-                                    {t('escrow.status', 'Status')}
+                                    {t('escrow.confirmations', 'Confirmations')}
                                 </span>
-                                <span className="text-kaspa-primary font-bold">
-                                    {depositTxHash ? `✓ ${t('deposit.success_title', 'Erfolgreich')}` : `⏳ ${t('escrow.pending', 'Warten...')}`}
+                                <span className="text-xl font-black text-white">
+                                    {paymentStatus ? `min. ${paymentStatus.min_confirmations_required}` : '10'}
                                 </span>
                             </div>
                         </div>
+
+                        {/* Live per-player deposit status */}
+                        {paymentStatus ? (
+                            <div className="space-y-3">
+                                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2">
+                                    — Einzahlungsstatus —
+                                </p>
+                                <DepositCard
+                                    label="Player A (Ersteller)"
+                                    info={paymentStatus.playerA}
+                                    required={paymentStatus.required_per_player_sompi}
+                                    minConf={paymentStatus.min_confirmations_required}
+                                    isCurrentPlayer={isPlayerA}
+                                />
+                                <DepositCard
+                                    label="Player B (Herausforderer)"
+                                    info={paymentStatus.playerB}
+                                    required={paymentStatus.required_per_player_sompi}
+                                    minConf={paymentStatus.min_confirmations_required}
+                                    isCurrentPlayer={!isPlayerA}
+                                />
+                            </div>
+                        ) : (
+                            // Fallback before first poll response
+                            <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border text-center">
+                                <span className="text-kaspa-primary font-bold text-sm">
+                                    {depositTxHash ? `✓ ${t('deposit.success_title', 'Erfolgreich')}` : `⏳ ${t('escrow.pending', 'Warten auf Bestätigung...')}`}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
-                    {!hasEnoughBalance && !depositTxHash && (
+                    {/* Balance warning */}
+                    {!hasEnoughBalance && !iHavePaid && (
                         <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⚠️</span>
                             <p className="text-red-400 text-xs font-bold">
@@ -140,31 +256,47 @@ export const EscrowPage: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Already paid hint */}
+                    {iHavePaid && !paymentStatus?.both_paid && (
+                        <div className="p-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl flex gap-3 items-center">
+                            <span className="text-2xl">⏳</span>
+                            <p className="text-kaspa-primary text-xs font-bold">
+                                {t('escrow.waiting_opponent', 'Deine Einzahlung ist bestätigt — warte auf deinen Gegner...')}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Deposit Button */}
                     <button
                         onClick={handleDepositClick}
-                        disabled={!hasEnoughBalance || isDepositing || !!depositTxHash}
+                        disabled={!hasEnoughBalance || isDepositing || iHavePaid}
                         className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark h-14 rounded-2xl font-black uppercase tracking-tight text-lg shadow-xl shadow-kaspa-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                     >
-                        {isDepositing || depositTxHash ? '...' : t('escrow.deposit_now', '💰 Jetzt einzahlen')}
+                        {isDepositing
+                            ? '⏳ Sende...'
+                            : iHavePaid
+                            ? `✅ ${t('deposit.success_title', 'Einbezahlt')}`
+                            : t('escrow.deposit_now', '💰 Jetzt einzahlen')}
                     </button>
 
                     <div className="text-center">
                         <button
-                            onClick={() => navigate(depositTxHash ? `/match/${lobbyId}` : '/lobby')}
+                            onClick={() => navigate(successState ? `/match/${lobbyId}` : '/lobby')}
                             className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
                         >
-                            {depositTxHash ? t('common.go_to_match', 'Zum Match') : t('common.back', 'Zurück zur Übersicht')}
+                            {successState ? t('common.go_to_match', 'Zum Match') : t('common.back', 'Zurück zur Übersicht')}
                         </button>
                     </div>
                 </div>
 
-                {!depositTxHash && (
+                {/* Disclaimer */}
+                {!iHavePaid && (
                     <div className="mt-8 pt-8 border-t border-kaspa-border/50 text-center">
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest leading-relaxed">
                             {t('escrow.disclaimer', 'Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht.')}
                         </p>
                     </div>
-                 )}
+                )}
             </div>
         </div>
     );
