@@ -14,6 +14,7 @@ export function useLanguage() {
 
     const setLanguage = (lang: Language) => {
         i18n.changeLanguage(lang);
+        localStorage.setItem('preferred_language', lang);
     };
 
     return {

@@ -47,13 +47,13 @@ export const LobbyPage: React.FC = () => {
             <div className="flex justify-between items-center mb-12">
                 <div>
                     <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">{t('lobby.title')}</h1>
-                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">{t('lobby.active_matches', 'Aktive Herausforderungen')}</p>
+                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">{t('lobby.active_matches')}</p>
                 </div>
                 <button
                     onClick={() => navigate('/lobby/create')}
                     className="bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95"
                 >
-                    {t('lobby.create_challenge', 'Challenge erstellen')}
+                    {t('lobby.create_challenge')}
                 </button>
             </div>
 

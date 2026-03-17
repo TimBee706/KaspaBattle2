@@ -55,7 +55,7 @@ export function ProfilePage() {
             .then(res => { setGameStats(res); setLoadingStats(false); })
             .catch(err => {
                 console.error("Fehler beim Abrufen der FACEIT Stats:", err);
-                setStatsError("Spiel-Stats konnten nicht geladen werden.");
+                setStatsError(t('profile.stats_error'));
                 setLoadingStats(false);
             });
     }, [user, isFaceitConnected]);
@@ -132,7 +132,7 @@ export function ProfilePage() {
                     <p className="text-gray-500 font-mono text-sm mb-6">
                         {user.kaspa_address
                             ? shortenAddress(user.kaspa_address)
-                            : <span className="text-yellow-500/70 text-xs">⚠️ Kein Kaspa Wallet verbunden</span>}
+                            : <span className="text-yellow-500/70 text-xs">{t('profile.no_wallet')}</span>}
                     </p>
 
                     <div className="flex flex-wrap justify-center md:justify-start gap-3">
@@ -155,7 +155,7 @@ export function ProfilePage() {
                                 rel="noopener noreferrer"
                                 className="px-3 py-1 bg-slate-700/50 rounded border border-slate-600 text-xs font-bold text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
                             >
-                                Auf FACEIT anzeigen ↗
+                                {t('profile.view_on_faceit')}
                             </a>
                         )}
                     </div>
@@ -196,7 +196,7 @@ export function ProfilePage() {
                             <span className="text-3xl font-black text-white">{csMatches}</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-green-500">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">Win Rate</span>
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.win_rate')}</span>
                             <span className="text-3xl font-black text-green-400">{csWinRate}%</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-blue-500">
@@ -291,8 +291,8 @@ export function ProfilePage() {
             <div className="card p-6 border border-red-500/10">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h4 className="text-sm font-bold text-white mb-1">FACEIT-Verbindung</h4>
-                        <p className="text-xs text-gray-500">Verbunden als <strong className="text-gray-300">{user.faceit_nickname}</strong>. Das Trennen beendet nicht deine KaspaBattle-Session.</p>
+                        <h4 className="text-sm font-bold text-white mb-1">{t('profile.faceit_connection')}</h4>
+                        <p className="text-xs text-gray-500">{t('profile.connected_as', { nickname: user.faceit_nickname })}</p>
                     </div>
                     {showDisconnectConfirm ? (
                         <div className="flex gap-2">
@@ -301,13 +301,13 @@ export function ProfilePage() {
                                 disabled={disconnecting}
                                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
                             >
-                                {disconnecting ? 'Trenne...' : 'Ja, trennen'}
+                                {disconnecting ? t('profile.disconnecting') : t('profile.confirm_disconnect')}
                             </button>
                             <button
                                 onClick={() => setShowDisconnectConfirm(false)}
                                 className="px-4 py-2 bg-kaspa-border hover:bg-gray-700 text-white text-xs font-bold rounded-lg transition-all"
                             >
-                                Abbrechen
+                                {t('common.buttons.cancel')}
                             </button>
                         </div>
                     ) : (
@@ -315,7 +315,7 @@ export function ProfilePage() {
                             onClick={() => setShowDisconnectConfirm(true)}
                             className="px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 text-xs font-bold rounded-lg border border-red-500/20 transition-all"
                         >
-                            FACEIT trennen
+                            {t('profile.disconnect_faceit')}
                         </button>
                     )}
                 </div>

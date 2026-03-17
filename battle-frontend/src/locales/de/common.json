@@ -5,7 +5,8 @@
         "history": "Historie",
         "wallet": "Wallet",
         "faceit_login": "Login mit FACEIT",
-        "back_to_lobby": "ZUR LOBBY"
+        "back_to_lobby": "ZUR LOBBY",
+        "profile": "Profil"
     },
     "hero": {
         "beta_tag": "Beitritt Phase 1: OPEN BETA",
@@ -68,7 +69,17 @@
         "test_mode": "Test-Modus aktiv: Wallet-Integration wird priorisiert.",
         "my_lobbies": "Meine Lobbys",
         "available_challenges": "Verfügbare Herausforderungen",
-        "create_challenge": "Challenge erstellen"
+        "active_matches": "Aktive Herausforderungen",
+        "create_challenge": "Challenge erstellen",
+        "mode": "Modus",
+        "stake": "Einsatz",
+        "players": "Spieler",
+        "join": "Herausforderung annehmen",
+        "no_entries": "Keine Einträge.",
+        "connect_wallet_join": "Wallet verbinden zum Beitreten!",
+        "faceit_connected_as": "Mit FACEIT verbunden als",
+        "connect_faceit_join": "FACEIT verbinden zum Beitreten!",
+        "test_mode_notice": "Test-Modus: Beitreten ohne FACEIT möglich."
     },
     "wallet": {
         "import_title": "Wallet importieren",
@@ -91,6 +102,15 @@
     "profile": {
         "level_unknown": "LVL UNBEKANNT",
         "verified": "VERIFIED PLAYER",
+        "stats_error": "Spiel-Stats konnten nicht geladen werden.",
+        "no_wallet": "⚠️ Kein Kaspa Wallet verbunden",
+        "view_on_faceit": "Auf FACEIT anzeigen ↗",
+        "faceit_connection": "FACEIT-Verbindung",
+        "connected_as": "Verbunden als {{nickname}}. Das Trennen beendet nicht deine KaspaBattle-Session.",
+        "disconnecting": "Trenne...",
+        "confirm_disconnect": "Ja, trennen",
+        "disconnect_faceit": "FACEIT trennen",
+        "logout": "Abmelden",
         "stats": {
             "total_matches": "Gesamt Matches",
             "wins": "Siege",
@@ -123,7 +143,10 @@
             "potential_win": "Möglicher Gewinn:"
         },
         "publish": "CHALLENGE VERÖFFENTLICHEN",
-        "wallet_needed": "Bitte verbinde dein Wallet, um fortzufahren."
+        "wallet_needed": "Bitte verbinde dein Wallet, um fortzufahren.",
+        "creating": "Erstelle...",
+        "connect_wallet_hint": "Bitte Wallet verbinden",
+        "connect_faceit_hint": "Bitte mit FaceID verbinden"
     },
     "create_match": {
         "title": "FORDERE JEMANDEN HERAUS",
@@ -141,6 +164,17 @@
         "invalid_amount": "Ungültiger Betrag"
     },
     "match": {
+        "status": {
+            "waiting_deposits": "⏳ Warte auf Einzahlungen",
+            "me_player": "Ich (Player {{player}})",
+            "confirmed": "✅ Bestätigt",
+            "not_deposited": "⏳ Nicht eingezahlt",
+            "opponent_player": "Gegner (Player {{player}})",
+            "pending": "⏳ Noch ausstehend",
+            "required": "Erforderlich: {{amount}} KAS · {{confirmations}} Confirmations",
+            "loading_deposit": "Lade Einzahlungsstatus...",
+            "deposit_now": "💰 Jetzt einzahlen"
+        },
         "load_error": "Fehler beim Laden",
         "fetching_data": "Abrufen von Matching-Daten...",
         "not_found": "MATCH NICHT GEFUNDEN",
@@ -167,6 +201,10 @@
         "fee": "Gebühr"
     },
     "deposit": {
+        "status": {
+            "pending": "Einzahlung wird bestätigt",
+            "confirmed": "Einzahlung bestätigt"
+        },
         "confirm_title": "Einzahlung bestätigen",
         "info": "Du zahlst deinen Einsatz in die Escrow-Adresse des Matches ein. Die Funds werden dort gesperrt, bis der Sieger feststeht.",
         "amount": "Betrag",
@@ -190,9 +228,52 @@
         "DISPUTED": "Dispute",
         "CANCELLED": "Abgebrochen"
     },
+    "escrow": {
+        "title": "Challenge erstellt!",
+        "subtitle": "Zahle deinen Einsatz ein, um die Challenge zu aktivieren.",
+        "address": "Escrow-Adresse",
+        "amount": "Einsatz pro Spieler",
+        "confirmations": "Confirmations",
+        "pending": "Warten auf Bestätigung...",
+        "low_balance": "Nicht genügend Guthaben vorhanden.",
+        "waiting_opponent": "Deine Einzahlung ist bestätigt — warte auf deinen Gegner...",
+        "deposit_now": "💰 Jetzt einzahlen",
+        "disclaimer": "Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht."
+    },
     "common": {
         "loading": "Laden...",
         "error": "Fehler: {{message}}",
-        "no_matches": "Bisher keine Matches abgeschlossen."
+        "error_title": "Kritischer Fehler",
+        "reload": "Neu laden",
+        "loading_sdk": "Kaspa WASM SDK wird geladen...",
+        "no_matches": "Bisher keine Matches abgeschlossen.",
+        "back": "Zurück zur Übersicht",
+        "copy": "Kopieren",
+        "close": "Schließen",
+        "go_to_match": "Zum Match",
+        "header": {
+            "title": "Kaspa Battle",
+            "wallet": "Wallet",
+            "language": "Sprache"
+        },
+        "buttons": {
+            "next": "Weiter",
+            "cancel": "Abbrechen",
+            "deposit": "Einzahlen",
+            "join": "Herausforderung annehmen"
+        }
+    },
+    "matches": {
+        "availableChallenges": "Verfügbare Herausforderungen",
+        "myMatches": {
+            "title": "Deine Matches",
+            "status": {
+                "waitingOpponent": "Warte auf Gegner...",
+                "depositsPending": "Einzahlungen ausstehend",
+                "bothDeposited": "Bereit zum Start",
+                "completed": "Match beendet"
+            }
+        },
+        "startGame": "Spiel starten"
     }
 }

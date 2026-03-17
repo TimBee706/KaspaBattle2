@@ -33,7 +33,7 @@ export const LOBBY_POLL_INTERVAL_MS = 10_000;
 
 // Unterstützte Spiele
 export const SUPPORTED_GAMES = [
-    { id: 'cs2', name: 'Counter-Strike 2', icon: '🎯', platform: 'FACEIT' }
+    { id: 'cs2', name: 'Counter-Strike 2', icon: '/cs2_logo.svg', platform: 'FACEIT' }
 ] as const;
 
 export type GameId = typeof SUPPORTED_GAMES[number]['id'];

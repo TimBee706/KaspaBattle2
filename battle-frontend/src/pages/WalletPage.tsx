@@ -92,7 +92,7 @@ export function WalletPage() {
                         disabled={isFetchingBalance}
                         className="px-4 py-2 bg-kaspa-card hover:bg-kaspa-dark text-gray-400 hover:text-white text-sm font-bold rounded-lg border border-kaspa-border transition-colors disabled:opacity-50"
                     >
-                        {isFetchingBalance ? '🔄' : '🔃'} {t('wallet.refresh', 'Aktualisieren')}
+                        {isFetchingBalance ? '🔄' : '🔃'} {t('wallet.refresh')}
                     </button>
                     <button
                         onClick={disconnect}

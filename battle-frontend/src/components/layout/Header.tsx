@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FaceitLoginButton } from '../auth/FaceitLoginButton';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from '../LanguageToggle';
 
 export function Header() {
     const navigate = useNavigate();
@@ -39,6 +40,8 @@ export function Header() {
                             </button>
                         </div>
                     )}
+
+                    <LanguageToggle />
 
                     <button
                         onClick={() => navigate('/wallet/import')}

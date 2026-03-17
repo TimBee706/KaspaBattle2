@@ -3,12 +3,14 @@ import type { BattleMatch } from '../api/types';
 import { useAuthStore } from '../stores/useAuthStore';
 import apiClient from '../api/client';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyLobbies?: boolean, onLobbyClick?: (id: string) => void }> = ({ matches, title, isMyLobbies, onLobbyClick }) => {
     const { user, testMode, isFaceitConnected } = useAuthStore();
     const kaspaAddress = user?.kaspa_address || null;
     const [loading, setLoading] = useState<string | null>(null);
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const join = async (id: string) => {
         setLoading(id);
@@ -23,7 +25,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
         <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
             <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">{title}</h2>
             <div className="flex flex-col gap-3">
-                {matches.length === 0 && <p className="text-slate-500 italic pl-2">Keine Einträge.</p>}
+                {matches.length === 0 && <p className="text-slate-500 italic pl-2">{t('lobby.no_entries')}</p>}
                 {matches.map(m => (
                     <div
                         key={m.id}
@@ -59,15 +61,15 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                     </div>
                 ))}
             </div>
-            {!isMyLobbies && !kaspaAddress && <p className="text-red-400 mt-2 text-sm">Wallet verbinden zum Beitreten!</p>}
+            {!isMyLobbies && !kaspaAddress && <p className="text-red-400 mt-2 text-sm">{t('lobby.connect_wallet_join')}</p>}
             {!isMyLobbies && kaspaAddress && isFaceitConnected && !testMode && (
                 <p className="text-green-400 mt-2 text-sm flex items-center gap-2">
                     <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-                    Mit FACEIT verbunden als <strong>{user?.faceit_nickname}</strong>
+                    {t('lobby.faceit_connected_as')} <strong>{user?.faceit_nickname}</strong>
                 </p>
             )}
-            {!isMyLobbies && kaspaAddress && !isFaceitConnected && !testMode && <p className="text-yellow-400 mt-2 text-sm">FACEIT verbinden zum Beitreten!</p>}
-            {testMode && <p className="text-blue-400 mt-2 text-sm italic">Test-Modus: Beitreten ohne FACEIT möglich.</p>}
+            {!isMyLobbies && kaspaAddress && !isFaceitConnected && !testMode && <p className="text-yellow-400 mt-2 text-sm">{t('lobby.connect_faceit_join')}</p>}
+            {testMode && <p className="text-blue-400 mt-2 text-sm italic">{t('lobby.test_mode_notice')}</p>}
         </div>
     );
 };

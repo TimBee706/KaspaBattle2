@@ -37,9 +37,9 @@ export const ChallengeModal: React.FC = () => {
 
     if (!open) {
         const disabledReason = !isConnected
-            ? t('challenge.connect_wallet_hint', 'Bitte Wallet verbinden')
+            ? t('challenge.connect_wallet_hint')
             : isFaceIdMissing
-                ? t('challenge.connect_faceit_hint', 'Bitte mit FaceID verbinden')
+                ? t('challenge.connect_faceit_hint')
                 : isBalanceLow
                     ? t('challenge.low_balance_hint', `Mindestens ${minWager} KAS erforderlich`)
                     : null;
@@ -117,7 +117,7 @@ export const ChallengeModal: React.FC = () => {
                         disabled={isCreating}
                         className="flex-[2] bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark py-4 rounded-xl font-black uppercase tracking-tighter shadow-lg shadow-kaspa-primary/10 transition-all active:scale-95 disabled:opacity-50"
                     >
-                        {isCreating ? t('challenge.creating', 'Erstelle...') : t('challenge.create_submit')}
+                        {isCreating ? t('challenge.creating') : t('challenge.create_submit')}
                     </button>
                 </div>
             </form>

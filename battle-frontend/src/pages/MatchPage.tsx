@@ -12,6 +12,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
     const { paymentStatus, currentMatch } = useMatchStore();
     const { user } = useAuthStore();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     if (currentMatch?.status !== 'AWAITING_FUNDING') return null;
 
@@ -22,40 +23,40 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
     return (
         <div className="mb-6 p-5 rounded-2xl border border-kaspa-primary/30 bg-kaspa-primary/5 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-kaspa-primary mb-1">
-                ⏳ Warte auf Einzahlungen
+                {t('match.status.waiting_deposits')}
             </p>
 
             {paymentStatus ? (
                 <>
                     {/* My deposit status */}
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400 font-bold">Ich (Player {isPlayerA ? 'A' : 'B'})</span>
+                        <span className="text-gray-400 font-bold">{t('match.status.me_player', { player: isPlayerA ? 'A' : 'B' })}</span>
                         <span className={`font-black ${myPayment?.paid ? 'text-green-400' : 'text-yellow-400'}`}>
                             {myPayment?.paid
-                                ? '✅ Bestätigt'
+                                ? t('match.status.confirmed')
                                 : myPayment?.payment_count
                                     ? `⏳ ${myPayment.min_confirmations}/${paymentStatus.min_confirmations_required} conf.`
-                                    : '⏳ Nicht eingezahlt'}
+                                    : t('match.status.not_deposited')}
                         </span>
                     </div>
                     {/* Opponent status */}
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400 font-bold">Gegner (Player {isPlayerA ? 'B' : 'A'})</span>
+                        <span className="text-gray-400 font-bold">{t('match.status.opponent_player', { player: isPlayerA ? 'B' : 'A' })}</span>
                         <span className={`font-black ${opPayment?.paid ? 'text-green-400' : 'text-gray-500'}`}>
                             {opPayment?.paid
-                                ? '✅ Bestätigt'
+                                ? t('match.status.confirmed')
                                 : opPayment?.payment_count
                                     ? `⏳ ${opPayment.min_confirmations}/${paymentStatus.min_confirmations_required} conf.`
-                                    : '⏳ Noch ausstehend'}
+                                    : t('match.status.pending')}
                         </span>
                     </div>
                     {/* Required amount */}
                     <p className="text-[10px] text-gray-600 font-bold text-right">
-                        Erforderlich: {formatKas(paymentStatus.required_per_player_sompi)} KAS · {paymentStatus.min_confirmations_required} Confirmations
+                        {t('match.status.required', { amount: formatKas(paymentStatus.required_per_player_sompi), confirmations: paymentStatus.min_confirmations_required })}
                     </p>
                 </>
             ) : (
-                <p className="text-sm text-gray-500 font-bold animate-pulse">Lade Einzahlungsstatus...</p>
+                <p className="text-sm text-gray-500 font-bold animate-pulse">{t('match.status.loading_deposit')}</p>
             )}
 
             {/* Go to escrow button if user hasn't paid */}
@@ -64,7 +65,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
                     onClick={() => navigate(`/escrow/${matchId}`)}
                     className="w-full mt-2 h-10 rounded-xl bg-kaspa-primary/20 hover:bg-kaspa-primary/40 text-kaspa-primary font-black uppercase text-xs tracking-widest transition-colors"
                 >
-                    💰 Jetzt einzahlen
+                    {t('match.status.deposit_now')}
                 </button>
             )}
         </div>

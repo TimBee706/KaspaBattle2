@@ -11,7 +11,7 @@ export function ChallengeCard({ match }: { match: BattleMatch }) {
     return (
         <div className="card hover:border-kaspa-primary/50 transition-all group relative overflow-hidden">
             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span className="text-4xl">{game?.icon}</span>
+                {game?.icon && <img src={game.icon} alt={game.name} className="w-16 h-16 object-contain" />}
             </div>
 
             <div className="flex justify-between items-start mb-4">

@@ -52,17 +52,17 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                 <div className="p-8 space-y-8">
                     <div className="grid grid-cols-2 gap-8">
                         <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.mode', 'Modus')}</label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.mode')}</label>
                             <div className="text-white font-bold">{lobby.match_mode || (lobby as any).mode || 'BO1'}</div>
                         </div>
                         <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.stake', 'Einsatz')}</label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.stake')}</label>
                             <div className="text-emerald-400 font-black text-xl">{wagerKas.toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS</div>
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">{t('lobby.players', 'Spieler')}</label>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">{t('lobby.players')}</label>
                         <div className="space-y-3">
                             <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
                                 <span className="text-slate-300 text-sm font-mono">{shortenAddr(lobby.player_a_kas_address || '')}</span>
@@ -97,7 +97,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                         onClick={onClose}
                         className="flex-1 py-3 px-6 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all"
                     >
-                        {t('common.close', 'Schließen')}
+                        {t('common.close')}
                     </button>
                     {lobby.status === 'OPEN' && !!user && user.id !== lobby.creator_user_id && user.id !== lobby.opponent_user_id && onJoin && (testMode || isFaceitConnected) && (
                         <button
@@ -105,7 +105,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                             disabled={isJoining}
                             className="flex-[2] py-3 px-6 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-black rounded-xl transition-all shadow-lg shadow-emerald-900/20"
                         >
-                            {isJoining ? 'Lädt...' : t('lobby.join', 'Herausforderung annehmen')}
+                            {isJoining ? t('common.loading') : t('lobby.join')}
                         </button>
                     )}
                 </div>

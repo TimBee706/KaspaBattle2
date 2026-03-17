@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { startFaceitLogin } from '../../api/auth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export function FaceitLoginButton() {
     const { isAuthenticated, user, isFaceitConnected, logout } = useAuthStore();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +85,7 @@ export function FaceitLoginButton() {
                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
                                 <span className="text-base">👤</span>
-                                Mein Profil
+                                {t('navigation.profile')}
                             </button>
 
                             <a
@@ -94,7 +96,7 @@ export function FaceitLoginButton() {
                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
                                 <span className="text-base">🔗</span>
-                                FACEIT-Profil ↗
+                                {t('profile.view_on_faceit')}
                             </a>
                         </div>
 
@@ -104,7 +106,7 @@ export function FaceitLoginButton() {
                                 className="w-full text-left px-4 py-2.5 text-sm text-orange-400 hover:text-orange-300 hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
                                 <span className="text-base">⚡</span>
-                                FACEIT trennen
+                                {t('profile.disconnect_faceit')}
                             </button>
 
                             <button
@@ -112,7 +114,7 @@ export function FaceitLoginButton() {
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
                                 <span className="text-base">🚪</span>
-                                Abmelden
+                                {t('profile.logout')}
                             </button>
                         </div>
                     </div>

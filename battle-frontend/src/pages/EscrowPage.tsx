@@ -111,7 +111,7 @@ export const EscrowPage: React.FC = () => {
                     ❌ {localError || matchError}
                 </div>
                 <button onClick={() => navigate('/lobby')} className="text-gray-500 hover:text-white uppercase tracking-widest text-xs font-bold">
-                    {t('common.back', 'Zurück zur Übersicht')}
+                    {t('common.back')}
                 </button>
             </div>
         );
@@ -163,13 +163,13 @@ export const EscrowPage: React.FC = () => {
                     </div>
                     <h1 className="text-3xl font-black uppercase tracking-tight mb-2">
                         {successState
-                            ? t('deposit.success_title', 'Erfolgreich!')
-                            : t('escrow.title', 'Challenge erstellt!')}
+                            ? t('deposit.success_title')
+                            : t('escrow.title')}
                     </h1>
                     <p className="text-gray-400">
                         {successState
-                            ? t('deposit.success_info', 'Einzahlung bestätigt. Weiterleitung...')
-                            : t('escrow.subtitle', 'Zahle deinen Einsatz ein, um die Challenge zu aktivieren.')}
+                            ? t('deposit.success_info')
+                            : t('escrow.subtitle')}
                     </p>
                 </div>
 
@@ -178,7 +178,7 @@ export const EscrowPage: React.FC = () => {
                     <div className="bg-kaspa-dark/50 rounded-2xl p-6 border border-kaspa-border">
                         <div className="mb-6">
                             <label className="text-[10px] text-gray-500 uppercase font-black block mb-2 tracking-widest">
-                                {t('escrow.address', 'Escrow-Adresse')}
+                                {t('escrow.address')}
                             </label>
                             <div className="flex items-center gap-3">
                                 <div className="bg-kaspa-dark border border-kaspa-border p-3 rounded-xl font-mono text-sm text-kaspa-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
@@ -189,7 +189,7 @@ export const EscrowPage: React.FC = () => {
                                         if (currentMatch.escrow_address) navigator.clipboard.writeText(currentMatch.escrow_address);
                                     }}
                                     className="p-3 bg-kaspa-border hover:bg-gray-700 rounded-xl transition-colors text-white"
-                                    title={t('common.copy', 'Kopieren')}
+                                    title={t('common.copy')}
                                 >
                                     📋
                                 </button>
@@ -199,7 +199,7 @@ export const EscrowPage: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 uppercase font-black block mb-1">
-                                    {t('escrow.amount', 'Einsatz pro Spieler')}
+                                    {t('escrow.amount')}
                                 </span>
                                 <span className="text-xl font-black text-white">
                                     {wagerKas.toLocaleString()} KAS
@@ -207,7 +207,7 @@ export const EscrowPage: React.FC = () => {
                             </div>
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 uppercase font-black block mb-1">
-                                    {t('escrow.confirmations', 'Confirmations')}
+                                    {t('escrow.confirmations')}
                                 </span>
                                 <span className="text-xl font-black text-white">
                                     {paymentStatus ? `min. ${paymentStatus.min_confirmations_required}` : '10'}
@@ -240,7 +240,7 @@ export const EscrowPage: React.FC = () => {
                             // Fallback before first poll response
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border text-center">
                                 <span className="text-kaspa-primary font-bold text-sm">
-                                    {depositTxHash ? `✓ ${t('deposit.success_title', 'Erfolgreich')}` : `⏳ ${t('escrow.pending', 'Warten auf Bestätigung...')}`}
+                                    {depositTxHash ? `✓ ${t('deposit.success_title')}` : `⏳ ${t('escrow.pending')}`}
                                 </span>
                             </div>
                         )}
@@ -251,7 +251,7 @@ export const EscrowPage: React.FC = () => {
                         <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⚠️</span>
                             <p className="text-red-400 text-xs font-bold">
-                                {t('escrow.low_balance', 'Nicht genügend Guthaben vorhanden.')}
+                                {t('escrow.low_balance')}
                             </p>
                         </div>
                     )}
@@ -261,7 +261,7 @@ export const EscrowPage: React.FC = () => {
                         <div className="p-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⏳</span>
                             <p className="text-kaspa-primary text-xs font-bold">
-                                {t('escrow.waiting_opponent', 'Deine Einzahlung ist bestätigt — warte auf deinen Gegner...')}
+                                {t('escrow.waiting_opponent')}
                             </p>
                         </div>
                     )}
@@ -275,8 +275,8 @@ export const EscrowPage: React.FC = () => {
                         {isDepositing
                             ? '⏳ Sende...'
                             : iHavePaid
-                            ? `✅ ${t('deposit.success_title', 'Einbezahlt')}`
-                            : t('escrow.deposit_now', '💰 Jetzt einzahlen')}
+                            ? `✅ ${t('deposit.success_title')}`
+                            : t('escrow.deposit_now')}
                     </button>
 
                     <div className="text-center">
@@ -284,7 +284,7 @@ export const EscrowPage: React.FC = () => {
                             onClick={() => navigate(successState ? `/match/${lobbyId}` : '/lobby')}
                             className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
                         >
-                            {successState ? t('common.go_to_match', 'Zum Match') : t('common.back', 'Zurück zur Übersicht')}
+                            {successState ? t('common.go_to_match') : t('common.back')}
                         </button>
                     </div>
                 </div>
@@ -293,7 +293,7 @@ export const EscrowPage: React.FC = () => {
                 {!iHavePaid && (
                     <div className="mt-8 pt-8 border-t border-kaspa-border/50 text-center">
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest leading-relaxed">
-                            {t('escrow.disclaimer', 'Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht.')}
+                            {t('escrow.disclaimer')}
                         </p>
                     </div>
                 )}

@@ -15,7 +15,6 @@ import { ProfilePage } from './pages/ProfilePage';
 import { EscrowPage } from './pages/EscrowPage';
 
 import { useAuthStore } from './stores/useAuthStore';
-import { LanguageToggle } from './components/LanguageToggle';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from './hooks/useWallet';
 
@@ -71,16 +70,16 @@ export default function App() {
   if (wasmError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-kaspa-dark text-red-500 p-8 text-center">
-        <LanguageToggle />
+
         <div>
           <div className="text-5xl mb-6">⚠️</div>
-          <h1 className="text-2xl font-bold mb-2">{t('common.error_title', 'Kritischer Fehler')}</h1>
+          <h1 className="text-2xl font-bold mb-2">{t('common.error_title')}</h1>
           <p className="font-mono text-sm opacity-70">WASM SDK: {wasmError}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-8 px-6 py-2 bg-kaspa-border hover:bg-gray-700 rounded-lg text-sm transition-colors"
           >
-            {t('common.reload', 'Neu laden')}
+            {t('common.reload')}
           </button>
         </div>
       </div>
@@ -90,12 +89,12 @@ export default function App() {
   if (!isReady) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-kaspa-dark text-white">
-        <LanguageToggle />
+
         <div className="w-64 h-1.5 bg-kaspa-border rounded-full overflow-hidden mb-4 shadow-inner">
           <div className="h-full bg-kaspa-primary animate-[shimmer_2s_infinite] w-full origin-left" />
         </div>
         <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-kaspa-primary animate-pulse">
-          {t('common.loading_sdk', 'Kaspa WASM SDK wird geladen...')}
+          {t('common.loading_sdk')}
         </span>
       </div>
     );

@@ -5,7 +5,8 @@
         "history": "History",
         "wallet": "Wallet",
         "faceit_login": "Login with FACEIT",
-        "back_to_lobby": "TO LOBBY"
+        "back_to_lobby": "TO LOBBY",
+        "profile": "Profile"
     },
     "hero": {
         "beta_tag": "ENTRY PHASE 1: OPEN BETA",
@@ -68,7 +69,17 @@
         "test_mode": "Test mode active: Wallet integration prioritized.",
         "my_lobbies": "My Lobbies",
         "available_challenges": "Available challenges",
-        "create_challenge": "Create Challenge"
+        "active_matches": "Active challenges",
+        "create_challenge": "Create Challenge",
+        "mode": "Mode",
+        "stake": "Stake",
+        "players": "Players",
+        "join": "Accept Challenge",
+        "no_entries": "No entries.",
+        "connect_wallet_join": "Connect wallet to join!",
+        "faceit_connected_as": "Connected to FACEIT as",
+        "connect_faceit_join": "Connect FACEIT to join!",
+        "test_mode_notice": "Test mode: Joining without FACEIT is possible."
     },
     "wallet": {
         "import_title": "Import Wallet",
@@ -91,6 +102,15 @@
     "profile": {
         "level_unknown": "LVL UNKNOWN",
         "verified": "VERIFIED PLAYER",
+        "stats_error": "Could not load game stats.",
+        "no_wallet": "⚠️ No Kaspa Wallet connected",
+        "view_on_faceit": "View on FACEIT ↗",
+        "faceit_connection": "FACEIT Connection",
+        "connected_as": "Connected as {{nickname}}. Disconnecting won't end your KaspaBattle session.",
+        "disconnecting": "Disconnecting...",
+        "confirm_disconnect": "Yes, disconnect",
+        "disconnect_faceit": "Disconnect FACEIT",
+        "logout": "Logout",
         "stats": {
             "total_matches": "Total Matches",
             "wins": "Wins",
@@ -123,7 +143,10 @@
             "potential_win": "Potential Win:"
         },
         "publish": "PUBLISH CHALLENGE",
-        "wallet_needed": "Please connect your wallet to proceed."
+        "wallet_needed": "Please connect your wallet to proceed.",
+        "creating": "Creating...",
+        "connect_wallet_hint": "Please connect wallet",
+        "connect_faceit_hint": "Please connect with FaceID"
     },
     "create_match": {
         "title": "CHALLENGE SOMEONE",
@@ -141,6 +164,17 @@
         "invalid_amount": "Invalid amount"
     },
     "match": {
+        "status": {
+            "waiting_deposits": "Waiting for deposits",
+            "me_player": "Me (Player {{player}})",
+            "confirmed": "✅ Confirmed",
+            "not_deposited": "⏳ Not deposited",
+            "opponent_player": "Opponent (Player {{player}})",
+            "pending": "⏳ Pending",
+            "required": "Required: {{amount}} KAS · {{confirmations}} Confirmations",
+            "loading_deposit": "Loading deposit status...",
+            "deposit_now": "💰 Deposit now"
+        },
         "load_error": "Error loading",
         "fetching_data": "Fetching match data...",
         "not_found": "MATCH NOT FOUND",
@@ -167,6 +201,10 @@
         "fee": "Fee"
     },
     "deposit": {
+        "status": {
+            "pending": "Deposit pending confirmation",
+            "confirmed": "Deposit confirmed"
+        },
         "confirm_title": "Confirm Deposit",
         "info": "You are depositing your stake into the match's escrow address. The funds will be locked there until the winner is determined.",
         "amount": "Amount",
@@ -190,9 +228,52 @@
         "DISPUTED": "Dispute",
         "CANCELLED": "Cancelled"
     },
+    "escrow": {
+        "title": "Challenge created!",
+        "subtitle": "Deposit your stake to activate the challenge.",
+        "address": "Escrow Address",
+        "amount": "Stake per player",
+        "confirmations": "Confirmations",
+        "pending": "Waiting for confirmation...",
+        "low_balance": "Insufficient balance.",
+        "waiting_opponent": "Your deposit is confirmed — waiting for opponent...",
+        "deposit_now": "💰 Deposit now",
+        "disclaimer": "Note: After deposit, the challenge will be published in the lobby."
+    },
     "common": {
         "loading": "Loading...",
         "error": "Error: {{message}}",
-        "no_matches": "No matches completed yet."
+        "error_title": "Critical Error",
+        "reload": "Reload",
+        "loading_sdk": "Loading Kaspa WASM SDK...",
+        "no_matches": "No matches completed yet.",
+        "back": "Back to overview",
+        "copy": "Copy",
+        "close": "Close",
+        "go_to_match": "Go to Match",
+        "header": {
+            "title": "Kaspa Battle",
+            "wallet": "Wallet",
+            "language": "Language"
+        },
+        "buttons": {
+            "next": "Next",
+            "cancel": "Cancel",
+            "deposit": "Deposit",
+            "join": "Join Challenge"
+        }
+    },
+    "matches": {
+        "availableChallenges": "Available Challenges",
+        "myMatches": {
+            "title": "Your Matches",
+            "status": {
+                "waitingOpponent": "Waiting for opponent...",
+                "depositsPending": "Deposits pending",
+                "bothDeposited": "Ready to start",
+                "completed": "Match completed"
+            }
+        },
+        "startGame": "Start Game"
     }
 }

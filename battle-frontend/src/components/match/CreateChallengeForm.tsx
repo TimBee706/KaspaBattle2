@@ -63,7 +63,11 @@ export function CreateChallengeForm() {
                                     : 'border-kaspa-border bg-kaspa-dark/50 text-gray-400 hover:border-gray-600'
                                     }`}
                             >
-                                <span className="text-2xl mb-1">{game.icon}</span>
+                                {game.icon ? (
+                                    <img src={game.icon} alt={game.name} className="w-8 h-8 mb-1 object-contain" />
+                                ) : (
+                                    <span className="text-2xl mb-1">🎮</span>
+                                )}
                                 <span className="text-[10px] font-bold">{game.name}</span>
                             </button>
                         ))}
@@ -127,7 +131,7 @@ export function CreateChallengeForm() {
                     disabled={!validation.valid || isCreating || !isConnected}
                     className="w-full btn-primary h-12 relative overflow-hidden group"
                 >
-                    {isCreating ? t('challenge.creating', 'Erstelle...') : (
+                    {isCreating ? t('challenge.creating') : (
                         <>
                             <span className="relative z-10">{t('challenge.publish')}</span>
                             <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />

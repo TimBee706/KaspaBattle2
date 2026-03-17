@@ -50,12 +50,12 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-kaspa-card p-6 rounded-2xl border border-kaspa-border relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
-                    <span className="text-8xl">{game?.icon}</span>
+                    {game?.icon && <img src={game.icon} alt={game.name} className="w-48 h-48 object-contain grayscale" />}
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-kaspa-primary/10 rounded-xl flex items-center justify-center text-2xl border border-kaspa-primary/20">
-                        {game?.icon}
+                    <div className="w-12 h-12 bg-kaspa-primary/10 rounded-xl flex items-center justify-center p-2 border border-kaspa-primary/20">
+                        {game?.icon && <img src={game.icon} alt={game.name} className="w-full h-full object-contain" />}
                     </div>
                     <div>
                         <h1 className="text-2xl font-black tracking-tight">{game?.name}</h1>
