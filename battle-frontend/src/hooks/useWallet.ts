@@ -203,13 +203,7 @@ export function useWallet() {
             const message = `KaspaBattle Login-Request: ${Date.now()}`;
             const signature = "simulated_signature_" + Math.random().toString(36).substring(7);
 
-            // Fetch session token from backend
-            try {
-                const response = await apiClient.post('/auth/wallet-login', {
-                    kaspa_address: connection.address,
-                    message: message,
-                    signature: signature
-                });
+            const { isAuthenticated } = useAuthStore.getState();
 
                 const { session_token } = response.data;
                 const existingToken = useAuthStore.getState().tokens?.access_token;
@@ -227,9 +221,15 @@ export function useWallet() {
                 // Refresh user data (now has kaspa_address too)
                 await useAuthStore.getState().fetchUser().catch(console.error);
 
-            } catch (apiError) {
-                console.error("[useWallet] Backend auth failed - check if backend is running", apiError);
-                // Proceed with local connect even if backend fails so they can still see balance
+                    const { session_token } = response.data;
+                    useAuthStore.getState().setTokens({ access_token: session_token, refresh_token: '', expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+                    // Fetch the user object now that we have a token
+                    await useAuthStore.getState().fetchUser().catch(console.error);
+
+                } catch (apiError) {
+                    console.error("[useWallet] Backend auth failed - check if backend is running", apiError);
+                    // Proceed with local connect even if backend fails so they can still see balance
+                }
             }
 
             // Update UI/Zustand

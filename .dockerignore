@@ -1,0 +1,12 @@
+**/node_modules
+**/target
+**/target_test_v5
+**/*.db
+**/.git
+kaspabattle/api_logs.txt
+kaspabattle/compile_err.txt
+kaspabattle/.env
+kaspabattle/.env.local
+kaspabattle/.env.example
+docs
+concept

@@ -48,6 +48,9 @@ kaspabattle/compile_err.txt
 *.a
 *.so
 *.dylib
+
+# Concept folder
+concept/
 *.dll
 *.lib
 

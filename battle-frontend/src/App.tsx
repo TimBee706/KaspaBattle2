@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { FaceitCallback } from './components/auth/FaceitCallback';
@@ -102,25 +103,27 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<LandingPage />} />
-          <Route path="auth/faceit/callback" element={<FaceitCallback />} />
+      <ErrorBoundary>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<LandingPage />} />
+            <Route path="auth/faceit/callback" element={<FaceitCallback />} />
 
-          {/* Geschützte Routen */}
-          <Route path="lobby" element={<AuthGuard><LobbyPage /></AuthGuard>} />
-          <Route path="lobby/create" element={<AuthGuard><CreateMatchPage /></AuthGuard>} />
+            {/* Geschützte Routen */}
+            <Route path="lobby" element={<AuthGuard><LobbyPage /></AuthGuard>} />
+            <Route path="lobby/create" element={<AuthGuard><CreateMatchPage /></AuthGuard>} />
 
-          <Route path="lobby/:lobbyId" element={<AuthGuard><LobbyPage /></AuthGuard>} />
-          <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />
-          <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
-          <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
-          <Route path="profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-          <Route path="wallet/import" element={<WalletPage />} />
+            <Route path="lobby/:lobbyId" element={<AuthGuard><LobbyPage /></AuthGuard>} />
+            <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />
+            <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
+            <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
+            <Route path="profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+            <Route path="wallet/import" element={<WalletPage />} />
 
-          <Route path="*" element={<LandingPage />} />
-        </Route>
-      </Routes>
+            <Route path="*" element={<LandingPage />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

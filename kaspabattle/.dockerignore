@@ -1,0 +1,12 @@
+target
+target_test_v5
+**/target
+**/target_test_v5
+*.db
+api_logs.txt
+compile_err.txt
+.env
+.env.local
+.env.example
+tests
+**/.git

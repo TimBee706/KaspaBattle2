@@ -27,13 +27,14 @@ services:
       context: ./rusty-kaspa
       dockerfile: docker/Dockerfile.kaspad
     restart: unless-stopped
+    user: "0:0"
     ports:
       - "16110:16110" # P2P
       - "16111:16111" # wRPC (WebSocket-RPC)
     volumes:
       - kaspa-data:/home/kaspa/.rusty-kaspa
     command: >
-      kaspad --utxoindex --testnet --rpclisten=0.0.0.0:16110 --rpclisten-borsh=0.0.0.0:16111 --disable-upnp
+      /app/kaspad --utxoindex --testnet --rpclisten=0.0.0.0:16110 --rpclisten-borsh=0.0.0.0:16111 --disable-upnp
     healthcheck:
       test: [ "CMD-SHELL", "nc -z localhost 16111 || exit 1" ]
       interval: 15s
