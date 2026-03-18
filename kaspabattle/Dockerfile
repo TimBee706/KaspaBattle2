@@ -1,5 +1,7 @@
 # ─── Stage 1: Install cargo-chef for dependency caching ───────────────────────
 FROM rust:1.88-bookworm AS chef
+ENV CARGO_BUILD_JOBS=1 \
+    CARGO_INCREMENTAL=0
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -18,11 +20,11 @@ FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
 # Cache deps — only invalidated when Cargo.toml/Cargo.lock change
-RUN cargo chef cook --release --recipe-path recipe.json -p battle-api
+RUN cargo chef cook --release --recipe-path recipe.json -p battle-api --jobs 1
 
 # Copy workspace source and build the final binary
 COPY . .
-RUN cargo build --release -p battle-api
+RUN cargo build --release -p battle-api --jobs 1
 
 # ─── Stage 4: Minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime

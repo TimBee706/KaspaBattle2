@@ -110,7 +110,11 @@ export function FaceitLoginButton() {
                             </button>
 
                             <button
-                                onClick={() => { setDropdownOpen(false); logout(); navigate('/'); }}
+                                onClick={async () => {
+                                    setDropdownOpen(false);
+                                    await logout();
+                                    navigate('/');
+                                }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
                                 <span className="text-base">🚪</span>

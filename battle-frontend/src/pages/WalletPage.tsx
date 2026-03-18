@@ -11,14 +11,12 @@ export function WalletPage() {
         isFetchingBalance,
         balanceError,
         error,
-        mnemonic,
         connectWithMnemonic,
         disconnect,
-        fetchBalance
+        fetchBalance,
     } = useWallet();
 
     const [mnemonicInput, setMnemonicInput] = useState('');
-    const [showMnemonic, setShowMnemonic] = useState(false);
     const { t } = useTranslation();
 
     const handleImport = async (e?: React.FormEvent) => {
@@ -79,7 +77,6 @@ export function WalletPage() {
         );
     }
 
-    // Connected State: Wallet Overview
     const balance = balanceSompi / 100_000_000;
 
     return (
@@ -143,34 +140,17 @@ export function WalletPage() {
             </div>
 
             <div className="card p-8 border border-red-900/20 bg-red-900/5">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <span className="text-2xl">⚠️</span>
-                        <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
-                    </div>
+                <div className="flex items-center gap-3 mb-4">
+                    <span className="text-2xl">⚠️</span>
+                    <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
                 </div>
 
-                <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                <p className="text-gray-400 text-sm leading-relaxed">
                     {t('wallet.backup_text')}
                 </p>
-
-                {showMnemonic && mnemonic && (
-                    <div className="mnemonic-grid bg-kaspa-dark p-6 rounded-xl border border-kaspa-border mb-6 grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {mnemonic.split(' ').map((word: string, i: number) => (
-                            <div key={i} className="bg-kaspa-card/50 px-3 py-1.5 rounded-lg border border-kaspa-border flex gap-2">
-                                <span className="text-gray-500 text-xs font-bold">{i + 1}.</span>
-                                <span className="font-mono text-kaspa-primary font-bold">{word}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                <button
-                    onClick={() => setShowMnemonic(prev => !prev)}
-                    className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-red-900/30 flex items-center justify-center gap-2"
-                >
-                    {showMnemonic ? '🙈 Verbergen' : '👁 Recovery Phrase anzeigen'}
-                </button>
+                <p className="text-red-300 text-xs font-semibold uppercase tracking-wider mt-4">
+                    Recovery phrases are not stored after import. Keep your backup offline.
+                </p>
             </div>
         </div>
     );

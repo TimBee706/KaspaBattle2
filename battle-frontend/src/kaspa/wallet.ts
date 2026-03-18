@@ -9,11 +9,13 @@ export interface WalletConnection {
     wallet: any;
     account: {
         receiveAddress: string;
+        escrowAddress: string;
         xpub: string;
-        mnemonic: string; // Store mnemonic to allow scanning
+        mnemonic: string;
+        privateKeyHex: string;
+        publicKey: string;
     };
     address: string;
-    mnemonic: string;
 }
 
 // Wallet aus Mnemonic importieren
@@ -56,10 +58,12 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     // is_multisig: false, account_index: 0
     let addressData: { address: kaspa.Address, xpub: string } | null = null;
     let publicKeyGenerator: kaspa.PublicKeyGenerator | null = null;
+    let privateKeyGenerator: kaspa.PrivateKeyGenerator | null = null;
 
     try {
         // Erstelle PublicKeyGenerator und PrivateKeyGenerator
         publicKeyGenerator = kaspa.PublicKeyGenerator.fromMasterXPrv(xprv as any, false, 0n);
+        privateKeyGenerator = new kaspa.PrivateKeyGenerator(xprv, false, 0n);
 
         // Hole Receive Address 0
         const address = publicKeyGenerator.receiveAddress(KASPA_NETWORK, 0);
@@ -84,6 +88,9 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     // Generiere Escrow-Adresse (Index 1) – eine valide Testnet-Adresse mit korrekter Checksumme
     const escrowAddress = publicKeyGenerator!.receiveAddress(KASPA_NETWORK, 1).toString();
     console.log(`🔐 Escrow-Adresse generiert (Index 1): ${escrowAddress}`);
+    const privateKey = privateKeyGenerator!.receiveKey(0);
+    const publicKey = privateKey.toPublicKey().toString();
+    const privateKeyHex = privateKey.toString();
 
     // Stub für Account Object so dass bestehender Code nicht bricht
     const account = {
@@ -91,6 +98,8 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
         escrowAddress: escrowAddress,
         xpub: addressData.xpub,
         mnemonic: mnemonicPhrase,
+        privateKeyHex,
+        publicKey,
     };
 
     console.log(`✅ Kaspa Wallet (Raw Derivation) erfolgreich geladen! (Adresse: ${addressStr})`);
@@ -98,7 +107,7 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
     // Das alte Wallet Construct ist fÃ¼r Raw Derivation ungenutzt.
     const wallet = null;
 
-    return { wallet, account, address: addressStr, mnemonic: mnemonicPhrase };
+    return { wallet, account, address: addressStr };
 }
 export async function getBalance(account: any): Promise<number> {
     try {

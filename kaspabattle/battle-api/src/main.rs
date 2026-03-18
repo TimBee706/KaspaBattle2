@@ -125,6 +125,21 @@ async fn main() {
         eprintln!("✅ DB migration: v0.4 payments table ensured");
     }
 
+    let create_wallet_login_challenges = "
+        CREATE TABLE IF NOT EXISTS wallet_login_challenges (
+            id UUID PRIMARY KEY,
+            kaspa_address TEXT NOT NULL,
+            challenge_message TEXT NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )";
+    if let Err(e) = sqlx::query(create_wallet_login_challenges).execute(&pool).await {
+        eprintln!("⚠️ wallet login challenge migration failed: {}", e);
+    } else {
+        eprintln!("✅ DB migration: wallet login challenge table ensured");
+    }
+
     // 3. Add wager_amount_sompi to matches (mirrors stake_kas but preserves the domain field)
     let v04_columns = [
         "ALTER TABLE matches ADD COLUMN IF NOT EXISTS wager_amount_sompi BIGINT",
@@ -166,7 +181,7 @@ async fn main() {
         client_id: std::env::var("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
         client_secret: std::env::var("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
         redirect_uri: std::env::var("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
-        auth_url: "https://accounts.faceit.com/oauth/authorize".to_string(),
+        auth_url: "https://accounts.faceit.com".to_string(),
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
     };

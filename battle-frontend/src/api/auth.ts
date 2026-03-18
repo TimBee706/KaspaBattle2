@@ -48,3 +48,7 @@ export async function refreshToken(refreshToken: string): Promise<FaceitAuthResp
     });
     return res.data;
 }
+
+export async function logout(): Promise<void> {
+    await apiClient.post('/auth/logout');
+}

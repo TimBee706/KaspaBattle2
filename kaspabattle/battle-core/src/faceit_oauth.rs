@@ -71,8 +71,7 @@ impl FaceitOAuthService {
             .append_pair("scope", "openid email profile")
             .append_pair("state", &state)
             .append_pair("code_challenge", &code_challenge)
-            .append_pair("code_challenge_method", "S256")
-            .append_pair("redirect_popup", "true");
+            .append_pair("code_challenge_method", "S256");
 
         let pending_state = OAuthPendingState {
             state: state.clone(),

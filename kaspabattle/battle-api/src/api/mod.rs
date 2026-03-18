@@ -15,9 +15,11 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use battle_core::models::wallet_login::WalletLoginReq;
 use futures::{sink::SinkExt, stream::StreamExt};
+use kaspa_addresses::{Address, Prefix, Version};
+use kaspa_hashes::PersonalMessageSigningHash;
 use serde::{Deserialize, Serialize};
+use secp256k1::{schnorr::Signature, PublicKey, XOnlyPublicKey};
 use sqlx::{PgPool, Row};
 use tokio::sync::broadcast;
 use uuid::Uuid;
@@ -98,8 +100,10 @@ pub fn router() -> Router<AppState> {
         // NOTE: /lobbies/:id/simulate-deposit removed — test-only endpoint
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/auth/me", get(get_me))
+        .route("/auth/logout", post(logout))
         .route("/auth/me/wallet", axum::routing::patch(update_wallet_address))
-        .route("/auth/wallet-login", post(wallet_login))
+        .route("/auth/wallet-challenge", post(create_wallet_login_challenge))
+        .route("/auth/wallet-verify", post(verify_wallet_login))
         .route("/ws", get(ws_handler))
         .nest("/faceit", faceit::router())
         .nest("/multisig", multisig::router())
@@ -158,40 +162,229 @@ pub async fn get_me(
 }
 
 #[derive(Serialize)]
-pub struct AuthResponse {
+pub struct WalletAuthResponse {
     pub user_id: String,
-    pub session_token: String,
     pub display_name: String,
 }
 
-pub async fn wallet_login(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    Json(payload): Json<WalletLoginReq>,
-) -> Result<Json<AuthResponse>, StatusCode> {
-    // 1. Signatur prüfen (minimal — TODO: echte Kaspa-Signatur-Verifikation)
-    if payload.signature.is_empty() {
+#[derive(Deserialize)]
+pub struct WalletChallengeReq {
+    pub kaspa_address: String,
+}
+
+#[derive(Serialize)]
+pub struct WalletChallengeResponse {
+    pub challenge_id: String,
+    pub message: String,
+    pub expires_at: String,
+}
+
+#[derive(Deserialize)]
+pub struct WalletVerifyReq {
+    pub challenge_id: String,
+    pub kaspa_address: String,
+    pub signature: String,
+    pub public_key: String,
+}
+
+fn build_auth_cookie(session_token: &str) -> String {
+    let frontend_url =
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let is_secure = frontend_url.starts_with("https");
+    let same_site = if is_secure { "None" } else { "Lax" };
+    let secure_flag = if is_secure { "; Secure" } else { "" };
+
+    format!(
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
+        session_token, same_site, secure_flag
+    )
+}
+
+fn build_clear_auth_cookie() -> String {
+    let frontend_url =
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let is_secure = frontend_url.starts_with("https");
+    let same_site = if is_secure { "None" } else { "Lax" };
+    let secure_flag = if is_secure { "; Secure" } else { "" };
+
+    format!(
+        "kaspabattle-auth=; HttpOnly; Path=/; SameSite={}{}; Max-Age=0",
+        same_site, secure_flag
+    )
+}
+
+fn extract_session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+    let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
+    if let Some(header) = auth_header {
+        if header.starts_with("Bearer ") {
+            return Some(header["Bearer ".len()..].to_string());
+        }
+    }
+
+    headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str.split(';').find_map(|pair| {
+                let mut kv = pair.splitn(2, '=');
+                let key = kv.next()?.trim();
+                let val = kv.next()?.trim();
+                if key == "kaspabattle-auth" {
+                    Some(val.to_string())
+                } else {
+                    None
+                }
+            })
+        })
+}
+
+fn challenge_is_active(
+    expires_at: chrono::DateTime<chrono::Utc>,
+    used_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    used_at.is_none() && expires_at > now
+}
+
+fn parse_xonly_public_key(public_key_hex: &str) -> Result<XOnlyPublicKey, StatusCode> {
+    let public_key_bytes =
+        hex::decode(public_key_hex.trim()).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    match public_key_bytes.len() {
+        32 => XOnlyPublicKey::from_slice(&public_key_bytes).map_err(|_| StatusCode::BAD_REQUEST),
+        33 | 65 => {
+            let public_key =
+                PublicKey::from_slice(&public_key_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
+            Ok(public_key.x_only_public_key().0)
+        }
+        _ => Err(StatusCode::BAD_REQUEST),
+    }
+}
+
+fn verify_wallet_signature(
+    kaspa_address: &str,
+    public_key_hex: &str,
+    message: &str,
+    signature_hex: &str,
+) -> Result<(), StatusCode> {
+    let prefix = if kaspa_address.starts_with("kaspatest:") {
+        Prefix::Testnet
+    } else if kaspa_address.starts_with("kaspa:") {
+        Prefix::Mainnet
+    } else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+
+    let xonly_public_key = parse_xonly_public_key(public_key_hex)?;
+    let derived_address = Address::new(prefix, Version::PubKey, &xonly_public_key.serialize());
+    if derived_address.to_string() != kaspa_address {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    let signature_bytes = hex::decode(signature_hex.trim()).map_err(|_| StatusCode::BAD_REQUEST)?;
+    if signature_bytes.len() != 64 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let signature = Signature::from_slice(&signature_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut hasher = PersonalMessageSigningHash::new();
+    hasher.write(message.as_bytes());
+    let message_hash = hasher.finalize();
+    let secp_message = secp256k1::Message::from_digest_slice(message_hash.as_bytes().as_slice())
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    signature
+        .verify(&secp_message, &xonly_public_key)
+        .map_err(|_| StatusCode::UNAUTHORIZED)
+}
+
+pub async fn create_wallet_login_challenge(
+    State(state): State<AppState>,
+    Json(payload): Json<WalletChallengeReq>,
+) -> Result<Json<WalletChallengeResponse>, StatusCode> {
+    if !payload.kaspa_address.starts_with("kaspa:") && !payload.kaspa_address.starts_with("kaspatest:") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let challenge_id = Uuid::new_v4();
+    let nonce = battle_core::auth::AuthService::generate_session_token();
+    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(5);
+    let message = format!(
+        "KaspaBattle Login Challenge\nAddress: {}\nNonce: {}\nChallenge ID: {}\nExpires At: {}",
+        payload.kaspa_address,
+        nonce,
+        challenge_id,
+        expires_at.to_rfc3339(),
+    );
+
+    sqlx::query(
+        "INSERT INTO wallet_login_challenges (id, kaspa_address, challenge_message, expires_at) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(challenge_id)
+    .bind(&payload.kaspa_address)
+    .bind(&message)
+    .bind(expires_at)
+    .execute(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(WalletChallengeResponse {
+        challenge_id: challenge_id.to_string(),
+        message,
+        expires_at: expires_at.to_rfc3339(),
+    }))
+}
+
+pub async fn verify_wallet_login(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<WalletVerifyReq>,
+) -> Result<axum::response::Response, StatusCode> {
+    let challenge_id = Uuid::parse_str(&payload.challenge_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let challenge_row = sqlx::query(
+        "SELECT kaspa_address, challenge_message, expires_at, used_at FROM wallet_login_challenges WHERE id = $1"
+    )
+    .bind(challenge_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let challenge_address: String = challenge_row
+        .try_get("kaspa_address")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let challenge_message: String = challenge_row
+        .try_get("challenge_message")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let challenge_expires_at: chrono::DateTime<chrono::Utc> = challenge_row
+        .try_get("expires_at")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let challenge_used_at: Option<chrono::DateTime<chrono::Utc>> = challenge_row
+        .try_get("used_at")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if challenge_address != payload.kaspa_address {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    if !challenge_is_active(challenge_expires_at, challenge_used_at, chrono::Utc::now()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    verify_wallet_signature(
+        &payload.kaspa_address,
+        &payload.public_key,
+        &challenge_message,
+        &payload.signature,
+    )?;
+
+    sqlx::query("UPDATE wallet_login_challenges SET used_at = NOW() WHERE id = $1")
+        .bind(challenge_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     // 2. Prüfen ob der Caller BEREITS authentifiziert ist (FaceIT-Session aktiv?)
-    let existing_token_opt = {
-        let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
-        if let Some(h) = auth_header {
-            if h.starts_with("Bearer ") { Some(h["Bearer ".len()..].to_string()) } else { None }
-        } else {
-            headers.get(axum::http::header::COOKIE)
-                .and_then(|v| v.to_str().ok())
-                .and_then(|cookie_str| {
-                    cookie_str.split(';').find_map(|pair| {
-                        let mut kv = pair.splitn(2, '=');
-                        let key = kv.next()?.trim();
-                        let val = kv.next()?.trim();
-                        if key == "kaspabattle-auth" { Some(val.to_string()) } else { None }
-                    })
-                })
-        }
-    };
+    let existing_token_opt = extract_session_token_from_headers(&headers);
 
     let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
 
@@ -232,12 +425,18 @@ pub async fn wallet_login(
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
 
-            // Bestehende Session zurückgeben — Token NICHT ändern!
-            return Ok(Json(AuthResponse {
+            let mut response = Json(WalletAuthResponse {
                 user_id: existing_user.id.to_string(),
-                session_token: existing_token,
                 display_name: existing_user.display_name,
-            }));
+            })
+            .into_response();
+            let cookie_value = build_auth_cookie(&existing_token);
+            response.headers_mut().insert(
+                axum::http::header::SET_COOKIE,
+                axum::http::HeaderValue::from_str(&cookie_value)
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+            );
+            return Ok(response);
         }
     }
 
@@ -287,11 +486,39 @@ pub async fn wallet_login(
         .bind(&session_token).bind(&user_id).bind(expires_at)
         .execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(AuthResponse {
+    let mut response = Json(WalletAuthResponse {
         user_id: user_id.to_string(),
-        session_token,
         display_name: display_name_str,
-    }))
+    })
+    .into_response();
+    let cookie_value = build_auth_cookie(&session_token);
+    response.headers_mut().insert(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&cookie_value)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    );
+    Ok(response)
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Result<axum::response::Response, StatusCode> {
+    if let Some(token) = extract_session_token_from_headers(&headers) {
+        let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
+        let _ = auth_service.logout(&token).await;
+    }
+
+    let mut response = axum::response::Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(axum::body::Body::empty())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    response.headers_mut().insert(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&build_clear_auth_cookie())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    );
+    Ok(response)
 }
 
 #[derive(Deserialize)]
@@ -1247,5 +1474,85 @@ async fn execute_refund_for_match(
             eprintln!("❌ Refund failed: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sign_wallet_message(message: &str, private_key_bytes: [u8; 32]) -> (String, String, String) {
+        let secret_key =
+            secp256k1::SecretKey::from_slice(&private_key_bytes).expect("valid secret key");
+        let keypair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, &secret_key);
+        let xonly_public_key = keypair.x_only_public_key().0;
+
+        let mut hasher = PersonalMessageSigningHash::new();
+        hasher.write(message.as_bytes());
+        let message_hash = hasher.finalize();
+        let secp_message = secp256k1::Message::from_digest_slice(message_hash.as_bytes().as_slice())
+            .expect("valid digest");
+        let signature = keypair.sign_schnorr(secp_message);
+
+        let address = Address::new(Prefix::Testnet, Version::PubKey, &xonly_public_key.serialize());
+
+        (
+            address.to_string(),
+            hex::encode(xonly_public_key.serialize()),
+            hex::encode(signature.as_ref()),
+        )
+    }
+
+    #[test]
+    fn wallet_signature_verification_accepts_valid_signature() {
+        let message = "KaspaBattle test login message";
+        let (address, public_key, signature) = sign_wallet_message(message, [7u8; 32]);
+
+        let result = verify_wallet_signature(&address, &public_key, message, &signature);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn wallet_signature_verification_rejects_mismatched_address() {
+        let message = "KaspaBattle test login message";
+        let (_address, public_key, signature) = sign_wallet_message(message, [8u8; 32]);
+        let wrong_address = "kaspatest:qp8kz8m4z4v7c5y3m5k0l5u6wqg9h3h6m2y4f8m8z5p4a6f2l3d0gryd5f7c5";
+
+        let result = verify_wallet_signature(wrong_address, &public_key, message, &signature);
+
+        assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
+    fn wallet_signature_verification_rejects_tampered_message() {
+        let (address, public_key, signature) =
+            sign_wallet_message("KaspaBattle original message", [9u8; 32]);
+
+        let result = verify_wallet_signature(
+            &address,
+            &public_key,
+            "KaspaBattle tampered message",
+            &signature,
+        );
+
+        assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
+    fn challenge_is_active_rejects_used_or_expired_challenges() {
+        let now = chrono::Utc::now();
+
+        assert!(challenge_is_active(now + chrono::Duration::minutes(5), None, now));
+        assert!(!challenge_is_active(
+            now + chrono::Duration::minutes(5),
+            Some(now),
+            now,
+        ));
+        assert!(!challenge_is_active(
+            now - chrono::Duration::seconds(1),
+            None,
+            now,
+        ));
     }
 }

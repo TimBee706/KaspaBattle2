@@ -6,7 +6,7 @@ pub struct FaceitOAuthConfig {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
-    pub auth_url: String,     // https://accounts.faceit.com/authorize
+    pub auth_url: String,     // https://accounts.faceit.com
     pub token_url: String,    // https://api.faceit.com/auth/v1/oauth/token
     pub userinfo_url: String, // https://api.faceit.com/auth/v1/resources/userinfo
 }

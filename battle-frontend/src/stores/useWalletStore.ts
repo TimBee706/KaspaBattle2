@@ -7,14 +7,13 @@ interface WalletState {
     wallet: Wallet | null;
     account: any; // Account used here is a custom object from our wallet.ts logic
     address: string | null;
-    mnemonic: string | null;
     walletType: 'mnemonic' | 'kasware' | null;
     balanceSompi: number;
     isFetchingBalance: boolean;
     balanceError: string | null;
     error: string | null;
 
-    setWalletConnection: (wallet: Wallet | null, account: any, address: string, mnemonic: string | null, walletType: 'mnemonic' | 'kasware') => void;
+    setWalletConnection: (wallet: Wallet | null, account: any, address: string, walletType: 'mnemonic' | 'kasware') => void;
     setBalance: (balanceSompi: number) => void;
     setFetchingBalance: (isFetching: boolean) => void;
     setBalanceError: (error: string | null) => void;
@@ -29,15 +28,14 @@ export const useWalletStore = create<WalletState>((set) => ({
     wallet: null,
     account: null,
     address: null,
-    mnemonic: null,
     walletType: null,
     balanceSompi: -1,
     isFetchingBalance: false,
     balanceError: null,
     error: null,
 
-    setWalletConnection: (wallet, account, address, mnemonic, walletType) =>
-        set({ wallet, account, address, mnemonic, walletType, isConnected: true, isConnecting: false, error: null }),
+    setWalletConnection: (wallet, account, address, walletType) =>
+        set({ wallet, account, address, walletType, isConnected: true, isConnecting: false, error: null }),
 
     setBalance: (balanceSompi) => set({ balanceSompi, isFetchingBalance: false, balanceError: null }),
 
@@ -54,7 +52,6 @@ export const useWalletStore = create<WalletState>((set) => ({
             wallet: null,
             account: null,
             address: null,
-            mnemonic: null,
             walletType: null,
             isConnected: false,
             balanceSompi: -1,
