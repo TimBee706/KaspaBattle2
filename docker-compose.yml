@@ -36,7 +36,7 @@ services:
     command: >
       /app/kaspad --utxoindex --testnet --rpclisten=0.0.0.0:16110 --rpclisten-borsh=0.0.0.0:16111 --disable-upnp
     healthcheck:
-      test: [ "CMD-SHELL", "nc -z localhost 16111 || exit 1" ]
+      test: [ "CMD-SHELL", "ps | grep '[k]aspad' >/dev/null || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -78,13 +78,13 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_BASE_URL: http://localhost:8080
-      VITE_WS_URL: ws://localhost:8080
+      VITE_API_BASE_URL: http://localhost:8080/api/v1
+      VITE_WS_BASE_URL: ws://localhost:8080/ws
     depends_on:
       backend:
         condition: service_started
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fs http://localhost:5173 || exit 1" ]
+      test: [ "CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"" ]
       interval: 15s
       timeout: 5s
       retries: 5

@@ -4,43 +4,36 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { importWallet, getBalanceByAddress, getRpcClient } from '../kaspa/wallet';
 import apiClient from '../api/client';
 
-// Constants for storage keys
 const KEY_SESSION = 'kaspa_wallet_session';
 const KEY_PHRASE = 'kaspa_encrypted_phrase';
-const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 
-// Default internal key for encryption (In production, derive from user password)
-const INTERNAL_CRYPTO_KEY = "kaspabattle_v1_secure_key";
+const INTERNAL_CRYPTO_KEY = 'kaspabattle_v1_secure_key';
 
-/**
- * AES-256 Encryption using Web Crypto API
- */
 async function encryptMnemonic(text: string, password = INTERNAL_CRYPTO_KEY): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
 
-    // Derive key from password
     const passwordKey = await crypto.subtle.importKey(
-        "raw", encoder.encode(password),
-        { name: "PBKDF2" }, false, ["deriveKey"]
+        'raw',
+        encoder.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey'],
     );
 
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const aesKey = await crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
         passwordKey,
-        { name: "AES-GCM", length: 256 },
-        false, ["encrypt"]
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt'],
     );
 
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv },
-        aesKey,
-        data
-    );
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, data);
 
-    // Combine salt + iv + encrypted data into one base64 string
     const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
     combined.set(salt, 0);
     combined.set(iv, salt.length);
@@ -51,33 +44,32 @@ async function encryptMnemonic(text: string, password = INTERNAL_CRYPTO_KEY): Pr
 
 async function decryptMnemonic(base64: string, password = INTERNAL_CRYPTO_KEY): Promise<string | null> {
     try {
-        const combined = new Uint8Array(atob(base64).split("").map(c => c.charCodeAt(0)));
+        const combined = new Uint8Array(atob(base64).split('').map((c) => c.charCodeAt(0)));
         const salt = combined.slice(0, 16);
         const iv = combined.slice(16, 28);
         const data = combined.slice(28);
 
         const encoder = new TextEncoder();
         const passwordKey = await crypto.subtle.importKey(
-            "raw", encoder.encode(password),
-            { name: "PBKDF2" }, false, ["deriveKey"]
+            'raw',
+            encoder.encode(password),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveKey'],
         );
 
         const aesKey = await crypto.subtle.deriveKey(
-            { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+            { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
             passwordKey,
-            { name: "AES-GCM", length: 256 },
-            false, ["decrypt"]
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['decrypt'],
         );
 
-        const decrypted = await crypto.subtle.decrypt(
-            { name: "AES-GCM", iv },
-            aesKey,
-            data
-        );
-
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, data);
         return new TextDecoder().decode(decrypted);
     } catch (e) {
-        console.error("[Crypto] Decryption failed:", e);
+        console.error('[Crypto] Decryption failed:', e);
         return null;
     }
 }
@@ -98,16 +90,13 @@ export function useWallet() {
         setBalanceError,
         setConnecting,
         setError,
-        disconnect: storeDisconnect
+        disconnect: storeDisconnect,
     } = useWalletStore();
 
     const { updateKasAddress, setWalletConnected } = useAuthStore();
     const isReconnecting = useRef(false);
     const subscriptionActive = useRef(false);
 
-    /**
-     * STEP 2: Fetch Balance from RPC
-     */
     const fetchBalance = useCallback(async (addr: string) => {
         if (!addr) return;
         setFetchingBalance(true);
@@ -115,13 +104,10 @@ export function useWallet() {
             const sompi = await getBalanceByAddress(addr);
             setBalance(sompi);
         } catch (e: any) {
-            setBalanceError(e.message || "--");
+            setBalanceError(e.message || '--');
         }
     }, [setBalance, setFetchingBalance, setBalanceError]);
 
-    /**
-     * Live balance subscription
-     */
     const subscribeToUpdates = useCallback(async (addr: string) => {
         if (subscriptionActive.current) return;
         try {
@@ -140,9 +126,6 @@ export function useWallet() {
         }
     }, [fetchBalance]);
 
-    /**
-     * STEP 4: Restore full wallet state sequence
-     */
     const restoreFullWalletState = useCallback(async () => {
         if (isReconnecting.current) return;
 
@@ -152,7 +135,6 @@ export function useWallet() {
         try {
             const session: any = JSON.parse(sessionRaw);
 
-            // Check TTL
             if (Date.now() - session.connectedAt > SESSION_TTL) {
                 localStorage.removeItem(KEY_SESSION);
                 return;
@@ -160,31 +142,24 @@ export function useWallet() {
 
             isReconnecting.current = true;
 
-            // 1. Restore persistent UI states immediately
             setWalletConnected(true);
             updateKasAddress(session.address);
 
-            // 2. Restore mnemonic from sessionStorage (decrypted)
             const encryptedToken = sessionStorage.getItem(KEY_PHRASE);
             let restoredMnemonic = null;
             if (encryptedToken) {
                 restoredMnemonic = await decryptMnemonic(encryptedToken);
             }
 
-            // 3. Update Store
             useWalletStore.setState({
                 isConnected: true,
                 address: session.address,
                 walletType: session.walletType,
-                mnemonic: restoredMnemonic
+                mnemonic: restoredMnemonic,
             });
 
-            // 4. Trigger Balance Fetch
             await fetchBalance(session.address);
-
-            // 5. Subscribe to live updates
             await subscribeToUpdates(session.address);
-
         } catch (e) {
             console.error('[useWallet] Restore sequence failed:', e);
         } finally {
@@ -192,52 +167,45 @@ export function useWallet() {
         }
     }, [setWalletConnected, updateKasAddress, fetchBalance, subscribeToUpdates]);
 
-    /**
-     * Connection Logic
-     */
     const connectWithMnemonic = useCallback(async (phrase: string) => {
         setConnecting(true);
         try {
             const connection = await importWallet(phrase);
 
             const message = `KaspaBattle Login-Request: ${Date.now()}`;
-            const signature = "simulated_signature_" + Math.random().toString(36).substring(7);
+            const signature = `simulated_signature_${Math.random().toString(36).substring(7)}`;
+            const { isAuthenticated, tokens, setTokens, fetchUser } = useAuthStore.getState();
 
-            const { isAuthenticated } = useAuthStore.getState();
+            try {
+                const response = await apiClient.post('/auth/wallet-login', {
+                    kaspa_address: connection.address,
+                    message,
+                    signature,
+                });
 
                 const { session_token } = response.data;
-                const existingToken = useAuthStore.getState().tokens?.access_token;
+                const existingToken = tokens?.access_token;
 
-                // Only overwrite the token if it's different (= new wallet-only session).
-                // If we're already authenticated (FaceIT), the backend returns the same token → no-op.
                 if (session_token && session_token !== existingToken) {
-                    useAuthStore.getState().setTokens({
+                    setTokens({
                         access_token: session_token,
-                        refresh_token: '',
+                        refresh_token: tokens?.refresh_token ?? '',
                         expires_at: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
                     });
                 }
 
-                // Refresh user data (now has kaspa_address too)
-                await useAuthStore.getState().fetchUser().catch(console.error);
-
-                    const { session_token } = response.data;
-                    useAuthStore.getState().setTokens({ access_token: session_token, refresh_token: '', expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-                    // Fetch the user object now that we have a token
-                    await useAuthStore.getState().fetchUser().catch(console.error);
-
-                } catch (apiError) {
-                    console.error("[useWallet] Backend auth failed - check if backend is running", apiError);
-                    // Proceed with local connect even if backend fails so they can still see balance
+                await fetchUser().catch(console.error);
+            } catch (apiError) {
+                console.error('[useWallet] Backend auth failed - check if backend is running', apiError);
+                if (!isAuthenticated) {
+                    console.warn('[useWallet] Continuing with local-only wallet session');
                 }
             }
 
-            // Update UI/Zustand
             setWalletConnection(null, connection.account, connection.address, phrase, 'mnemonic');
             updateKasAddress(connection.address);
             setWalletConnected(true);
 
-            // Persist Session (Metadata)
             const session: any = {
                 address: connection.address,
                 walletType: 'mnemonic',
@@ -245,16 +213,13 @@ export function useWallet() {
             };
             localStorage.setItem(KEY_SESSION, JSON.stringify(session));
 
-            // Persist Encrypted Mnemonic (sessionStorage)
             const encrypted = await encryptMnemonic(phrase);
             sessionStorage.setItem(KEY_PHRASE, encrypted);
 
-            // Initial Balance & Events
             await fetchBalance(connection.address);
             await subscribeToUpdates(connection.address);
-
         } catch (err: any) {
-            setError(err.message || "Connection failed");
+            setError(err.message || 'Connection failed');
         }
     }, [setWalletConnection, updateKasAddress, setWalletConnected, fetchBalance, subscribeToUpdates, setError, setConnecting]);
 
@@ -266,12 +231,10 @@ export function useWallet() {
         subscriptionActive.current = false;
     }, [storeDisconnect, setWalletConnected]);
 
-    // Initial check on mount
     useEffect(() => {
         restoreFullWalletState();
     }, [restoreFullWalletState]);
 
-    // REQUIRED PATTERN: Fetch balance whenever connected state or address changes
     useEffect(() => {
         if (isConnected && address) {
             fetchBalance(address);
@@ -280,22 +243,18 @@ export function useWallet() {
 
     const signAndSendDeposit = useCallback(async (matchId: string, amountKas: number) => {
         try {
-            // Note: In a real implementation, this would use the wallet's private key
-            // or a browser extension to sign a transaction.
             console.log(`[useWallet] Signing deposit for match ${matchId} with ${amountKas} KAS`);
 
-            // For now, we simulate the deposit by telling the API the transaction hash
-            const txHash = "simulated_tx_" + Math.random().toString(36).substring(7);
+            const txHash = `simulated_tx_${Math.random().toString(36).substring(7)}`;
 
             await apiClient.post('/matches/deposit', {
                 match_id: matchId,
-                tx_hash: txHash
+                tx_hash: txHash,
             });
 
-            // Refresh balance after deposit
             if (address) await fetchBalance(address);
         } catch (e: any) {
-            console.error("[useWallet] Deposit failed:", e);
+            console.error('[useWallet] Deposit failed:', e);
             throw e;
         }
     }, [address, fetchBalance]);
@@ -313,6 +272,6 @@ export function useWallet() {
         disconnect,
         fetchBalance,
         restoreFullWalletState,
-        signAndSendDeposit
+        signAndSendDeposit,
     };
 }
