@@ -91,16 +91,22 @@ export function useWallet() {
                     public_key: connection.account.publicKey,
                     signature,
                 });
-
-                await fetchUser();
             } catch (apiError) {
                 console.error('[useWallet] Wallet authentication failed', apiError);
                 throw new Error('Wallet authentication failed. Please try again.');
             }
 
+            // Wallet auth succeeded — set connection state first
             setWalletConnection(null, connection.account, connection.address, 'mnemonic');
             updateKasAddress(connection.address);
             setWalletConnected(true);
+
+            // Fetch user separately — don't fail wallet connect if this errors
+            try {
+                await fetchUser();
+            } catch (fetchErr) {
+                console.warn('[useWallet] fetchUser after wallet connect failed (non-fatal):', fetchErr);
+            }
 
             await fetchBalance(connection.address);
             await subscribeToUpdates(connection.address);

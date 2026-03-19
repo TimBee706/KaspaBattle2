@@ -302,7 +302,10 @@ pub async fn create_wallet_login_challenge(
     State(state): State<AppState>,
     Json(payload): Json<WalletChallengeReq>,
 ) -> Result<Json<WalletChallengeResponse>, StatusCode> {
+    eprintln!("[wallet-challenge] Request for address: {}", payload.kaspa_address);
+
     if !payload.kaspa_address.starts_with("kaspa:") && !payload.kaspa_address.starts_with("kaspatest:") {
+        eprintln!("[wallet-challenge] Rejected: invalid address prefix");
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -326,7 +329,12 @@ pub async fn create_wallet_login_challenge(
     .bind(expires_at)
     .execute(&state.pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        eprintln!("[wallet-challenge] DB insert failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    eprintln!("[wallet-challenge] ✅ Challenge created: {} for {}", challenge_id, payload.kaspa_address);
 
     Ok(Json(WalletChallengeResponse {
         challenge_id: challenge_id.to_string(),
@@ -340,15 +348,26 @@ pub async fn verify_wallet_login(
     headers: axum::http::HeaderMap,
     Json(payload): Json<WalletVerifyReq>,
 ) -> Result<axum::response::Response, StatusCode> {
-    let challenge_id = Uuid::parse_str(&payload.challenge_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    eprintln!("[wallet-verify] Request: challenge_id={}, addr={}", payload.challenge_id, payload.kaspa_address);
+
+    let challenge_id = Uuid::parse_str(&payload.challenge_id).map_err(|e| {
+        eprintln!("[wallet-verify] Invalid challenge_id: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
     let challenge_row = sqlx::query(
         "SELECT kaspa_address, challenge_message, expires_at, used_at FROM wallet_login_challenges WHERE id = $1"
     )
     .bind(challenge_id)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::UNAUTHORIZED)?;
+    .map_err(|e| {
+        eprintln!("[wallet-verify] DB query failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or_else(|| {
+        eprintln!("[wallet-verify] Challenge not found: {}", challenge_id);
+        StatusCode::UNAUTHORIZED
+    })?;
 
     let challenge_address: String = challenge_row
         .try_get("kaspa_address")
@@ -364,27 +383,39 @@ pub async fn verify_wallet_login(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if challenge_address != payload.kaspa_address {
+        eprintln!("[wallet-verify] Address mismatch: challenge={} vs payload={}", challenge_address, payload.kaspa_address);
         return Err(StatusCode::UNAUTHORIZED);
     }
     if !challenge_is_active(challenge_expires_at, challenge_used_at, chrono::Utc::now()) {
+        eprintln!("[wallet-verify] Challenge expired or used: expires_at={}, used_at={:?}", challenge_expires_at, challenge_used_at);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    eprintln!("[wallet-verify] Verifying signature for {} (pubkey={}...)", payload.kaspa_address, &payload.public_key[..16.min(payload.public_key.len())]);
     verify_wallet_signature(
         &payload.kaspa_address,
         &payload.public_key,
         &challenge_message,
         &payload.signature,
-    )?;
+    ).map_err(|status| {
+        eprintln!("[wallet-verify] ❌ Signature verification failed (status={})", status);
+        status
+    })?;
+    eprintln!("[wallet-verify] ✅ Signature valid for {}", payload.kaspa_address);
 
     sqlx::query("UPDATE wallet_login_challenges SET used_at = NOW() WHERE id = $1")
         .bind(challenge_id)
         .execute(&state.pool)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            eprintln!("[wallet-verify] DB update failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    eprintln!("[wallet-verify] Challenge marked as used, proceeding to user lookup...");
 
     // 2. Prüfen ob der Caller BEREITS authentifiziert ist (FaceIT-Session aktiv?)
     let existing_token_opt = extract_session_token_from_headers(&headers);
+    eprintln!("[wallet-verify] Existing session token: {}", if existing_token_opt.is_some() { "found" } else { "none" });
 
     let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
 
@@ -394,28 +425,34 @@ pub async fn verify_wallet_login(
             // Erst: kaspa_address von einem alten Guest-User freigeben falls UNIQUE-Konflikt besteht
             // (z.B. wenn diese Adresse bereits einem Wallet-only User gehörte)
             let conflict = sqlx::query(
-                "SELECT id FROM users WHERE kaspa_address = $1 AND id != $2"
+                "SELECT id FROM users WHERE kaspa_address = $1 AND id != $2::uuid"
             )
             .bind(&payload.kaspa_address)
             .bind(&existing_user.id)
             .fetch_optional(&state.pool)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| {
+                eprintln!("[wallet-verify] DB conflict check failed: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
             if conflict.is_some() {
                 eprintln!("[wallet_login] Clearing kaspa_address from conflicting guest user");
                 sqlx::query(
-                    "UPDATE users SET kaspa_address = NULL WHERE kaspa_address = $1 AND id != $2"
+                    "UPDATE users SET kaspa_address = NULL WHERE kaspa_address = $1 AND id != $2::uuid"
                 )
                 .bind(&payload.kaspa_address)
                 .bind(&existing_user.id)
                 .execute(&state.pool)
                 .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                .map_err(|e| {
+                    eprintln!("[wallet-verify] DB clear conflict failed: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
             }
 
             // Jetzt sicher: kaspa_address am bestehenden User setzen
-            sqlx::query("UPDATE users SET kaspa_address = $1 WHERE id = $2")
+            sqlx::query("UPDATE users SET kaspa_address = $1 WHERE id = $2::uuid")
                 .bind(&payload.kaspa_address)
                 .bind(&existing_user.id)
                 .execute(&state.pool)
@@ -452,7 +489,10 @@ pub async fn verify_wallet_login(
         .bind(&payload.kaspa_address)
         .fetch_optional(&state.pool)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            eprintln!("[wallet-verify] DB user lookup failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let (user_id, display_name_str) = if let Some(r) = row {
         let uid: uuid::Uuid = r.try_get("id").unwrap_or(fake_uuid);
@@ -484,7 +524,11 @@ pub async fn verify_wallet_login(
     let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
         .bind(&session_token).bind(&user_id).bind(expires_at)
-        .execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .execute(&state.pool).await.map_err(|e| {
+            eprintln!("[wallet-verify] DB session insert failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    eprintln!("[wallet-verify] ✅ Session created for user {} ({})", user_id, display_name_str);
 
     let mut response = Json(WalletAuthResponse {
         user_id: user_id.to_string(),

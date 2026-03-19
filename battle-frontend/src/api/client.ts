@@ -37,7 +37,13 @@ apiClient.interceptors.response.use(
         }
 
         if (status === 401) {
-            await useAuthStore.getState().logout();
+            // Don't auto-logout for /auth/me — a 401 there simply means
+            // "not logged in yet", not "session expired". Auto-logout would
+            // destroy a session that was just created during wallet connect.
+            const requestUrl = error.config?.url || '';
+            if (!requestUrl.includes('/auth/me')) {
+                await useAuthStore.getState().logout();
+            }
         }
 
         return Promise.reject(error);

@@ -127,6 +127,10 @@ pub trait KaspaRpc: Send + Sync {
     /// Get the current virtual DAA score from the node.
     /// Used to compute confirmation depth: current_daa - utxo.block_daa_score = confirmations.
     async fn get_current_daa_score(&self) -> std::result::Result<u64, KaspaError>;
+
+    /// Block until the node is fully synced and has UTXO index enabled.
+    /// Used at startup to avoid querying an unready node.
+    async fn wait_for_sync(&self, timeout: Duration) -> std::result::Result<(), KaspaError>;
 }
 
 // === Real Kaspa Client ===
@@ -240,6 +244,34 @@ impl RealKaspaClient {
         )))
     }
 
+    /// Verify the RPC connection is alive; reconnect if stale.
+    /// Uses get_server_info() as a lightweight health-check ping.
+    async fn ensure_connected(&self) -> std::result::Result<(), KaspaError> {
+        use kaspa_rpc_core::api::rpc::RpcApi;
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.inner.get_server_info(),
+        )
+        .await
+        {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    "🔄 RPC call failed ({}), reconnecting to {}",
+                    e, self.node_url
+                );
+                self.connect_with_retry(3).await
+            }
+            Err(_timeout) => {
+                tracing::warn!(
+                    "🔄 RPC connection timed out, reconnecting to {}",
+                    self.node_url
+                );
+                self.connect_with_retry(3).await
+            }
+        }
+    }
+
     /// Interpret an RPC submit error message into a specific KaspaError variant.
     /// F-003: Allows callers to distinguish double-spend from mempool-full etc.
     fn classify_submit_error(msg: &str) -> KaspaError {
@@ -287,6 +319,7 @@ impl KaspaRpc for RealKaspaClient {
     }
 
     async fn get_balance(&self, address: &str) -> std::result::Result<u64, KaspaError> {
+        self.ensure_connected().await?;
         use kaspa_rpc_core::api::rpc::RpcApi;
 
         let addr = kaspa_addresses::Address::try_from(address)
@@ -301,6 +334,7 @@ impl KaspaRpc for RealKaspaClient {
     }
 
     async fn get_utxos(&self, address: &str) -> std::result::Result<Vec<UtxoInfo>, KaspaError> {
+        self.ensure_connected().await?;
         use kaspa_rpc_core::api::rpc::RpcApi;
 
         let addr = kaspa_addresses::Address::try_from(address)
@@ -421,6 +455,7 @@ impl KaspaRpc for RealKaspaClient {
 
     /// Fetch the current virtual DAA score from get_server_info.
     async fn get_current_daa_score(&self) -> std::result::Result<u64, KaspaError> {
+        self.ensure_connected().await?;
         use kaspa_rpc_core::api::rpc::RpcApi;
 
         let info = self
@@ -430,6 +465,47 @@ impl KaspaRpc for RealKaspaClient {
             .map_err(|e| KaspaError::RpcError(format!("get_server_info failed: {}", e)))?;
 
         Ok(info.virtual_daa_score)
+    }
+
+    /// Block until the node reports is_synced=true and has_utxo_index=true.
+    async fn wait_for_sync(&self, timeout: Duration) -> std::result::Result<(), KaspaError> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if tokio::time::Instant::now() >= deadline {
+                return Err(KaspaError::RpcError(
+                    "Timeout waiting for Kaspa node to sync".to_string(),
+                ));
+            }
+            match self.get_node_info().await {
+                Ok(info) => {
+                    eprintln!(
+                        "🔍 Node status: synced={}, utxo_indexed={}, version={}",
+                        info.is_synced, info.is_utxo_indexed, info.server_version
+                    );
+                    if info.is_synced && info.is_utxo_indexed {
+                        tracing::info!(
+                            "✅ Kaspa node ready: synced={}, utxo_indexed={}",
+                            info.is_synced, info.is_utxo_indexed
+                        );
+                        return Ok(());
+                    }
+                    if !info.is_utxo_indexed {
+                        eprintln!(
+                            "🚨 UTXO index NOT enabled — start kaspad with --utxoindex"
+                        );
+                    }
+                    tracing::info!(
+                        "⏳ Waiting for node: synced={}, utxo_indexed={}",
+                        info.is_synced, info.is_utxo_indexed
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("Node not reachable yet: {}", e);
+                    eprintln!("⏳ Waiting for Kaspa node RPC... ({})", e);
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
     }
 }
 

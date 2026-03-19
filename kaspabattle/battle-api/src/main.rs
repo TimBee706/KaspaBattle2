@@ -218,6 +218,10 @@ async fn main() {
             }
         };
 
+    // Note: We do NOT block the HTTP server startup waiting for node sync.
+    // The episode runner (background task) will wait for sync before polling.
+    // This ensures API endpoints are available immediately.
+
     let escrow_service = kaspa_rpc.as_ref().map(|rpc| {
         Arc::new(battle_kaspa::escrow::EscrowService::new(
             escrow_wallet.clone(),
@@ -378,6 +382,18 @@ async fn main() {
             // First poll runs immediately on startup (catch-up for deposits made while backend was down)
             tracing::info!("🚀 Episode runner starting — performing initial catch-up poll");
             eprintln!("🚀 Episode runner: initial catch-up poll (no delay)");
+
+            // Wait for Kaspa node to be fully synced before starting deposit detection.
+            // This runs in the background so it does NOT block the HTTP server.
+            if let Some(ref rpc) = ep_rpc {
+                eprintln!("⏳ Episode runner: waiting for Kaspa node to sync (timeout: 5 min)...");
+                match rpc.wait_for_sync(std::time::Duration::from_secs(300)).await {
+                    Ok(()) => eprintln!("✅ Episode runner: Kaspa node is synced and UTXO-indexed — starting deposit detection"),
+                    Err(e) => {
+                        eprintln!("⚠️ Episode runner: node sync wait failed: {} — will retry via health-check", e);
+                    }
+                }
+            }
             loop {
                 let active_ids: Vec<(uuid::Uuid,)> = sqlx::query_as(
                     "SELECT id FROM matches WHERE status IN \
@@ -392,6 +408,24 @@ async fn main() {
                         "🔄 Episode runner: polling {} active match(es)",
                         active_ids.len()
                     );
+                }
+
+                // Periodic RPC health-check: detect stale connections early.
+                // If DAA=0, the node is not ready — skip the poll cycle.
+                // If the RPC call fails, ensure_connected() will auto-reconnect
+                // on the next call inside MatchEpisode::execute().
+                if let Some(ref rpc) = ep_rpc {
+                    match rpc.get_current_daa_score().await {
+                        Ok(daa) if daa == 0 => {
+                            eprintln!("⚠️ Episode runner: DAA=0, node may not be ready — deposits won't be confirmed until node is synced");
+                        }
+                        Err(e) => {
+                            eprintln!("🚨 Episode runner: RPC health-check failed: {} — reconnect will be attempted on next RPC call", e);
+                        }
+                        Ok(daa) => {
+                            tracing::debug!(current_daa = daa, "Episode runner: RPC healthy");
+                        }
+                    }
                 }
 
                 for (match_id,) in active_ids {

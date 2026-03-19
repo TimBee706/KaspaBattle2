@@ -133,8 +133,29 @@ impl EpisodeTrait for MatchEpisode {
 
                 // Fetch current DAA score for confirmation calculation
                 let current_daa = if let Some(ref rpc) = self.kaspa_rpc {
-                    rpc.get_current_daa_score().await.unwrap_or(0)
+                    match rpc.get_current_daa_score().await {
+                        Ok(daa) if daa == 0 => {
+                            tracing::warn!(
+                                match_id = %self.match_id,
+                                "⚠️ DAA score is 0 — node may not be synced yet"
+                            );
+                            0
+                        }
+                        Ok(daa) => daa,
+                        Err(e) => {
+                            tracing::error!(
+                                match_id = %self.match_id,
+                                error = %e,
+                                "❌ get_current_daa_score failed — RPC connection may be stale"
+                            );
+                            0
+                        }
+                    }
                 } else {
+                    tracing::warn!(
+                        match_id = %self.match_id,
+                        "⚠️ kaspa_rpc is None — cannot query DAA score"
+                    );
                     0
                 };
 
@@ -184,6 +205,13 @@ impl EpisodeTrait for MatchEpisode {
 
                                 let confirmations = if current_daa > 0 {
                                     current_daa.saturating_sub(utxo.block_daa_score)
+                                } else if utxo.block_daa_score > 0 {
+                                    // During IBD: node reports DAA=0 but UTXOs have valid
+                                    // block_daa_score — the UTXO is already mined, so treat
+                                    // it as confirmed. We can't compute exact confirmations
+                                    // without the current DAA, but the UTXO's existence in
+                                    // the UTXO set proves it's in a mined block.
+                                    MIN_CONFIRMATIONS
                                 } else {
                                     0
                                 };

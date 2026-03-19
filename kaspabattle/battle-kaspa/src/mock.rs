@@ -172,6 +172,11 @@ impl KaspaRpc for MockKaspaClient {
         let score = self.current_daa_score.lock().expect("lock poisoned");
         Ok(*score)
     }
+
+    async fn wait_for_sync(&self, _timeout: std::time::Duration) -> Result<(), KaspaError> {
+        // Mock is always ready
+        Ok(())
+    }
 }
 
 #[cfg(test)]
