@@ -2,11 +2,16 @@
 FROM rust:1.88-bookworm AS chef
 ENV CARGO_BUILD_JOBS=1 \
     CARGO_INCREMENTAL=0
+# Install build deps + mold (fast linker — dramatically reduces RAM & link time)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     protobuf-compiler \
+    clang \
+    mold \
     && rm -rf /var/lib/apt/lists/*
+# Use mold as the linker for all Rust builds in this image
+ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold"
 RUN cargo install cargo-chef
 WORKDIR /app
 

@@ -81,6 +81,14 @@ impl FaceitOAuthService {
         };
 
         let mut states = self.pending_states.lock().await;
+
+        // Cleanup stale pending states (> 10 min) to prevent memory leaks
+        states.retain(|_, ps| {
+            chrono::DateTime::parse_from_rfc3339(&ps.created_at)
+                .map(|dt| (Utc::now() - dt.with_timezone(&Utc)).num_minutes() < 10)
+                .unwrap_or(false)
+        });
+
         states.insert(state.clone(), pending_state.clone());
 
         Ok((url.to_string(), pending_state))
@@ -93,9 +101,13 @@ impl FaceitOAuthService {
     ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>)> {
         let pending_state = {
             let mut states = self.pending_states.lock().await;
+            eprintln!("🔍 FACEIT callback: state='{}', {} pending states in memory", state, states.len());
             states
                 .remove(state)
-                .ok_or_else(|| anyhow!("Ungültiger oder abgelaufener State-Parameter"))?
+                .ok_or_else(|| {
+                    eprintln!("❌ FACEIT state '{}' not found in pending_states (backend may have restarted during OAuth flow)", state);
+                    anyhow!("Ungültiger oder abgelaufener State-Parameter — bitte erneut einloggen")
+                })?
         };
 
         let tokens = self
@@ -116,10 +128,11 @@ impl FaceitOAuthService {
             encode_basic_auth(&self.config.client_id, &self.config.client_secret)
         );
 
-        let params = [
+        let params: [(& str, &str); 4] = [
             ("grant_type", "authorization_code"),
             ("code", code),
             ("code_verifier", code_verifier),
+            ("redirect_uri", &self.config.redirect_uri),
         ];
 
         let response = self
