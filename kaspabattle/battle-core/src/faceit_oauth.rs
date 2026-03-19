@@ -56,6 +56,7 @@ impl FaceitOAuthService {
     pub async fn generate_auth_url(
         &self,
         user_id: Option<&str>,
+        return_to: Option<String>,
     ) -> Result<(String, OAuthPendingState)> {
         let code_verifier = generate_code_verifier();
         let code_challenge = generate_code_challenge(&code_verifier);
@@ -77,6 +78,7 @@ impl FaceitOAuthService {
             state: state.clone(),
             code_verifier,
             user_id: user_id.map(|s| s.to_string()),
+            return_to,
             created_at: Utc::now().to_rfc3339(),
         };
 
@@ -98,7 +100,7 @@ impl FaceitOAuthService {
         &self,
         code: &str,
         state: &str,
-    ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>)> {
+    ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>, Option<String>)> {
         let pending_state = {
             let mut states = self.pending_states.lock().await;
             eprintln!("🔍 FACEIT callback: state='{}', {} pending states in memory", state, states.len());
@@ -115,7 +117,7 @@ impl FaceitOAuthService {
             .await?;
         let userinfo = self.get_userinfo(&tokens.access_token).await?;
 
-        Ok((userinfo, tokens, pending_state.user_id))
+        Ok((userinfo, tokens, pending_state.user_id, pending_state.return_to))
     }
 
     pub async fn exchange_code(

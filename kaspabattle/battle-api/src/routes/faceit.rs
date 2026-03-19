@@ -29,7 +29,11 @@ async fn link_faceit(state: web::Data<AppState>, req: HttpRequest) -> impl Respo
         Err(e) => return HttpResponse::from_error(e),
     };
 
-    match state.faceit_oauth.generate_auth_url(Some(&user.id)).await {
+    match state
+        .faceit_oauth
+        .generate_auth_url(Some(&user.id), None)
+        .await
+    {
         Ok((url, _)) => HttpResponse::Found()
             .append_header(("Location", url))
             .finish(),
@@ -40,7 +44,7 @@ async fn link_faceit(state: web::Data<AppState>, req: HttpRequest) -> impl Respo
 }
 
 async fn login_faceit(state: web::Data<AppState>) -> impl Responder {
-    match state.faceit_oauth.generate_auth_url(None).await {
+    match state.faceit_oauth.generate_auth_url(None, None).await {
         Ok((url, _)) => HttpResponse::Found()
             .append_header(("Location", url))
             .finish(),
@@ -65,7 +69,7 @@ async fn faceit_callback(
         .handle_callback(&query.code, &query.state)
         .await
     {
-        Ok((info, tokens, pending_user_id)) => {
+        Ok((info, tokens, pending_user_id, _return_to)) => {
             let session_token_opt = if let Some(uid) = pending_user_id {
                 let _ = state
                     .faceit_oauth

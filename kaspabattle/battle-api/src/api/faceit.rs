@@ -1,5 +1,6 @@
 use axum::{
     extract::{Query, State},
+    http::{HeaderMap, HeaderValue},
     response::Redirect,
     routing::{get, post},
     Json, Router,
@@ -20,6 +21,7 @@ const FACEIT_CACHE_TTL_SECS: i64 = 300;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/login", get(login_faceit))
+        .route("/link", get(link_faceit))
         .route("/callback", get(faceit_callback))
         .route("/status", get(faceit_status))
         .route("/profile", get(faceit_profile))
@@ -29,11 +31,99 @@ pub fn router() -> Router<AppState> {
 
 // ── /faceit/login ──────────────────────────────────────────────────────────
 
-async fn login_faceit(State(state): State<AppState>) -> Result<Redirect, axum::http::StatusCode> {
-    match state.faceit_service.generate_auth_url(None).await {
+fn default_frontend_url() -> String {
+    std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string())
+}
+
+fn sanitize_return_to(candidate: &str) -> Option<String> {
+    let trimmed = candidate.trim();
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
+}
+
+fn infer_return_to(headers: &HeaderMap) -> String {
+    let header_candidates = [
+        headers.get("origin"),
+        headers.get("referer"),
+        headers.get("x-forwarded-origin"),
+    ];
+
+    for value in header_candidates.into_iter().flatten() {
+        if let Ok(raw) = value.to_str() {
+            if let Some(url) = sanitize_return_to(raw) {
+                return url;
+            }
+        }
+    }
+
+    if let (Some(proto), Some(host)) = (
+        headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()),
+        headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()),
+    ) {
+        let forwarded = format!("{}://{}", proto, host);
+        if let Some(url) = sanitize_return_to(&forwarded) {
+            return url;
+        }
+    }
+
+    default_frontend_url()
+}
+
+fn build_auth_cookie(session_token: &str, redirect_target: &str) -> String {
+    let is_secure = redirect_target.starts_with("https://");
+    let same_site = if is_secure { "None" } else { "Lax" };
+    let secure_flag = if is_secure { "; Secure" } else { "" };
+
+    format!(
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
+        session_token, same_site, secure_flag
+    )
+}
+
+fn append_query_param(base: &str, key: &str, value: &str) -> String {
+    let separator = if base.contains('?') { '&' } else { '?' };
+    format!("{}{}{}={}", base, separator, key, value)
+}
+
+async fn login_faceit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Redirect, axum::http::StatusCode> {
+    let return_to = infer_return_to(&headers);
+
+    match state
+        .faceit_service
+        .generate_auth_url(None, Some(return_to))
+        .await
+    {
         Ok((url, _)) => Ok(Redirect::temporary(&url)),
         Err(e) => {
             eprintln!("❌ FACEIT auth URL generation failed");
+            eprintln!("  Detail: {}", e);
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn link_faceit(
+    State(state): State<AppState>,
+    user: crate::api::auth_guard::SessionUserNoWallet,
+    headers: HeaderMap,
+) -> Result<Redirect, axum::http::StatusCode> {
+    let crate::api::auth_guard::SessionUserNoWallet(u) = user;
+    let return_to = infer_return_to(&headers);
+
+    match state
+        .faceit_service
+        .generate_auth_url(Some(&u.id), Some(return_to))
+        .await
+    {
+        Ok((url, _)) => Ok(Redirect::temporary(&url)),
+        Err(e) => {
+            eprintln!("❌ FACEIT link URL generation failed for user {}", mask_faceit_id(&u.id));
             eprintln!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -53,7 +143,7 @@ async fn faceit_callback(
     Query(query): Query<FaceitCallbackQuery>,
 ) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
     // 1. Token Exchange -> User Info & Tokens holen
-    let (info, tokens, _) = state
+    let (info, tokens, _, return_to) = state
         .faceit_service
         .handle_callback(&query.code, &query.state)
         .await
@@ -81,28 +171,15 @@ async fn faceit_callback(
         .await;
 
     // 3. Zurück ins Frontend mit Session-Cookie
-    let frontend_url =
-        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    let is_secure = frontend_url.starts_with("https");
-    let same_site = if is_secure { "None" } else { "Lax" };
-    let secure_flag = if is_secure { "; Secure" } else { "" };
-
-    let cookie_str = format!(
-        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
-        session_token, same_site, secure_flag
-    );
-
-    let redirect_url = if frontend_url.contains('?') {
-        format!("{}&linked=1", frontend_url)
-    } else {
-        format!("{}?linked=1", frontend_url)
-    };
+    let cookie_str = build_auth_cookie(&session_token, &frontend_url);
+    let redirect_url = append_query_param(&frontend_url, "linked", "1");
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::SEE_OTHER)
         .header(axum::http::header::LOCATION, redirect_url)
-        .header(axum::http::header::SET_COOKIE, cookie_str)
+        .header(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie_str).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?)
         .body(axum::body::Body::empty())
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 

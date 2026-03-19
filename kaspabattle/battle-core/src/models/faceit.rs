@@ -51,6 +51,7 @@ pub struct OAuthPendingState {
     pub state: String,           // Random CSRF-Token
     pub code_verifier: String,   // PKCE Code Verifier
     pub user_id: Option<String>, // Option für echtes SSO (None = Login, Some = Account-Link)
+    pub return_to: Option<String>,
     pub created_at: String,
 }
 

@@ -99,8 +99,10 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/cancel", post(cancel_match_handler))
         // NOTE: /lobbies/:id/simulate-deposit removed — test-only endpoint
         .route("/webhook/faceit", post(faceit_webhook))
+        .route("/me", get(get_me))
         .route("/auth/me", get(get_me))
         .route("/auth/logout", post(logout))
+        .route("/me/wallet", axum::routing::patch(update_wallet_address))
         .route("/auth/me/wallet", axum::routing::patch(update_wallet_address))
         .route("/auth/wallet-challenge", post(create_wallet_login_challenge))
         .route("/auth/wallet-verify", post(verify_wallet_login))
