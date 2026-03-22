@@ -23,12 +23,8 @@ export async function acceptMatch(data: AcceptMatchRequest): Promise<BattleMatch
 }
 
 export async function getMatch(matchId: string): Promise<BattleMatch> {
-    // The backend doesn't have a specific /matches/:id endpoint yet.
-    // We will find it in the lobbies list as a temporary fix.
-    const res = await apiClient.get<BattleMatch[]>('/lobbies');
-    const match = res.data.find(m => m.id === matchId);
-    if (!match) throw new Error("Match not found");
-    return match;
+    const res = await apiClient.get<BattleMatch>(`/matches/${matchId}`);
+    return res.data;
 }
 
 export async function getOpenMatches(filters: LobbyFilters = {}): Promise<MatchListResponse> {

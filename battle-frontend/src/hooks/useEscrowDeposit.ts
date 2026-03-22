@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
 import { useWalletStore } from '../stores/useWalletStore';
 import { useMatchStore } from '../stores/useMatchStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { sendDeposit, getBalance } from '../kaspa/wallet';
 import { submitDeposit } from '../api/matches';
-import { FEATURE_FLAGS } from '../config/featureFlags';
 
 export function useEscrowDeposit() {
-    const { account, setBalance } = useWalletStore();
-    const { currentMatch, setDepositing, setDepositTxHash, setError } = useMatchStore();
+    const { account, address, setBalance } = useWalletStore();
+    const { currentMatch, setDepositing, setLocalDeposit, setError } = useMatchStore();
 
     const executeDeposit = useCallback(async (playerRole: 'A' | 'B') => {
         if (!currentMatch) {
@@ -50,7 +50,12 @@ export function useEscrowDeposit() {
             );
 
             console.log("✅ [useEscrowDeposit] TX erfolgreich gesendet:", txHash);
-            setDepositTxHash(txHash);
+            setLocalDeposit({
+                txHash,
+                matchId: currentMatch.id,
+                userId: useAuthStore.getState().user?.id ?? null,
+                walletAddress: address ?? null,
+            });
 
             // Sofort Balance neu laden (nicht auf 30s Polling warten)
             getBalance(account).then(setBalance).catch(() => {
@@ -73,11 +78,11 @@ export function useEscrowDeposit() {
             const errorMsg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err) || "Unbekannter Fehler");
             setError(`Deposit fehlgeschlagen: ${errorMsg}`);
         }
-    }, [account, currentMatch, setDepositing, setDepositTxHash, setError]);
+    }, [account, address, currentMatch, setDepositing, setLocalDeposit, setError, setBalance]);
 
     return {
         executeDeposit,
         isDepositing: useMatchStore((s) => s.isDepositing),
-        depositTxHash: useMatchStore((s) => s.depositTxHash),
+        depositTxHash: useMatchStore((s) => s.localDeposit?.txHash ?? null),
     };
 }

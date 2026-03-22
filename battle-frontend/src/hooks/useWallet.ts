@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import { signMessage } from 'kaspa-wasm';
 import { useWalletStore } from '../stores/useWalletStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useLobbyStore } from '../stores/useLobbyStore';
+import { useMatchStore } from '../stores/useMatchStore';
 import { importWallet, getBalanceByAddress, getRpcClient } from '../kaspa/wallet';
 import apiClient from '../api/client';
 
@@ -72,6 +74,10 @@ export function useWallet() {
     const connectWithMnemonic = useCallback(async (phrase: string) => {
         setConnecting(true);
         try {
+            await useAuthStore.getState().logout();
+            useLobbyStore.getState().reset();
+            useMatchStore.getState().clearMatch();
+
             const connection = await importWallet(phrase);
 
             try {
@@ -117,6 +123,9 @@ export function useWallet() {
 
     const disconnect = useCallback(() => {
         storeDisconnect();
+        void useAuthStore.getState().logout();
+        useLobbyStore.getState().reset();
+        useMatchStore.getState().clearMatch();
         setWalletConnected(false);
         localStorage.removeItem(LEGACY_WALLET_SESSION_KEY);
         sessionStorage.removeItem(LEGACY_WALLET_PHRASE_KEY);

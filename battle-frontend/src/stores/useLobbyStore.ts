@@ -12,6 +12,7 @@ interface LobbyState {
     addOrUpdateLobby: (match: BattleMatch) => void;
     setLoading: (isLoading: boolean) => void;
     setError: (error: string | null) => void;
+    reset: () => void;
 }
 
 export const useLobbyStore = create<LobbyState>((set) => ({
@@ -34,4 +35,5 @@ export const useLobbyStore = create<LobbyState>((set) => ({
     }),
     setLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error, isLoading: false }),
+    reset: () => set({ lobbies: [], history: [], isLoading: false, error: null }),
 }));

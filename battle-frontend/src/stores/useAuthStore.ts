@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { AuthTokens, UserProfile } from '../api/types';
 import { logout as logoutApi } from '../api/auth';
+import { useLobbyStore } from './useLobbyStore';
+import { useMatchStore } from './useMatchStore';
 
 interface AuthState {
     user: UserProfile | null;
@@ -12,6 +14,7 @@ interface AuthState {
     setAuth: (user: UserProfile, _tokens?: AuthTokens | null) => void;
     fetchUser: () => Promise<void>;
     logout: () => Promise<void>;
+    clearAuthState: () => void;
     updateKasAddress: (address: string) => void;
     setWalletConnected: (connected: boolean) => void;
     setTestMode: (enabled: boolean) => void;
@@ -24,11 +27,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     testMode: false,
     isFaceitConnected: false,
 
-    setAuth: (user) => set({
-        user,
-        isAuthenticated: true,
-        isFaceitConnected: user.faceit_connected === true && !!user.faceit_id,
-    }),
+    setAuth: (user) => {
+        useLobbyStore.getState().reset();
+        useMatchStore.getState().clearMatch();
+        set({
+            user,
+            isAuthenticated: true,
+            isFaceitConnected: user.faceit_connected === true && !!user.faceit_id,
+        });
+    },
 
     fetchUser: async () => {
         const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
@@ -52,6 +59,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         } catch (error) {
             console.warn('[AuthStore] Logout request failed, clearing local state anyway', error);
         }
+        get().clearAuthState();
+    },
+
+    clearAuthState: () => {
+        useLobbyStore.getState().reset();
+        useMatchStore.getState().clearMatch();
         set({ user: null, isAuthenticated: false, walletConnected: false, isFaceitConnected: false });
         sessionStorage.clear();
     },

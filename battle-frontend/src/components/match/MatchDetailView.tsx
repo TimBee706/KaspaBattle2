@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { KASPA_NETWORK } from '../../config/constants';
 import { useTranslation } from 'react-i18next';
 import { useMatchStore } from '../../stores/useMatchStore';
+import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../domain/lobby';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -23,16 +24,16 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const wagerSompi = match.wager_amount_sompi || (match as any).stake_kas || 0;
     const matchMode = match.match_mode || (match as any).mode || 'BO1';
 
-    const isPlayerA = user?.id === match.creator_user_id;
-    const isPlayerB = user?.faceit_id === match.player_b_faceit_id || user?.id === match.opponent_user_id;
+    const currentUserId = user?.id ?? null;
+    const lobbyRole = getLobbyRole(match, currentUserId);
+    const isPlayerA = lobbyRole === 'creator';
+    const isPlayerB = lobbyRole === 'opponent';
 
     // Phase 1: Not yet accepted by anyone
-    const canAccept = match.status === 'OPEN' && !match.opponent_user_id && !isPlayerA && !!user && (testMode || isFaceitConnected);
+    const canAccept = isAvailableChallenge(match, currentUserId) && !!user && (testMode || isFaceitConnected);
 
     // Phase 2: Accepted, but this user hasn't deposited
-    const needsDepositA = (match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerA && !match.player_a_deposit_tx_hash;
-    const needsDepositB = (match.status === 'OPEN' || match.status === 'AWAITING_FUNDING') && isPlayerB && !!match.opponent_user_id && !match.player_b_deposit_tx_hash;
-    const needsDeposit = needsDepositA || needsDepositB;
+    const needsDeposit = needsPlayerDeposit(match, currentUserId);
 
     const handleAccept = async () => {
         setIsAccepting(true);

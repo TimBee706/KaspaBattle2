@@ -9,6 +9,13 @@ import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { useMatchStore } from '../stores/useMatchStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { SOMPI_PER_KAS } from '../config/constants';
+import {
+    getLobbyRole,
+    getPaymentInfoForPlayer,
+    getPlayerRoleForLobby,
+    hasPlayerDeposited,
+    isLocalDepositForIdentity,
+} from '../domain/lobby';
 
 // ─── Helper: deposit progress bar ─────────────────────────────────────────────
 interface DepositCardProps {
@@ -89,19 +96,12 @@ export const EscrowPage: React.FC = () => {
     // Payment confirmation polling: 3s while AWAITING_FUNDING
     usePaymentStatus(lobbyId ?? null);
 
-    const { currentMatch, isLoading, error: matchError, paymentStatus } = useMatchStore();
+    const { currentMatch, isLoading, error: matchError, paymentStatus, localDeposit } = useMatchStore();
     const { executeDeposit, isDepositing, depositTxHash } = useEscrowDeposit();
     const [localError, setLocalError] = useState<string | null>(null);
 
     // Auto-redirect: either after local TX success OR when backend confirms FUNDED
-    useEffect(() => {
-        const shouldRedirect =
-            depositTxHash || currentMatch?.status === 'FUNDED' || currentMatch?.status === 'LOCKED';
-        if (shouldRedirect && lobbyId) {
-            const timer = setTimeout(() => navigate(`/match/${lobbyId}`), 1500);
-            return () => clearTimeout(timer);
-        }
-    }, [depositTxHash, currentMatch?.status, lobbyId, navigate]);
+    useEffect(() => undefined, []);
 
     // ── Early returns ─────────────────────────────────────────────────────────
     if (matchError || localError) {
@@ -132,16 +132,32 @@ export const EscrowPage: React.FC = () => {
     const hasEnoughBalance = (balanceSompi || 0) >= wagerAmountSompi;
 
     // Determine player role — backend returns creator_user_id / opponent_user_id, not faceit fields
-    const isPlayerA = user?.id === currentMatch.creator_user_id;
-    const playerRole = isPlayerA ? 'A' : 'B';
-
-    const myPayment = paymentStatus ? (isPlayerA ? paymentStatus.playerA : paymentStatus.playerB) : null;
-    const iHavePaid = myPayment?.paid ?? !!depositTxHash;
+    const lobbyRole = getLobbyRole(currentMatch, user?.id ?? null);
+    const playerRole = getPlayerRoleForLobby(currentMatch, user?.id ?? null);
+    const myPayment = getPaymentInfoForPlayer(paymentStatus, playerRole);
+    const hasLocalDeposit = isLocalDepositForIdentity(localDeposit, {
+        matchId: currentMatch.id,
+        userId: user?.id ?? null,
+        walletAddress: user?.kaspa_address ?? null,
+    });
+    const iHavePaid = hasPlayerDeposited(paymentStatus, playerRole) || hasLocalDeposit;
     const successState = iHavePaid || currentMatch.status === 'FUNDED';
+
+    useEffect(() => {
+        const shouldRedirect =
+            hasLocalDeposit || currentMatch.status === 'FUNDED' || currentMatch.status === 'LOCKED';
+        if (!shouldRedirect || !lobbyId) return;
+
+        const timer = setTimeout(() => navigate(`/match/${lobbyId}`), 1500);
+        return () => clearTimeout(timer);
+    }, [currentMatch.status, hasLocalDeposit, lobbyId, navigate]);
 
     const handleDepositClick = async () => {
         setLocalError(null);
         try {
+            if (!playerRole) {
+                throw new Error('Nur Match-Teilnehmer können einzahlen.');
+            }
             await executeDeposit(playerRole);
         } catch (err: any) {
             setLocalError(err.message || 'Einzahlung fehlgeschlagen');
@@ -226,28 +242,28 @@ export const EscrowPage: React.FC = () => {
                                     info={paymentStatus.playerA}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}
-                                    isCurrentPlayer={isPlayerA}
+                                    isCurrentPlayer={playerRole === 'A'}
                                 />
                                 <DepositCard
                                     label="Player B (Herausforderer)"
                                     info={paymentStatus.playerB}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}
-                                    isCurrentPlayer={!isPlayerA}
+                                    isCurrentPlayer={playerRole === 'B'}
                                 />
                             </div>
                         ) : (
                             // Fallback before first poll response
                             <div className="bg-kaspa-card p-4 rounded-xl border border-kaspa-border text-center">
                                 <span className="text-kaspa-primary font-bold text-sm">
-                                    {depositTxHash ? `✓ ${t('deposit.success_title')}` : `⏳ ${t('escrow.pending')}`}
+                                    {depositTxHash && hasLocalDeposit ? `✓ ${t('deposit.success_title')}` : `⏳ ${t('escrow.pending')}`}
                                 </span>
                             </div>
                         )}
                     </div>
 
                     {/* Balance warning */}
-                    {!hasEnoughBalance && !iHavePaid && (
+                    {!hasEnoughBalance && !iHavePaid && !!playerRole && (
                         <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⚠️</span>
                             <p className="text-red-400 text-xs font-bold">
@@ -257,7 +273,7 @@ export const EscrowPage: React.FC = () => {
                     )}
 
                     {/* Already paid hint */}
-                    {iHavePaid && !paymentStatus?.both_paid && (
+                    {playerRole && iHavePaid && !paymentStatus?.both_paid && (
                         <div className="p-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">⏳</span>
                             <p className="text-kaspa-primary text-xs font-bold">
@@ -269,7 +285,7 @@ export const EscrowPage: React.FC = () => {
                     {/* Deposit Button */}
                     <button
                         onClick={handleDepositClick}
-                        disabled={!hasEnoughBalance || isDepositing || iHavePaid}
+                        disabled={!playerRole || !hasEnoughBalance || isDepositing || iHavePaid}
                         className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark h-14 rounded-2xl font-black uppercase tracking-tight text-lg shadow-xl shadow-kaspa-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                     >
                         {isDepositing
@@ -290,7 +306,7 @@ export const EscrowPage: React.FC = () => {
                 </div>
 
                 {/* Disclaimer */}
-                {!iHavePaid && (
+                {!iHavePaid && lobbyRole !== 'viewer' && (
                     <div className="mt-8 pt-8 border-t border-kaspa-border/50 text-center">
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest leading-relaxed">
                             {t('escrow.disclaimer')}

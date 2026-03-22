@@ -6,6 +6,7 @@ import { useMatchStore } from '../stores/useMatchStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { formatKas } from '../utils/format';
+import { getPaymentInfoForPlayer, getPlayerRoleForLobby } from '../domain/lobby';
 
 // Compact deposit status badge shown inline on the match page during AWAITING_FUNDING
 function DepositStatusBanner({ matchId }: { matchId: string }) {
@@ -16,9 +17,11 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
 
     if (currentMatch?.status !== 'AWAITING_FUNDING') return null;
 
-    const isPlayerA = user?.id === currentMatch?.creator_user_id;
-    const myPayment = paymentStatus ? (isPlayerA ? paymentStatus.playerA : paymentStatus.playerB) : null;
-    const opPayment = paymentStatus ? (isPlayerA ? paymentStatus.playerB : paymentStatus.playerA) : null;
+    const playerRole = getPlayerRoleForLobby(currentMatch, user?.id ?? null);
+    const myPayment = getPaymentInfoForPlayer(paymentStatus, playerRole);
+    const opPayment = paymentStatus
+        ? (playerRole === 'A' ? paymentStatus.playerB : playerRole === 'B' ? paymentStatus.playerA : null)
+        : null;
 
     return (
         <div className="mb-6 p-5 rounded-2xl border border-kaspa-primary/30 bg-kaspa-primary/5 space-y-3">
@@ -30,7 +33,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
                 <>
                     {/* My deposit status */}
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400 font-bold">{t('match.status.me_player', { player: isPlayerA ? 'A' : 'B' })}</span>
+                        <span className="text-gray-400 font-bold">{t('match.status.me_player', { player: playerRole ?? '?' })}</span>
                         <span className={`font-black ${myPayment?.paid ? 'text-green-400' : 'text-yellow-400'}`}>
                             {myPayment?.paid
                                 ? t('match.status.confirmed')
@@ -41,7 +44,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
                     </div>
                     {/* Opponent status */}
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400 font-bold">{t('match.status.opponent_player', { player: isPlayerA ? 'B' : 'A' })}</span>
+                        <span className="text-gray-400 font-bold">{t('match.status.opponent_player', { player: playerRole === 'A' ? 'B' : playerRole === 'B' ? 'A' : '?' })}</span>
                         <span className={`font-black ${opPayment?.paid ? 'text-green-400' : 'text-gray-500'}`}>
                             {opPayment?.paid
                                 ? t('match.status.confirmed')
@@ -60,7 +63,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
             )}
 
             {/* Go to escrow button if user hasn't paid */}
-            {!myPayment?.paid && (
+            {playerRole && !myPayment?.paid && (
                 <button
                     onClick={() => navigate(`/escrow/${matchId}`)}
                     className="w-full mt-2 h-10 rounded-xl bg-kaspa-primary/20 hover:bg-kaspa-primary/40 text-kaspa-primary font-black uppercase text-xs tracking-widest transition-colors"

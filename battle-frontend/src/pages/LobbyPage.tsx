@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { WS_BASE_URL } from '../config/constants';
 import { useTranslation } from 'react-i18next';
+import { isAvailableChallenge, isMyLobby } from '../domain/lobby';
 
 export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
@@ -37,10 +38,9 @@ export const LobbyPage: React.FC = () => {
 
     // myLobbies: matches where the current user is creator or opponent
     // NOTE: backend returns creator_user_id/opponent_user_id, NOT player_a_faceit_id
-    const myLobbies = lobbies.filter(m =>
-        user?.id && (m.creator_user_id === user.id || m.opponent_user_id === user.id)
-    );
-    const openLobbies = lobbies.filter(m => m.status === 'OPEN' && !myLobbies.includes(m));
+    const currentUserId = user?.id ?? null;
+    const myLobbies = lobbies.filter((lobby) => isMyLobby(lobby, currentUserId));
+    const openLobbies = lobbies.filter((lobby) => isAvailableChallenge(lobby, currentUserId));
 
     return (
         <div className="container mx-auto px-4 py-8">

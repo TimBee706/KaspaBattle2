@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useMatchStore } from '../stores/useMatchStore';
 import { getMatch } from '../api/matches';
-import { API_BASE_URL, MATCH_STATUS_POLL_INTERVAL_MS } from '../config/constants';
+import { MATCH_STATUS_POLL_INTERVAL_MS, WS_BASE_URL } from '../config/constants';
 import type { BattleMatch } from '../api/types';
 
 // Connects to WebSocket for real-time updates and falls back to polling periodically
@@ -37,10 +37,9 @@ export function useMatchPolling(matchId: string | null) {
 
         // 2. Setup WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // Connect to the /api/v1/ws endpoint
-        const wsUrl = API_BASE_URL.startsWith('http')
-            ? API_BASE_URL.replace(/^http/, 'ws') + '/ws'
-            : `${protocol}//${window.location.host}${API_BASE_URL}/ws`;
+        const wsUrl = WS_BASE_URL.startsWith('ws')
+            ? WS_BASE_URL
+            : `${protocol}//${window.location.host}${WS_BASE_URL}`;
 
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;

@@ -83,12 +83,20 @@ pub struct AppState {
     pub multisig_service: Option<Arc<battle_kaspa::multisig::service::MultisigEscrowService>>,
 }
 
+#[derive(Serialize)]
+pub struct ApiErrorResponse {
+    pub error: &'static str,
+    pub message: &'static str,
+}
+
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/health", get(health))
         .route("/lobbies", get(get_lobbies))
         .route("/history", get(get_history))
         .route("/challenges", post(create_challenge))
+        .route("/matches/:id", get(get_match))
         .route("/matches/:id/accept", post(join_challenge))
         .route("/matches/:id/deposit", post(submit_deposit))
         .route("/matches/:id/deposits", get(check_deposits))
@@ -109,6 +117,31 @@ pub fn router() -> Router<AppState> {
         .route("/ws", get(ws_handler))
         .nest("/faceit", faceit::router())
         .nest("/multisig", multisig::router())
+}
+
+pub async fn health(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ApiErrorResponse>)> {
+    sqlx::query("SELECT 1")
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "health check DB ping failed");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ApiErrorResponse {
+                    error: "db_unavailable",
+                    message: "Database connection check failed.",
+                }),
+            )
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "db": "ok",
+        "pool_size": state.pool.size(),
+        "pool_idle": state.pool.num_idle(),
+    })))
 }
 
 pub async fn get_me(
@@ -187,6 +220,8 @@ pub struct WalletVerifyReq {
     pub kaspa_address: String,
     pub signature: String,
     pub public_key: String,
+    #[serde(default)]
+    pub link_to_existing_user: bool,
 }
 
 fn build_auth_cookie(session_token: &str) -> String {
@@ -303,12 +338,18 @@ fn verify_wallet_signature(
 pub async fn create_wallet_login_challenge(
     State(state): State<AppState>,
     Json(payload): Json<WalletChallengeReq>,
-) -> Result<Json<WalletChallengeResponse>, StatusCode> {
+) -> Result<Json<WalletChallengeResponse>, (StatusCode, Json<ApiErrorResponse>)> {
     eprintln!("[wallet-challenge] Request for address: {}", payload.kaspa_address);
 
     if !payload.kaspa_address.starts_with("kaspa:") && !payload.kaspa_address.starts_with("kaspatest:") {
         eprintln!("[wallet-challenge] Rejected: invalid address prefix");
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiErrorResponse {
+                error: "invalid_kaspa_address",
+                message: "Kaspa address must start with kaspa: or kaspatest:.",
+            }),
+        ));
     }
 
     let challenge_id = Uuid::new_v4();
@@ -332,8 +373,46 @@ pub async fn create_wallet_login_challenge(
     .execute(&state.pool)
     .await
     .map_err(|e| {
-        eprintln!("[wallet-challenge] DB insert failed: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        let pool_size = state.pool.size();
+        let pool_idle = state.pool.num_idle();
+        match &e {
+            sqlx::Error::PoolTimedOut => {
+                tracing::warn!(
+                    pool_size,
+                    pool_idle,
+                    kaspa_address = %payload.kaspa_address,
+                    "wallet-challenge DB pool timed out"
+                );
+                eprintln!(
+                    "[wallet-challenge] DB pool timeout: pool_size={}, pool_idle={}",
+                    pool_size, pool_idle
+                );
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(ApiErrorResponse {
+                        error: "db_pool_exhausted",
+                        message: "Authentication service is temporarily busy. Please retry in a moment.",
+                    }),
+                )
+            }
+            _ => {
+                tracing::error!(
+                    error = %e,
+                    pool_size,
+                    pool_idle,
+                    kaspa_address = %payload.kaspa_address,
+                    "wallet-challenge DB insert failed"
+                );
+                eprintln!("[wallet-challenge] DB insert failed: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiErrorResponse {
+                        error: "db_error",
+                        message: "Failed to create wallet login challenge.",
+                    }),
+                )
+            }
+        }
     })?;
 
     eprintln!("[wallet-challenge] ✅ Challenge created: {} for {}", challenge_id, payload.kaspa_address);
@@ -421,8 +500,14 @@ pub async fn verify_wallet_login(
 
     let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
 
+    if payload.link_to_existing_user && existing_token_opt.is_none() {
+        eprintln!("[wallet-verify] Wallet link requested without active session");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     // Wenn bereits authentifiziert → Wallet an bestehenden User verknüpfen
-    if let Some(existing_token) = existing_token_opt {
+    if payload.link_to_existing_user {
+        let existing_token = existing_token_opt.clone().ok_or(StatusCode::UNAUTHORIZED)?;
         if let Ok(existing_user) = auth_service.validate_session(&existing_token).await {
             // Erst: kaspa_address von einem alten Guest-User freigeben falls UNIQUE-Konflikt besteht
             // (z.B. wenn diese Adresse bereits einem Wallet-only User gehörte)
@@ -480,6 +565,13 @@ pub async fn verify_wallet_login(
     }
 
     // 3. Nicht eingeloggt → wie bisher: User suchen oder neu anlegen
+    if let Some(existing_token) = existing_token_opt {
+        let _ = sqlx::query("DELETE FROM sessions WHERE id = $1")
+            .bind(&existing_token)
+            .execute(&state.pool)
+            .await;
+    }
+
     let uuid_str = format!("{:x}", md5::compute(payload.kaspa_address.as_bytes()));
     let fake_uuid = uuid::Uuid::parse_str(&format!(
         "{}-{}-{}-{}-{}",
@@ -608,6 +700,28 @@ pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match
     }
 
     Ok(Json(matches))
+}
+
+pub async fn get_match(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Match>, StatusCode> {
+    let mut m = sqlx::query_as::<_, Match>(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, \
+         player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, \
+         player_a_faceid_hash, player_b_faceid_hash, player_a_deposit_amount_sompi, player_b_deposit_amount_sompi \
+         FROM matches WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(match_id = %id, "get_match failed: {:?}", e);
+        StatusCode::NOT_FOUND
+    })?;
+
+    m.calculate_wager();
+    Ok(Json(m))
 }
 
 pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {

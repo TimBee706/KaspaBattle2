@@ -6,10 +6,10 @@ use axum::{
     routing::get,
     Router,
 };
-use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
@@ -17,6 +17,46 @@ mod api;
 mod episodes;
 mod models;
 mod services;
+
+fn try_load_dotenv() -> Vec<std::path::PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join(".env"));
+        candidates.push(cwd.join("../.env"));
+        candidates.push(cwd.join("kaspabattle/.env"));
+        candidates.push(cwd.join("battle-api/.env"));
+        candidates.push(cwd.join("kaspabattle/battle-api/.env"));
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            candidates.push(exe_dir.join(".env"));
+            candidates.push(exe_dir.join("../.env"));
+            candidates.push(exe_dir.join("../../.env"));
+            candidates.push(exe_dir.join("../../../.env"));
+        }
+    }
+
+    candidates.sort();
+    candidates.dedup();
+
+    for path in &candidates {
+        if path.exists() {
+            match dotenvy::from_path(path) {
+                Ok(()) => {
+                    eprintln!("Loaded environment from {}", path.display());
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("Failed to load {}: {}", path.display(), e);
+                }
+            }
+        }
+    }
+
+    candidates
+}
 
 #[tokio::main]
 async fn main() {
@@ -30,23 +70,25 @@ async fn main() {
         )
         .init();
 
-    // Load .env from cwd first, then try parent (workspace root)
-    if let Err(e) = dotenv() {
-        eprintln!("⚠️ dotenv() failed: {}", e);
-    }
-    // Also try parent directory in case running from battle-api/ subdirectory
-    if let Ok(cwd) = std::env::current_dir() {
-        let parent_env = cwd.join("../.env");
-        if parent_env.exists() {
-            if let Err(e) = dotenvy::from_path(&parent_env) {
-                eprintln!("⚠️ dotenvy::from_path() failed: {}", e);
-            }
-        }
-    }
+    let dotenv_candidates = try_load_dotenv();
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        let searched = dotenv_candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        panic!(
+            "DATABASE_URL must be set. Tried loading .env from: {}",
+            searched
+        );
+    });
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .min_connections(5)
+        .max_connections(20)
+        .acquire_timeout(Duration::from_secs(5))
+        .idle_timeout(Duration::from_secs(300))
+        .max_lifetime(Duration::from_secs(1800))
         .connect(&db_url)
         .await
         .expect("Failed to connect to PostgreSQL. Is the database running?");
@@ -172,6 +214,31 @@ async fn main() {
         }
     }
     eprintln!("✅ DB migration: v0.5 deposit integrity constraints ensured");
+
+    // v0.6 migration: Redesign payments table for aggregate-per-role semantics.
+    //
+    // Old model (v0.5): one row per UTXO, UNIQUE(tx_id, match_id) + uq_payments_match_player_role
+    //   → caused duplicate-key errors when multiple UTXOs were attributed to same role.
+    //
+    // New model (v0.6): one row per (match_id, player_role), aggregating all UTXOs for that role.
+    //   → UPSERT with ON CONFLICT (match_id, player_role) DO UPDATE is now idempotent.
+    let v06_migrations: &[&str] = &[
+        // Drop conflicting per-tx constraint (the old unique index name varies)
+        "ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_tx_id_match_id_key",
+        // Drop old per-role index (created in v0.5)
+        "DROP INDEX IF EXISTS uq_payments_match_player_role",
+        // Drop old per-tx unique index if it exists under another name
+        "DROP INDEX IF EXISTS payments_tx_id_match_id_idx",
+        // Create new canonical unique index: one row per (match_id, player_role)
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_match_role ON payments (match_id, player_role)",
+    ];
+    for migration in v06_migrations {
+        if let Err(e) = sqlx::query(migration).execute(&pool).await {
+            eprintln!("⚠️ v0.6 migration skipped ({}): {}", migration.split_whitespace().take(4).collect::<Vec<_>>().join(" "), e);
+        }
+    }
+    eprintln!("✅ DB migration: v0.6 payments aggregate-per-role constraints ensured");
+
 
     let (tx, _) = broadcast::channel(100);
 
@@ -361,6 +428,7 @@ async fn main() {
 
     let app = Router::new()
         .nest("/api/v1", api::router())
+        .route("/health", get(api::health))
         .route("/ws", get(api::ws_handler))
         .layer(cors)
         .with_state(state.clone());

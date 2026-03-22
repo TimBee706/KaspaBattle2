@@ -1,3 +1,10 @@
 [workspace]
 members = ["battle-core", "battle-kaspa", "battle-api"]
 resolver = "2"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+debug = 0

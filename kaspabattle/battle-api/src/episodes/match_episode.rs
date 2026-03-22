@@ -178,15 +178,16 @@ impl EpisodeTrait for MatchEpisode {
                                 current_daa
                             );
 
-                            // ── Deterministic UTXO attribution ──────────────────────
+                            // ── v0.6: Aggregate UTXOs per player role ────────────────
                             //
-                            // Primary: If submit_deposit recorded a tx_hash for a player,
-                            // UTXOs matching that tx_id are attributed to that player.
+                            // Design: instead of one DB row per UTXO, we maintain ONE row
+                            // per (match_id, player_role) with the total confirmed amount.
+                            // This eliminates all duplicate-key errors from multi-UTXO deposits.
                             //
-                            // Fallback: For UTXOs not matched by tx_hash, use the ordered
-                            // heuristic (first group up to wager = A, rest = B).
-                            //
-                            // This ensures correct attribution regardless of deposit order.
+                            // Attribution priority:
+                            //  1. If UTXO tx_id matches player_X_deposit_tx_hash → that role
+                            //  2. Fallback ordered heuristic: accumulate to wager → A, rest → B
+                            //     (separate accumulator so tx_hash matches don't corrupt it)
 
                             let wager_u64 = wager as u64;
 
@@ -194,9 +195,18 @@ impl EpisodeTrait for MatchEpisode {
                             let mut sorted_utxos = escrow_status.utxos.clone();
                             sorted_utxos.sort_by_key(|u| u.block_daa_score);
 
-                            let mut player_a_confirmed_sompi: u64 = 0;
-                            let mut player_b_confirmed_sompi: u64 = 0;
-                            let mut a_accum: u64 = 0; // running total for heuristic fallback
+                            // Aggregated totals per role
+                            let mut a_total_sompi: u64 = 0;
+                            let mut b_total_sompi: u64 = 0;
+                            // Track the minimum confirmations across all UTXOs per role
+                            // (deposit is only "confirmed" when ALL its UTXOs meet MIN_CONFIRMATIONS)
+                            let mut a_min_confs: u64 = u64::MAX;
+                            let mut b_min_confs: u64 = u64::MAX;
+                            // First tx_id seen for each role (for reference / logging)
+                            let mut a_first_tx = String::new();
+                            let mut b_first_tx = String::new();
+                            // Separate heuristic accumulator (doesn't mix with deterministic)
+                            let mut heuristic_accum: u64 = 0;
 
                             for utxo in &sorted_utxos {
                                 if utxo.is_coinbase {
@@ -206,202 +216,181 @@ impl EpisodeTrait for MatchEpisode {
                                 let confirmations = if current_daa > 0 {
                                     current_daa.saturating_sub(utxo.block_daa_score)
                                 } else if utxo.block_daa_score > 0 {
-                                    // During IBD: node reports DAA=0 but UTXOs have valid
-                                    // block_daa_score — the UTXO is already mined, so treat
-                                    // it as confirmed. We can't compute exact confirmations
-                                    // without the current DAA, but the UTXO's existence in
-                                    // the UTXO set proves it's in a mined block.
+                                    // IBD: node reports DAA=0 but UTXO is mined → treat as confirmed
                                     MIN_CONFIRMATIONS
                                 } else {
                                     0
                                 };
 
-                                // Deterministic attribution:
-                                // 1. If tx_id matches a known deposit tx_hash → use that role
-                                // 2. Else: fallback to ordered heuristic
+                                // Attribution: deterministic first, then heuristic fallback
                                 let role = if player_a_tx_hash.as_deref() == Some(&utxo.tx_id) {
-                                    "A"
+                                    "A" // matched by recorded tx hash
                                 } else if player_b_tx_hash.as_deref() == Some(&utxo.tx_id) {
                                     "B"
-                                } else if a_accum < wager_u64 {
-                                    a_accum += utxo.amount;
+                                } else if heuristic_accum < wager_u64 {
+                                    heuristic_accum += utxo.amount;
                                     "A"
                                 } else {
                                     "B"
                                 };
 
-                                // Fix #3: guard opponent_id for Player B
-                                let player_uuid = match role {
-                                    "A" => Some(creator_id),
-                                    "B" => {
-                                        if opponent_id.is_none() {
-                                            tracing::warn!(
-                                                match_id = %self.match_id,
-                                                tx_id = %utxo.tx_id,
-                                                "⚠️ Role B UTXO but opponent_id is NULL — skipping payment insert"
-                                            );
-                                        }
-                                        opponent_id
-                                    },
-                                    _ => None,
-                                };
-
-                                // Fix #2: Always log every UTXO on every poll for full traceability
                                 eprintln!(
                                     "  🔬 UTXO: tx={} role={} amount={} confs={}/{}",
-                                    &utxo.tx_id[..12], role, utxo.amount, confirmations, MIN_CONFIRMATIONS
+                                    &utxo.tx_id[..12.min(utxo.tx_id.len())], role,
+                                    utxo.amount, confirmations, MIN_CONFIRMATIONS
                                 );
 
-                                // Insert/update payment record (idempotent via UNIQUE constraint)
-                                let inserted = sqlx::query(
+                                match role {
+                                    "A" => {
+                                        a_total_sompi += utxo.amount;
+                                        a_min_confs = a_min_confs.min(confirmations);
+                                        if a_first_tx.is_empty() { a_first_tx = utxo.tx_id.clone(); }
+                                    }
+                                    "B" => {
+                                        b_total_sompi += utxo.amount;
+                                        b_min_confs = b_min_confs.min(confirmations);
+                                        if b_first_tx.is_empty() { b_first_tx = utxo.tx_id.clone(); }
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            // Normalize: if no UTXOs seen for a role, set confs to 0
+                            if a_total_sompi == 0 { a_min_confs = 0; }
+                            if b_total_sompi == 0 { b_min_confs = 0; }
+
+                            let a_confirmed = a_total_sompi >= wager_u64 && a_min_confs >= MIN_CONFIRMATIONS;
+                            let b_confirmed = b_total_sompi >= wager_u64 && b_min_confs >= MIN_CONFIRMATIONS;
+
+                            eprintln!(
+                                "📊 Match {}: A={}/{} sompi ({} confs, {}), B={}/{} sompi ({} confs, {})",
+                                self.match_id,
+                                a_total_sompi, wager_u64, a_min_confs,
+                                if a_confirmed { "✅" } else { "⏳" },
+                                b_total_sompi, wager_u64, b_min_confs,
+                                if b_confirmed { "✅" } else { "⏳" },
+                            );
+
+                            // ── Upsert payments: one row per role, ALL via db_tx ──────
+                            //
+                            // ON CONFLICT (match_id, player_role) → idempotent update.
+                            // No more duplicate-key errors, no mixed pool/transaction writes.
+                            if a_total_sompi > 0 && !a_first_tx.is_empty() {
+                                sqlx::query(
                                     "INSERT INTO payments \
                                      (match_id, player_id, player_role, tx_id, amount_sompi, \
                                       block_daa_score, confirmations) \
-                                     VALUES ($1, $2, $3, $4, $5, $6, $7) \
-                                     ON CONFLICT (tx_id, match_id) DO UPDATE \
-                                     SET confirmations = EXCLUDED.confirmations",
+                                     VALUES ($1, $2, 'A', $3, $4, $5, $6) \
+                                     ON CONFLICT (match_id, player_role) DO UPDATE \
+                                     SET amount_sompi = EXCLUDED.amount_sompi, \
+                                         confirmations = EXCLUDED.confirmations, \
+                                         tx_id = EXCLUDED.tx_id",
                                 )
                                 .bind(self.match_id)
-                                .bind(player_uuid)
-                                .bind(role)
-                                .bind(&utxo.tx_id)
-                                .bind(utxo.amount as i64)
-                                .bind(utxo.block_daa_score as i64)
-                                .bind(confirmations as i32)
-                                .execute(&self.db_pool)
-                                .await;
-
-                                match &inserted {
-                                    Ok(result) => {
-                                        tracing::info!(
-                                            match_id = %self.match_id,
-                                            tx_id = %utxo.tx_id,
-                                            player_role = %role,
-                                            amount_sompi = utxo.amount,
-                                            confirmations,
-                                            rows = result.rows_affected(),
-                                            "💳 UTXO upserted in payments"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            match_id = %self.match_id,
-                                            tx_id = %utxo.tx_id,
-                                            error = %e,
-                                            "❌ Failed to insert payment record"
-                                        );
-                                        eprintln!(
-                                            "  ❌ Payment insert failed: tx={} err={}",
-                                            &utxo.tx_id[..12], e
-                                        );
-                                    }
-                                }
-
-                                // Only count UTXOs with enough confirmations
-                                if confirmations >= MIN_CONFIRMATIONS {
-                                    match role {
-                                        "A" => player_a_confirmed_sompi += utxo.amount,
-                                        "B" => player_b_confirmed_sompi += utxo.amount,
-                                        _ => {}
-                                    }
-                                } else {
-                                    tracing::info!(
-                                        match_id = %self.match_id,
-                                        tx_id = %utxo.tx_id,
-                                        player_role = %role,
-                                        confirmations,
-                                        needed = MIN_CONFIRMATIONS,
-                                        "⏳ UTXO not yet confirmed enough"
-                                    );
-                                }
-                            }
-
-                            let a_met = player_a_confirmed_sompi >= wager_u64;
-                            let b_met = player_b_confirmed_sompi >= wager_u64;
-
-                            eprintln!(
-                                "📊 Match {}: A={}/{} sompi ({}), B={}/{} sompi ({})",
-                                self.match_id,
-                                player_a_confirmed_sompi, wager_u64,
-                                if a_met { "✅" } else { "⏳" },
-                                player_b_confirmed_sompi, wager_u64,
-                                if b_met { "✅" } else { "⏳" },
-                            );
-
-                            // Update per-player confirmed flags
-                            if a_met {
-                                sqlx::query(
-                                    "UPDATE matches SET player_a_deposit_confirmed = true, \
-                                     player_a_deposit_amount_sompi = $1 WHERE id = $2 \
-                                     AND (player_a_deposit_confirmed IS NULL OR player_a_deposit_confirmed = false)",
-                                )
-                                .bind(player_a_confirmed_sompi as i64)
-                                .bind(self.match_id)
-                                .execute(&self.db_pool)
-                                .await?;
-                                tracing::info!(
-                                    match_id = %self.match_id,
-                                    sompi = player_a_confirmed_sompi,
-                                    "✅ Player A deposit confirmed"
-                                );
-                            }
-                            if b_met {
-                                sqlx::query(
-                                    "UPDATE matches SET player_b_deposit_confirmed = true, \
-                                     player_b_deposit_amount_sompi = $1 WHERE id = $2 \
-                                     AND (player_b_deposit_confirmed IS NULL OR player_b_deposit_confirmed = false)",
-                                )
-                                .bind(player_b_confirmed_sompi as i64)
-                                .bind(self.match_id)
-                                .execute(&self.db_pool)
-                                .await?;
-                                tracing::info!(
-                                    match_id = %self.match_id,
-                                    sompi = player_b_confirmed_sompi,
-                                    "✅ Player B deposit confirmed"
-                                );
-                            }
-
-                            // Transition to FUNDED only when both confirmed
-                            if a_met && b_met {
-                                sqlx::query(
-                                    "UPDATE matches SET status = 'FUNDED', \
-                                     player_a_deposit_confirmed = true, \
-                                     player_b_deposit_confirmed = true \
-                                     WHERE id = $1",
-                                )
-                                .bind(self.match_id)
+                                .bind(creator_id)
+                                .bind(&a_first_tx)
+                                .bind(a_total_sompi as i64)
+                                .bind(0i64) // block_daa_score: not used for aggregate
+                                .bind(a_min_confs as i32)
                                 .execute(&mut *db_tx)
                                 .await?;
 
-                                // Fix #1: read via db_tx to see the uncommitted FUNDED state
-                                if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
-                                    "SELECT * FROM matches WHERE id = $1",
+                                tracing::info!(
+                                    match_id = %self.match_id,
+                                    tx_id = %a_first_tx,
+                                    amount_sompi = a_total_sompi,
+                                    confirmations = a_min_confs,
+                                    confirmed = a_confirmed,
+                                    "💳 Player A payments upserted"
+                                );
+                            }
+
+                            if b_total_sompi > 0 && !b_first_tx.is_empty() {
+                                if opponent_id.is_none() {
+                                    tracing::warn!(
+                                        match_id = %self.match_id,
+                                        "⚠️ Player B UTXO detected but opponent_id is NULL — recording without player_id"
+                                    );
+                                }
+                                sqlx::query(
+                                    "INSERT INTO payments \
+                                     (match_id, player_id, player_role, tx_id, amount_sompi, \
+                                      block_daa_score, confirmations) \
+                                     VALUES ($1, $2, 'B', $3, $4, $5, $6) \
+                                     ON CONFLICT (match_id, player_role) DO UPDATE \
+                                     SET amount_sompi = EXCLUDED.amount_sompi, \
+                                         confirmations = EXCLUDED.confirmations, \
+                                         tx_id = EXCLUDED.tx_id",
                                 )
                                 .bind(self.match_id)
-                                .fetch_one(&mut *db_tx)
-                                .await
-                                {
-                                    let mut m = updated;
-                                    m.calculate_wager();
-                                    let _ = self
-                                        .tx
-                                        .send(serde_json::to_string(&m).unwrap_or_default());
-                                }
+                                .bind(opponent_id)
+                                .bind(&b_first_tx)
+                                .bind(b_total_sompi as i64)
+                                .bind(0i64)
+                                .bind(b_min_confs as i32)
+                                .execute(&mut *db_tx)
+                                .await?;
+
+                                tracing::info!(
+                                    match_id = %self.match_id,
+                                    tx_id = %b_first_tx,
+                                    amount_sompi = b_total_sompi,
+                                    confirmations = b_min_confs,
+                                    confirmed = b_confirmed,
+                                    "💳 Player B payments upserted"
+                                );
+                            }
+
+                            // ── Match status update — all in db_tx ───────────────────
+                            if a_confirmed && b_confirmed {
+                                // Both deposits confirmed → FUNDED
+                                sqlx::query(
+                                    "UPDATE matches SET \
+                                     status = 'FUNDED', \
+                                     player_a_deposit_confirmed = true, \
+                                     player_b_deposit_confirmed = true, \
+                                     player_a_deposit_amount_sompi = $2, \
+                                     player_b_deposit_amount_sompi = $3 \
+                                     WHERE id = $1",
+                                )
+                                .bind(self.match_id)
+                                .bind(a_total_sompi as i64)
+                                .bind(b_total_sompi as i64)
+                                .execute(&mut *db_tx)
+                                .await?;
 
                                 eprintln!(
-                                    "💰 Match {} → FUNDED (both deposits confirmed)",
-                                    self.match_id
+                                    "💰 Match {} → FUNDED (A={} confs, B={} confs)",
+                                    self.match_id, a_min_confs, b_min_confs
                                 );
                                 tracing::info!(
                                     match_id = %self.match_id,
                                     "💰 AWAITING_FUNDING → FUNDED (both deposits confirmed)"
                                 );
                             } else {
+                                // Update partial deposit state (for frontend display)
+                                sqlx::query(
+                                    "UPDATE matches SET \
+                                     player_a_deposit_confirmed = $2, \
+                                     player_b_deposit_confirmed = $3, \
+                                     player_a_deposit_amount_sompi = $4, \
+                                     player_b_deposit_amount_sompi = $5 \
+                                     WHERE id = $1",
+                                )
+                                .bind(self.match_id)
+                                .bind(a_confirmed)
+                                .bind(b_confirmed)
+                                .bind(a_total_sompi as i64)
+                                .bind(b_total_sompi as i64)
+                                .execute(&mut *db_tx)
+                                .await?;
+
                                 tracing::info!(
                                     match_id = %self.match_id,
-                                    player_a_sompi = player_a_confirmed_sompi,
-                                    player_b_sompi = player_b_confirmed_sompi,
+                                    player_a_sompi = a_total_sompi,
+                                    player_b_sompi = b_total_sompi,
+                                    a_confs = a_min_confs,
+                                    b_confs = b_min_confs,
                                     wager = wager_u64,
                                     "⏳ Deposits still pending"
                                 );
@@ -432,20 +421,6 @@ impl EpisodeTrait for MatchEpisode {
                                 .bind(self.match_id)
                                 .execute(&mut *db_tx)
                                 .await?;
-
-                                if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
-                                    "SELECT * FROM matches WHERE id = $1",
-                                )
-                                .bind(self.match_id)
-                                .fetch_one(&self.db_pool)
-                                .await
-                                {
-                                    let mut m = updated;
-                                    m.calculate_wager();
-                                    let _ = self
-                                        .tx
-                                        .send(serde_json::to_string(&m).unwrap_or_default());
-                                }
 
                                 tracing::info!(
                                     match_id = %self.match_id,
@@ -511,7 +486,23 @@ impl EpisodeTrait for MatchEpisode {
         }
 
         db_tx.commit().await?;
+
+        // ── Post-commit: broadcast final committed state via WebSocket ──
+        // Reading AFTER commit ensures clients see the real DB state.
+        if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
+            "SELECT * FROM matches WHERE id = $1",
+        )
+        .bind(self.match_id)
+        .fetch_one(&self.db_pool)
+        .await
+        {
+            let mut m = updated;
+            m.calculate_wager();
+            let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+        }
+
         Ok(())
+
     }
 
     async fn rollback(&mut self) -> Result<(), Self::Error> {

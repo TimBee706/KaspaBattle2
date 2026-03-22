@@ -12,7 +12,7 @@ export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || '/ws';
 // FACEIT OAuth
 // Client ID is public but must be set via VITE_FACEIT_CLIENT_ID env variable
 export const FACEIT_CLIENT_ID = import.meta.env.VITE_FACEIT_CLIENT_ID ?? '';
-export const FACEIT_REDIRECT_URI = import.meta.env.VITE_FACEIT_REDIRECT_URI ?? 'http://localhost:8080/api/v1/faceit/callback';
+export const FACEIT_REDIRECT_URI = import.meta.env.VITE_FACEIT_REDIRECT_URI ?? 'http://localhost:5173/auth/faceit/callback';
 export const FACEIT_AUTH_URL = 'https://accounts.faceit.com';
 export const FACEIT_SCOPES = 'openid profile email';
 

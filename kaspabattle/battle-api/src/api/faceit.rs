@@ -92,7 +92,7 @@ async fn login_faceit(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
-    let return_to = infer_return_to(&headers);
+    let return_to = default_frontend_url();
 
     match state
         .faceit_service
@@ -114,7 +114,7 @@ async fn link_faceit(
     headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
-    let return_to = infer_return_to(&headers);
+    let return_to = default_frontend_url();
 
     match state
         .faceit_service
