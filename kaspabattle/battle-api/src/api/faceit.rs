@@ -21,6 +21,7 @@ const FACEIT_CACHE_TTL_SECS: i64 = 300;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/login", get(login_faceit))
+        .route("/auth-url", get(auth_url_faceit))
         .route("/link", get(link_faceit))
         .route("/callback", get(faceit_callback))
         .route("/status", get(faceit_status))
@@ -88,18 +89,52 @@ fn append_query_param(base: &str, key: &str, value: &str) -> String {
     format!("{}{}{}={}", base, separator, key, value)
 }
 
-async fn login_faceit(
+// ── /faceit/auth-url (JSON — für Frontend-navigierten OAuth-Flow) ───────────
+
+#[derive(Serialize)]
+struct AuthUrlResponse {
+    url: String,
+}
+
+async fn auth_url_faceit(
     State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Redirect, axum::http::StatusCode> {
+) -> Result<Json<AuthUrlResponse>, axum::http::StatusCode> {
     let return_to = default_frontend_url();
+    eprintln!("🔐 FACEIT auth-url: return_to={}", return_to);
 
     match state
         .faceit_service
         .generate_auth_url(None, Some(return_to))
         .await
     {
-        Ok((url, _)) => Ok(Redirect::temporary(&url)),
+        Ok((url, _)) => {
+            eprintln!("🔐 FACEIT auth URL (JSON): {}", url);
+            Ok(Json(AuthUrlResponse { url }))
+        }
+        Err(e) => {
+            eprintln!("❌ FACEIT auth-url generation failed: {}", e);
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+
+async fn login_faceit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Redirect, axum::http::StatusCode> {
+    let return_to = default_frontend_url();
+    eprintln!("🔐 FACEIT login: return_to={}", return_to);
+
+    match state
+        .faceit_service
+        .generate_auth_url(None, Some(return_to))
+        .await
+    {
+        Ok((url, _)) => {
+            eprintln!("🔐 FACEIT auth URL: {}", url);
+            Ok(Redirect::temporary(&url))
+        }
         Err(e) => {
             eprintln!("❌ FACEIT auth URL generation failed");
             eprintln!("  Detail: {}", e);

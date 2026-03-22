@@ -1,18 +1,22 @@
 import apiClient from './client';
-import { API_BASE_URL, FACEIT_REDIRECT_URI } from '../config/constants';
+import { FACEIT_REDIRECT_URI } from '../config/constants';
 import type { FaceitAuthResponse } from './types';
 
-// OAuth Login starten – leitet über unser Backend zum FACEIT SSO weiter
-export function startFaceitLogin(): void {
-    window.location.href = `${API_BASE_URL}/faceit/login`;
+// OAuth Login starten – holt FACEIT Auth-URL als JSON und navigiert direkt dorthin.
+// WICHTIG: Nicht über Vite-Proxy redirecten, da der Proxy den 307 serverseitig folgt
+// und der Browser dann auf dem ngrok-URL bleibt → FACEIT zeigt "Fenster schließen".
+export async function startFaceitLogin(): Promise<void> {
+    const res = await apiClient.get<{ url: string }>('/faceit/auth-url');
+    window.location.href = res.data.url;
 }
 
 // OAuth Profil Verknüpfen starten (wenn bereits eingeloggt)
-export function startFaceitLink(): void {
-    window.location.href = `${API_BASE_URL}/faceit/link`;
+export async function startFaceitLink(): Promise<void> {
+    const res = await apiClient.get<{ url: string }>('/faceit/auth-url');
+    window.location.href = res.data.url;
 }
 
-// OAuth Callback verarbeiten – tauscht Code gegen Tokens
+// OAuth Callback verarbeiten – tauscht Code gegen Tokens (dead code, Callback läuft server-seitig)
 export async function handleFaceitCallback(
     code: string,
     state: string,
