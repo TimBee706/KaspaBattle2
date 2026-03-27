@@ -112,6 +112,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/logout", post(logout))
         .route("/me/wallet", axum::routing::patch(update_wallet_address))
         .route("/auth/me/wallet", axum::routing::patch(update_wallet_address))
+        .route("/auth/me/wallet/disconnect", post(disconnect_wallet))
         .route("/auth/wallet-challenge", post(create_wallet_login_challenge))
         .route("/auth/wallet-verify", post(verify_wallet_login))
         .route("/ws", get(ws_handler))
@@ -636,6 +637,27 @@ pub async fn verify_wallet_login(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
     Ok(response)
+}
+
+pub async fn disconnect_wallet(
+    State(state): State<AppState>,
+    crate::api::auth_guard::SessionUserNoWallet(user): crate::api::auth_guard::SessionUserNoWallet,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let user_id = uuid::Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query("UPDATE users SET kaspa_address = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            eprintln!("Error clearing kaspa_address: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "kaspa_address": serde_json::Value::Null,
+    })))
 }
 
 pub async fn logout(

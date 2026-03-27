@@ -361,60 +361,78 @@ impl AuthService {
         Ok(res.rows_affected())
     }
 
-    pub async fn handle_faceit_sso(
-        &self,
-        info: &crate::models::faceit::FaceitUserInfo,
-    ) -> Result<(String, String)> {
-        let row = sqlx::query("SELECT user_id FROM faceit_links WHERE faceit_player_id = $1")
-            .bind(&info.guid)
-            .fetch_optional(&self.db)
-            .await?;
-
-        let user_id: Uuid = if let Some(r) = row {
-            r.try_get("user_id")?
-        } else {
-            let new_user_id = Uuid::new_v4();
-            let email = info
-                .email
-                .clone()
-                .unwrap_or_else(|| format!("{}@faceit.local", info.guid));
-            let display_name = info.nickname.clone();
-            let dummy_pass = Self::hash_password(&Uuid::new_v4().to_string())?;
-
-            let res = sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
-                .bind(&new_user_id)
-                .bind(&email)
-                .bind(&dummy_pass)
-                .bind(&display_name)
-                .execute(&self.db)
-                .await;
-
-            if res.is_err() {
-                let fallback_email = format!(
-                    "{}-{}@faceit.local",
-                    info.guid,
-                    &Uuid::new_v4().to_string()[..6]
-                );
-                sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
-                    .bind(&new_user_id)
-                    .bind(&fallback_email)
-                    .bind(&dummy_pass)
-                    .bind(&display_name)
-                    .execute(&self.db)
-                    .await?;
-            }
-            new_user_id
-        };
-
+    pub async fn issue_session_for_user(&self, user_id: &Uuid) -> Result<String> {
         let session_token = Self::generate_session_token();
         let expires_at = Utc::now() + Duration::days(7);
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
-            .bind(&user_id)
+            .bind(user_id)
             .bind(&expires_at)
             .execute(&self.db)
             .await?;
+
+        Ok(session_token)
+    }
+
+    pub async fn handle_faceit_sso(
+        &self,
+        info: &crate::models::faceit::FaceitUserInfo,
+        preferred_user_id: Option<&str>,
+    ) -> Result<(String, String)> {
+        let user_id: Uuid = if let Some(preferred_user_id) = preferred_user_id {
+            let preferred_uuid = Uuid::parse_str(preferred_user_id)?;
+
+            sqlx::query("SELECT id FROM users WHERE id = $1")
+                .bind(preferred_uuid)
+                .fetch_one(&self.db)
+                .await?;
+
+            preferred_uuid
+        } else {
+            let row = sqlx::query("SELECT user_id FROM faceit_links WHERE faceit_player_id = $1")
+                .bind(&info.guid)
+                .fetch_optional(&self.db)
+                .await?;
+
+            if let Some(r) = row {
+                r.try_get("user_id")?
+            } else {
+                let new_user_id = Uuid::new_v4();
+                let email = info
+                    .email
+                    .clone()
+                    .unwrap_or_else(|| format!("{}@faceit.local", info.guid));
+                let display_name = info.nickname.clone();
+                let dummy_pass = Self::hash_password(&Uuid::new_v4().to_string())?;
+
+                let res = sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
+                    .bind(&new_user_id)
+                    .bind(&email)
+                    .bind(&dummy_pass)
+                    .bind(&display_name)
+                    .execute(&self.db)
+                    .await;
+
+                if res.is_err() {
+                    let fallback_email = format!(
+                        "{}-{}@faceit.local",
+                        info.guid,
+                        &Uuid::new_v4().to_string()[..6]
+                    );
+                    sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
+                        .bind(&new_user_id)
+                        .bind(&fallback_email)
+                        .bind(&dummy_pass)
+                        .bind(&display_name)
+                        .execute(&self.db)
+                        .await?;
+                }
+                new_user_id
+            }
+        };
+
+        let session_token = self.issue_session_for_user(&user_id).await?;
 
         Ok((user_id.to_string(), session_token))
     }

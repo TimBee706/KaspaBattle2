@@ -202,42 +202,71 @@ impl FaceitOAuthService {
         let uid = Uuid::parse_str(user_id)?;
         let link_id = Uuid::new_v4();
         let expires_at = Utc::now() + Duration::seconds(tokens.expires_in as i64);
+        let mut tx = self.db.begin().await?;
 
-        let res = sqlx::query(
-            "INSERT INTO faceit_links (id, user_id, faceit_player_id, faceit_nickname, faceit_avatar_url, access_token, refresh_token, token_expires_at, verified) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT(user_id) DO UPDATE SET 
-             access_token=EXCLUDED.access_token, 
-             refresh_token=EXCLUDED.refresh_token, 
-             token_expires_at=EXCLUDED.token_expires_at"
+        sqlx::query(
+            "DELETE FROM faceit_links WHERE user_id = $1 AND faceit_player_id != $2"
         )
-        .bind(&link_id)
         .bind(&uid)
         .bind(&info.guid)
+        .execute(&mut *tx)
+        .await?;
+
+        let updated = sqlx::query(
+            "UPDATE faceit_links
+             SET user_id = $1,
+                 faceit_nickname = $2,
+                 faceit_avatar_url = $3,
+                 access_token = $4,
+                 refresh_token = $5,
+                 token_expires_at = $6,
+                 verified = $7
+             WHERE faceit_player_id = $8"
+        )
+        .bind(&uid)
         .bind(&info.nickname)
         .bind(&info.picture)
         .bind(&tokens.access_token)
         .bind(&tokens.refresh_token)
         .bind(&expires_at)
         .bind(true)
-        .execute(&self.db)
-        .await;
+        .bind(&info.guid)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
 
-        if let Err(e) = res {
-            if e.to_string().contains("unique constraint") {
-                sqlx::query(
-                    "UPDATE faceit_links SET access_token=$1, refresh_token=$2, token_expires_at=$3 WHERE faceit_player_id=$4"
-                )
-                .bind(&tokens.access_token)
-                .bind(&tokens.refresh_token)
-                .bind(&expires_at)
-                .bind(&info.guid)
-                .execute(&self.db)
-                .await?;
-            } else {
-                return Err(e.into());
-            }
+        if updated == 0 {
+            sqlx::query(
+                "INSERT INTO faceit_links (id, user_id, faceit_player_id, faceit_nickname, faceit_avatar_url, access_token, refresh_token, token_expires_at, verified)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+            )
+            .bind(&link_id)
+            .bind(&uid)
+            .bind(&info.guid)
+            .bind(&info.nickname)
+            .bind(&info.picture)
+            .bind(&tokens.access_token)
+            .bind(&tokens.refresh_token)
+            .bind(&expires_at)
+            .bind(true)
+            .execute(&mut *tx)
+            .await?;
         }
+
+        sqlx::query(
+            "UPDATE users
+             SET faceit_id = $1,
+                 nickname = $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $3"
+        )
+        .bind(&info.guid)
+        .bind(&info.nickname)
+        .bind(&uid)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
 
         Ok(FaceitLink {
             id: link_id.to_string(),

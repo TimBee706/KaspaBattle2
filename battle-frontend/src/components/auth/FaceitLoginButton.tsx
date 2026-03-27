@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { startFaceitLogin } from '../../api/auth';
+import { startFaceitLogin, startFaceitLink } from '../../api/auth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -130,7 +130,7 @@ export function FaceitLoginButton() {
     // Nicht verbunden: Login-Button zeigen
     return (
         <button
-            onClick={startFaceitLogin}
+            onClick={() => (isAuthenticated ? startFaceitLink() : startFaceitLogin())}
             className="flex items-center gap-2.5 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-900/20 active:scale-95 group"
         >
             <svg className="w-5 h-5 group-hover:rotate-12 transition-transform" viewBox="0 0 24 24" fill="currentColor">

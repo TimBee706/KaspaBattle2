@@ -1,5 +1,6 @@
 import apiClient from './client';
 import { FACEIT_REDIRECT_URI } from '../config/constants';
+import { API_BASE_URL } from '../config/constants';
 import type { FaceitAuthResponse } from './types';
 
 // OAuth Login starten – holt FACEIT Auth-URL als JSON und navigiert direkt dorthin.
@@ -12,8 +13,7 @@ export async function startFaceitLogin(): Promise<void> {
 
 // OAuth Profil Verknüpfen starten (wenn bereits eingeloggt)
 export async function startFaceitLink(): Promise<void> {
-    const res = await apiClient.get<{ url: string }>('/faceit/auth-url');
-    window.location.href = res.data.url;
+    window.location.href = `${API_BASE_URL}/faceit/link`;
 }
 
 // OAuth Callback verarbeiten – tauscht Code gegen Tokens (dead code, Callback läuft server-seitig)

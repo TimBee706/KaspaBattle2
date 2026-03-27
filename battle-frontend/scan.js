@@ -6,7 +6,7 @@ async function scan() {
 
     console.log("Connect RPC...");
     const rpcClient = new kaspa.RpcClient({
-        url: 'wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh',
+        url: 'wss://149.154.176.29/kaspa/testnet-10/wrpc/borsh',
         encoding: kaspa.Encoding.Borsh,
         networkId: 'testnet-10'
     });

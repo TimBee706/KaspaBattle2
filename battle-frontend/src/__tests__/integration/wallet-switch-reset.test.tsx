@@ -37,7 +37,7 @@ vi.mock('../../kaspa/wallet', () => ({
     }),
 }));
 
-describe('useWallet identity switching', () => {
+describe('useWallet player account linking', () => {
     beforeEach(() => {
         apiClient.get.mockReset();
         apiClient.post.mockReset();
@@ -47,18 +47,18 @@ describe('useWallet identity switching', () => {
         useWalletStore.getState().disconnect();
     });
 
-    it('invalidates stale auth, lobby, and deposit state before logging in with another wallet', async () => {
+    it('links a wallet to the active FACEIT session without logging the user out', async () => {
         useAuthStore.setState({
             user: {
                 id: 'user-a',
-                faceit_id: '',
-                faceit_nickname: '',
-                faceit_connected: false,
+                faceit_id: 'faceit-user-a',
+                faceit_nickname: 'FaceitA',
+                faceit_connected: true,
                 display_name: 'Player A',
-                faceit_avatar: '',
-                faceit_elo: null,
-                faceit_skill_level: null,
-                kaspa_address: 'kaspatest:qa',
+                faceit_avatar: 'avatar-a',
+                faceit_elo: 1500,
+                faceit_skill_level: 7,
+                kaspa_address: null,
                 total_matches: 0,
                 wins: 0,
                 losses: 0,
@@ -66,9 +66,20 @@ describe('useWallet identity switching', () => {
                 total_won_sompi: 0,
                 created_at: '2026-03-22T00:00:00.000Z',
             },
+            playerAccount: {
+                faceit: {
+                    userId: 'faceit-user-a',
+                    nickname: 'FaceitA',
+                    eloLevel: 7,
+                    avatarUrl: 'avatar-a',
+                },
+                wallet: null,
+                isFullyConnected: false,
+            },
             isAuthenticated: true,
-            walletConnected: true,
-            isFaceitConnected: false,
+            walletConnected: false,
+            isFaceitConnected: true,
+            isFullyConnected: false,
             testMode: false,
         });
         useLobbyStore.setState({
@@ -76,11 +87,11 @@ describe('useWallet identity switching', () => {
                 id: 'match-old',
                 creator_user_id: 'user-a',
                 opponent_user_id: null,
-                player_a_kas_address: 'kaspatest:qa',
+                player_a_kas_address: 'kaspatest:qold',
                 player_b_kas_address: null,
-                player_a_faceit_id: '',
+                player_a_faceit_id: 'faceit-user-a',
                 player_b_faceit_id: null,
-                player_a_faceit_nickname: 'Player A',
+                player_a_faceit_nickname: 'FaceitA',
                 player_b_faceit_nickname: null,
                 faceit_match_id: null,
                 wager_amount_sompi: 1_000_000_000,
@@ -108,11 +119,11 @@ describe('useWallet identity switching', () => {
                 id: 'match-old',
                 creator_user_id: 'user-a',
                 opponent_user_id: 'user-b',
-                player_a_kas_address: 'kaspatest:qa',
+                player_a_kas_address: 'kaspatest:qold',
                 player_b_kas_address: 'kaspatest:qb',
-                player_a_faceit_id: '',
+                player_a_faceit_id: 'faceit-user-a',
                 player_b_faceit_id: '',
-                player_a_faceit_nickname: 'Player A',
+                player_a_faceit_nickname: 'FaceitA',
                 player_b_faceit_nickname: 'Player B',
                 faceit_match_id: null,
                 wager_amount_sompi: 1_000_000_000,
@@ -137,14 +148,13 @@ describe('useWallet identity switching', () => {
                 txHash: 'tx-a',
                 matchId: 'match-old',
                 userId: 'user-a',
-                walletAddress: 'kaspatest:qa',
+                walletAddress: 'kaspatest:qold',
             },
             isDepositing: false,
             paymentStatus: null,
         });
 
-        apiClient.post.mockImplementation(async (url: string) => {
-            if (url === '/auth/logout') return { data: null };
+        apiClient.post.mockImplementation(async (url: string, body?: any) => {
             if (url === '/auth/wallet-challenge') {
                 return {
                     data: {
@@ -154,7 +164,13 @@ describe('useWallet identity switching', () => {
                     },
                 };
             }
-            if (url === '/auth/wallet-verify') return { data: {} };
+            if (url === '/auth/wallet-verify') {
+                expect(body).toMatchObject({
+                    kaspa_address: 'kaspatest:qnewwallet',
+                    link_to_existing_user: true,
+                });
+                return { data: {} };
+            }
             throw new Error(`Unexpected POST ${url}`);
         });
 
@@ -162,14 +178,14 @@ describe('useWallet identity switching', () => {
             if (url === '/auth/me') {
                 return {
                     data: {
-                        id: 'user-b',
-                        faceit_id: '',
-                        faceit_nickname: '',
-                        faceit_connected: false,
-                        display_name: 'Player B',
-                        faceit_avatar: '',
-                        faceit_elo: null,
-                        faceit_skill_level: null,
+                        id: 'user-a',
+                        faceit_id: 'faceit-user-a',
+                        faceit_nickname: 'FaceitA',
+                        faceit_connected: true,
+                        display_name: 'Player A',
+                        faceit_avatar: 'avatar-a',
+                        faceit_elo: 1500,
+                        faceit_skill_level: 7,
                         kaspa_address: 'kaspatest:qnewwallet',
                         total_matches: 0,
                         wins: 0,
@@ -189,8 +205,13 @@ describe('useWallet identity switching', () => {
             await result.current.connectWithMnemonic('seed words');
         });
 
-        expect(useAuthStore.getState().user?.id).toBe('user-b');
+        expect(apiClient.post).not.toHaveBeenCalledWith('/auth/logout');
+        expect(useAuthStore.getState().user?.id).toBe('user-a');
+        expect(useAuthStore.getState().user?.faceit_id).toBe('faceit-user-a');
         expect(useAuthStore.getState().user?.kaspa_address).toBe('kaspatest:qnewwallet');
+        expect(useAuthStore.getState().isFaceitConnected).toBe(true);
+        expect(useAuthStore.getState().walletConnected).toBe(true);
+        expect(useAuthStore.getState().isFullyConnected).toBe(true);
         expect(useLobbyStore.getState().lobbies).toEqual([]);
         expect(useMatchStore.getState().currentMatch).toBeNull();
         expect(useMatchStore.getState().localDeposit).toBeNull();

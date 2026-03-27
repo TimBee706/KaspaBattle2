@@ -34,7 +34,7 @@ export function useWallet() {
         disconnect: storeDisconnect,
     } = useWalletStore();
 
-    const { updateKasAddress, setWalletConnected, fetchUser } = useAuthStore();
+    const { updateKasAddress, clearKasAddress, setWalletConnected, fetchUser, isAuthenticated } = useAuthStore();
     const subscriptionActive = useRef(false);
 
     const fetchBalance = useCallback(async (addr: string) => {
@@ -74,7 +74,6 @@ export function useWallet() {
     const connectWithMnemonic = useCallback(async (phrase: string) => {
         setConnecting(true);
         try {
-            await useAuthStore.getState().logout();
             useLobbyStore.getState().reset();
             useMatchStore.getState().clearMatch();
 
@@ -96,6 +95,7 @@ export function useWallet() {
                     kaspa_address: connection.address,
                     public_key: connection.account.publicKey,
                     signature,
+                    link_to_existing_user: isAuthenticated,
                 });
             } catch (apiError) {
                 console.error('[useWallet] Wallet authentication failed', apiError);
@@ -118,19 +118,27 @@ export function useWallet() {
             await subscribeToUpdates(connection.address);
         } catch (err: any) {
             setError(err.message || 'Connection failed');
+        } finally {
+            setConnecting(false);
         }
-    }, [setWalletConnection, updateKasAddress, setWalletConnected, fetchBalance, subscribeToUpdates, setError, setConnecting, fetchUser]);
+    }, [setWalletConnection, updateKasAddress, setWalletConnected, fetchBalance, subscribeToUpdates, setError, setConnecting, fetchUser, isAuthenticated]);
 
-    const disconnect = useCallback(() => {
+    const disconnect = useCallback(async () => {
         storeDisconnect();
-        void useAuthStore.getState().logout();
         useLobbyStore.getState().reset();
         useMatchStore.getState().clearMatch();
+        clearKasAddress();
         setWalletConnected(false);
         localStorage.removeItem(LEGACY_WALLET_SESSION_KEY);
         sessionStorage.removeItem(LEGACY_WALLET_PHRASE_KEY);
         subscriptionActive.current = false;
-    }, [storeDisconnect, setWalletConnected]);
+        try {
+            await apiClient.post('/auth/me/wallet/disconnect');
+            await fetchUser();
+        } catch (error) {
+            console.warn('[useWallet] Wallet disconnect sync failed', error);
+        }
+    }, [storeDisconnect, clearKasAddress, setWalletConnected, fetchUser]);
 
     useEffect(() => {
         restoreFullWalletState();

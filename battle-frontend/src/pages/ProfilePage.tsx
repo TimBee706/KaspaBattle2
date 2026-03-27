@@ -5,7 +5,7 @@ import { faceitApi } from '../api/faceit';
 import type { FaceitProfileResponse } from '../api/types';
 import type { FaceitStatsResponse } from '../api/faceit';
 import { useTranslation } from 'react-i18next';
-import { startFaceitLogin } from '../api/auth';
+import { startFaceitLogin, startFaceitLink } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 
 // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ function StatSkeleton() {
 }
 
 export function ProfilePage() {
-    const { user, isFaceitConnected, fetchUser } = useAuthStore();
+    const { user, isAuthenticated, isFaceitConnected, fetchUser } = useAuthStore();
     const [faceitData, setFaceitData] = useState<FaceitProfileResponse | null>(null);
     const [gameStats, setGameStats] = useState<FaceitStatsResponse | null>(null);
     const [loadingProfile, setLoadingProfile] = useState(true);
@@ -84,7 +84,7 @@ export function ProfilePage() {
                 <h2 className="text-2xl font-bold mb-2">FACEIT nicht verbunden</h2>
                 <p className="text-gray-400 max-w-md mb-8">Um dein Profil zu sehen, verbinde zuerst deinen FACEIT-Account.</p>
                 <button
-                    onClick={startFaceitLogin}
+                    onClick={() => (isAuthenticated ? startFaceitLink() : startFaceitLogin())}
                     className="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-all"
                 >
                     Mit FACEIT verbinden

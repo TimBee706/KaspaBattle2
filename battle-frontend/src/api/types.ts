@@ -103,6 +103,20 @@ export interface UserProfile {
     created_at: string;
 }
 
+export interface PlayerAccount {
+    faceit: {
+        userId: string;
+        nickname: string;
+        eloLevel: number | null;
+        avatarUrl: string;
+    } | null;
+    wallet: {
+        address: string;
+        connectedAt: number | null;
+    } | null;
+    isFullyConnected: boolean;
+}
+
 // ── Auth Types ──
 export interface AuthTokens {
     access_token: string;

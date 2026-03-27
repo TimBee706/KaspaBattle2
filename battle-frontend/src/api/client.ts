@@ -19,8 +19,15 @@ apiClient.interceptors.response.use(
         if (status === 401 && errorCode === 'faceit_reauth_required') {
             const store = useAuthStore.getState();
             if (store.user) {
+                const wallet = store.playerAccount.wallet;
                 useAuthStore.setState({
                     isFaceitConnected: false,
+                    isFullyConnected: false,
+                    playerAccount: {
+                        faceit: null,
+                        wallet,
+                        isFullyConnected: false,
+                    },
                     user: {
                         ...store.user,
                         faceit_connected: false,

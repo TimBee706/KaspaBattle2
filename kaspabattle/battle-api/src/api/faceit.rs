@@ -178,7 +178,7 @@ async fn faceit_callback(
     Query(query): Query<FaceitCallbackQuery>,
 ) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
     // 1. Token Exchange -> User Info & Tokens holen
-    let (info, tokens, _, return_to) = state
+    let (info, tokens, existing_user_id, return_to) = state
         .faceit_service
         .handle_callback(&query.code, &query.state)
         .await
@@ -192,7 +192,7 @@ async fn faceit_callback(
     // 2. Auth Session Generieren / Faceit Link speichern
     let (uid, session_token) = state
         .auth_service
-        .handle_faceit_sso(&info)
+        .handle_faceit_sso(&info, existing_user_id.as_deref())
         .await
         .map_err(|e| {
             eprintln!("❌ Auth SSO Error for FACEIT user {}", mask_faceit_id(&info.guid));
