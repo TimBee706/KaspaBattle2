@@ -440,6 +440,7 @@ dependencies = [
  "axum",
  "battle-core",
  "battle-kaspa",
+ "battle-kdapp",
  "chrono",
  "dotenvy",
  "ed25519-dalek",
@@ -524,6 +525,36 @@ dependencies = [
  "web-sys",
  "wiremock",
  "zeroize",
+]
+
+[[package]]
+name = "battle-kdapp"
+version = "0.1.0"
+dependencies = [
+ "battle-core",
+ "borsh",
+ "chrono",
+ "env_logger",
+ "js-sys",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-hashes",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wrpc-client",
+ "log",
+ "rand 0.8.5",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid 1.16.0",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

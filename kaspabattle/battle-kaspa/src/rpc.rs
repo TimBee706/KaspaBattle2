@@ -158,16 +158,45 @@ impl RealKaspaClient {
     /// * `node_url` - wRPC endpoint (e.g. `wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh`)
     /// * `network` - Network identifier (e.g. "testnet-10")
     pub async fn new(node_url: &str, network: &str) -> std::result::Result<Self, KaspaError> {
-        use kaspa_wrpc_client::WrpcEncoding;
+        Self::new_with_resolver(Some(node_url), network).await
+    }
 
-        tracing::info!("Connecting to Kaspa node: {}", node_url);
+    /// Create a new RealKaspaClient with optional Resolver support.
+    ///
+    /// If `node_url` is `None` or empty, uses the Kaspa Resolver to automatically
+    /// discover the best available node on the PNN (Public Node Network).
+    /// This replaces the hardcoded `wss://photon-10.kaspa.red/...` URL.
+    ///
+    /// # Arguments
+    /// * `node_url` - Optional explicit wRPC endpoint. If `None`, Resolver is used.
+    /// * `network` - Network identifier (e.g. "testnet-10")
+    pub async fn new_with_resolver(node_url: Option<&str>, network: &str) -> std::result::Result<Self, KaspaError> {
+        use kaspa_wrpc_client::WrpcEncoding;
+        use kaspa_wrpc_client::prelude::Resolver;
 
         let network_id = Self::parse_network_id(network)?;
 
+        // Resolve URL via Kaspa Resolver if not explicitly provided
+        let resolved_url = match node_url {
+            Some(url) if !url.is_empty() => {
+                tracing::info!("Connecting to Kaspa node (explicit): {}", url);
+                url.to_string()
+            }
+            _ => {
+                tracing::info!("Using Kaspa Resolver to discover node for {}", network);
+                Resolver::default()
+                    .get_url(WrpcEncoding::Borsh, network_id)
+                    .await
+                    .map_err(|e| KaspaError::ConnectionFailed(format!("Resolver failed: {}", e)))?
+            }
+        };
+
+        tracing::info!("Resolved Kaspa node URL: {}", resolved_url);
+
         let client = kaspa_wrpc_client::KaspaRpcClient::new(
             WrpcEncoding::Borsh,
-            Some(node_url),
-            None, // no resolver
+            Some(&resolved_url),
+            None, // Resolver already resolved
             Some(network_id),
             None,
         )
@@ -177,7 +206,7 @@ impl RealKaspaClient {
 
         let real_client = Self {
             inner: client,
-            node_url: node_url.to_string(),
+            node_url: resolved_url,
             connected: Arc::new(RwLock::new(false)),
         };
 
@@ -197,6 +226,7 @@ impl RealKaspaClient {
             "mainnet" => Ok(NetworkId::new(NetworkType::Mainnet)),
             "testnet-10" | "testnet10" => Ok(NetworkId::with_suffix(NetworkType::Testnet, 10)),
             "testnet-11" | "testnet11" => Ok(NetworkId::with_suffix(NetworkType::Testnet, 11)),
+            "testnet-12" | "testnet12" => Ok(NetworkId::with_suffix(NetworkType::Testnet, 12)),
             "testnet" => Ok(NetworkId::new(NetworkType::Testnet)),
             _ => Err(KaspaError::ConnectionFailed(format!(
                 "Unknown network: {}",

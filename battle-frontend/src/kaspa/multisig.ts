@@ -153,17 +153,15 @@ export function shortenAddress(address: string, chars: number = 6): string {
 }
 
 /** Build a Kaspa explorer URL for a transaction */
-export function explorerTxUrl(txId: string, network: 'mainnet' | 'testnet-10' = 'testnet-10'): string {
-  if (network === 'mainnet') {
-    return `https://explorer.kaspa.org/txs/${txId}`;
-  }
-  return `https://explorer-tn10.kaspa.org/txs/${txId}`;
+export function explorerTxUrl(txId: string, network: 'mainnet' | 'testnet-10' | 'testnet-11' | 'testnet-12' = 'testnet-10'): string {
+  const explorerBase = network === 'mainnet' ? 'https://kas.fyi' : 'https://testnet.kas.fyi';
+  const baseUrl = `${explorerBase}/tx/${txId}`;
+  return network.startsWith('testnet') ? `${baseUrl}?network=${network}` : baseUrl;
 }
 
 /** Build a Kaspa explorer URL for an address */
-export function explorerAddressUrl(address: string, network: 'mainnet' | 'testnet-10' = 'testnet-10'): string {
-  if (network === 'mainnet') {
-    return `https://explorer.kaspa.org/addresses/${address}`;
-  }
-  return `https://explorer-tn10.kaspa.org/addresses/${address}`;
+export function explorerAddressUrl(address: string, network: 'mainnet' | 'testnet-10' | 'testnet-11' | 'testnet-12' = 'testnet-10'): string {
+  const explorerBase = network === 'mainnet' ? 'https://kas.fyi' : 'https://testnet.kas.fyi';
+  const baseUrl = `${explorerBase}/address/${address}`;
+  return network.startsWith('testnet') ? `${baseUrl}?network=${network}` : baseUrl;
 }

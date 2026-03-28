@@ -1,5 +1,12 @@
 /// Blockchain watcher — polls escrow addresses for deposits.
 ///
+/// **⚠️ DEPRECATED (v0.7):** This polling-based watcher is superseded by the
+/// kdapp Proxy/Engine in `battle-kdapp`. New code should use:
+/// - `battle_kdapp::kdapp_proxy::run_listener()` for event-based TX detection
+/// - `battle_kdapp::episode::BattleEpisode` for deposit confirmation logic
+///
+/// This module remains for backward compatibility during the migration period.
+///
 /// F-008: `evaluate_deposits` now takes explicit player addresses and evaluates
 /// each player's deposit individually based on which UTXOs originate from their
 /// sender address. This closes the vulnerability where one player could deposit

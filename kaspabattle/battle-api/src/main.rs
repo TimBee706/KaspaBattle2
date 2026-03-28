@@ -58,6 +58,27 @@ fn try_load_dotenv() -> Vec<std::path::PathBuf> {
     candidates
 }
 
+fn normalized_kaspa_node_url() -> Option<String> {
+    let url = std::env::var("KASPA_NODE_URL").ok()?;
+    let trimmed = url.trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Retire the legacy public testnet endpoint so stale local env files no longer
+    // bypass Resolver-based discovery.
+    if trimmed.contains("photon-10.kaspa.red") {
+        eprintln!(
+            "Ignoring legacy KASPA_NODE_URL={} and falling back to Kaspa Resolver",
+            trimmed
+        );
+        return None;
+    }
+
+    Some(trimmed.to_string())
+}
+
 #[tokio::main]
 async fn main() {
     // ── Structured Logging ──────────────────────────────────────────────────
@@ -258,8 +279,8 @@ async fn main() {
     ));
 
     // ── battle-kaspa: Initialize Kaspa escrow infrastructure ──
-    let kaspa_node_url = std::env::var("KASPA_NODE_URL")
-        .unwrap_or_else(|_| "wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh".to_string());
+    // If KASPA_NODE_URL is set, use it directly. Otherwise, Resolver auto-discovers the best node.
+    let kaspa_node_url = normalized_kaspa_node_url();
     let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-10".to_string());
     let kaspa_mnemonic = std::env::var("KASPA_MNEMONIC").ok();
 
@@ -269,11 +290,18 @@ async fn main() {
     );
     eprintln!("✅ EscrowWallet initialized (network: {})", kaspa_network);
 
-    // Connect to Kaspa node (optional — don't crash if node is unreachable during dev)
+    // Connect to Kaspa node via Resolver (or explicit URL if set)
     let kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>> =
-        match battle_kaspa::rpc::RealKaspaClient::new(&kaspa_node_url, &kaspa_network).await {
+        match battle_kaspa::rpc::RealKaspaClient::new_with_resolver(
+            kaspa_node_url.as_deref(),
+            &kaspa_network,
+        ).await {
             Ok(client) => {
-                eprintln!("✅ Connected to Kaspa node: {}", kaspa_node_url);
+                eprintln!("✅ Connected to Kaspa node{}", 
+                    kaspa_node_url.as_ref()
+                        .map(|u| format!(": {}", u))
+                        .unwrap_or_else(|| " (via Resolver)".to_string())
+                );
                 Some(Arc::new(client))
             }
             Err(e) => {
@@ -522,6 +550,29 @@ async fn main() {
             }
         }
     });
+
+    // ── kdapp Engine + Proxy (v0.7 — on-chain Episode processing) ─────────
+    // Runs parallel to the legacy episode-runner above.
+    // Uses battle-kdapp's convenience function to hide Engine/Proxy internals.
+    {
+        let kdapp_network = std::env::var("KASPA_NETWORK")
+            .unwrap_or_else(|_| "testnet-10".to_string());
+        let kdapp_rpc_url = normalized_kaspa_node_url();
+
+        match battle_kdapp::startup::spawn_kdapp_services(
+            state.pool.clone(),
+            state.tx.clone(),
+            &kdapp_network,
+            kdapp_rpc_url,
+        ) {
+            Ok(_handle) => {
+                eprintln!("✅ kdapp Engine + Proxy started (network: {})", kdapp_network);
+            }
+            Err(e) => {
+                eprintln!("⚠️ kdapp Engine + Proxy failed to start: {} — disabled", e);
+            }
+        }
+    }
 
     axum::serve(listener, app).await.unwrap();
 }

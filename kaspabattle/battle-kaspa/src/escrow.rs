@@ -24,10 +24,12 @@
 /// - Timeout refunds are automatic (F-006).
 ///
 /// **Roadmap**:
-/// 1. Evaluate Kasplex L2 maturity for MatchEscrow contract deployment.
-/// 2. Alternatively, implement 2-of-2 multi-sig UTXO scripts as an interim
+/// 1. **ACTIVE (v0.7)**: Migrate deposit/payout logic to `battle_kdapp::episode::BattleEpisode`
+///    where players sign their own commands via kdapp PKI — removes server-side key custody.
+/// 2. Evaluate Kasplex L2 maturity for MatchEscrow contract deployment.
+/// 3. Alternatively, implement 2-of-2 multi-sig UTXO scripts as an interim
 ///    trustless step (requires both server + user co-signature).
-/// 3. Migrate fund custody to on-chain mechanism before Mainnet launch.
+/// 4. Migrate fund custody to on-chain mechanism before Mainnet launch.
 ///
 /// TODO(F-001): Replace this off-chain custody model before production.
 use std::sync::Arc;
@@ -418,7 +420,7 @@ mod tests {
         let match_id = Uuid::new_v4();
         let pk_a = "02b0c368d18e8ac4a77033cb2118dbb0a5ee3e1afb1419726207c4bbee5aa5e62f";
         let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
-        let network = NetworkId::from_str("testnet-10").unwrap();
+        let network = NetworkId::from_str("testnet-12").unwrap();
 
         let addr1 = derive_escrow_address(&match_id, pk_a, pk_b, network.clone()).unwrap();
         let addr2 = derive_escrow_address(&match_id, pk_a, pk_b, network).unwrap();
@@ -435,7 +437,7 @@ mod tests {
         let match_id2 = Uuid::new_v4();
         let pk_a = "02b0c368d18e8ac4a77033cb2118dbb0a5ee3e1afb1419726207c4bbee5aa5e62f";
         let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
-        let network = NetworkId::from_str("testnet-10").unwrap();
+        let network = NetworkId::from_str("testnet-12").unwrap();
 
         let addr1 = derive_escrow_address(&match_id1, pk_a, pk_b, network.clone()).unwrap();
         let addr2 = derive_escrow_address(&match_id2, pk_a, pk_b, network).unwrap();
@@ -451,7 +453,7 @@ mod tests {
         let match_id = Uuid::new_v4();
         let pk_a = "short";
         let pk_b = "short_too";
-        let network = NetworkId::from_str("testnet-10").unwrap();
+        let network = NetworkId::from_str("testnet-12").unwrap();
 
         let result = derive_escrow_address(&match_id, pk_a, pk_b, network);
         assert!(result.is_err());

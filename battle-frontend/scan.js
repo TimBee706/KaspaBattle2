@@ -6,9 +6,9 @@ async function scan() {
 
     console.log("Connect RPC...");
     const rpcClient = new kaspa.RpcClient({
-        url: 'wss://149.154.176.29/kaspa/testnet-10/wrpc/borsh',
+        url: 'wss://n-testnet-12.kaspa.ws/wrpc/borsh',
         encoding: kaspa.Encoding.Borsh,
-        networkId: 'testnet-10'
+        networkId: 'testnet-12'
     });
     await rpcClient.connect();
 
@@ -21,7 +21,7 @@ async function scan() {
     console.log("Scanning Receive Addresses...");
     let total = 0n;
     for (let i = 0; i < 20; i++) {
-        const addr = publicKeyGenerator.receiveAddress('testnet-10', i);
+        const addr = publicKeyGenerator.receiveAddress('testnet-12', i);
         const res = await rpcClient.getBalanceByAddress({ address: addr.toString() });
         const bal = typeof res.balance === 'bigint' ? res.balance : BigInt(res.balance || 0);
         if (bal > 0n) {
@@ -32,7 +32,7 @@ async function scan() {
 
     console.log("Scanning Change Addresses...");
     for (let i = 0; i < 20; i++) {
-        const addr = publicKeyGenerator.changeAddress('testnet-10', i);
+        const addr = publicKeyGenerator.changeAddress('testnet-12', i);
         const res = await rpcClient.getBalanceByAddress({ address: addr.toString() });
         const bal = typeof res.balance === 'bigint' ? res.balance : BigInt(res.balance || 0);
         if (bal > 0n) {

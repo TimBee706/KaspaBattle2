@@ -100,8 +100,23 @@ export const EscrowPage: React.FC = () => {
     const { executeDeposit, isDepositing, depositTxHash } = useEscrowDeposit();
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Auto-redirect: either after local TX success OR when backend confirms FUNDED
-    useEffect(() => undefined, []);
+    const hasLocalDeposit = currentMatch
+        ? isLocalDepositForIdentity(localDeposit, {
+            matchId: currentMatch.id,
+            userId: user?.id ?? null,
+            walletAddress: user?.kaspa_address ?? null,
+        })
+        : false;
+
+    useEffect(() => {
+        const status = currentMatch?.status;
+        const shouldRedirect =
+            hasLocalDeposit || status === 'FUNDED' || status === 'LOCKED';
+        if (!shouldRedirect || !lobbyId) return;
+
+        const timer = setTimeout(() => navigate(`/match/${lobbyId}`), 1500);
+        return () => clearTimeout(timer);
+    }, [currentMatch?.status, hasLocalDeposit, lobbyId, navigate]);
 
     // ── Early returns ─────────────────────────────────────────────────────────
     if (matchError || localError) {
@@ -135,22 +150,8 @@ export const EscrowPage: React.FC = () => {
     const lobbyRole = getLobbyRole(currentMatch, user?.id ?? null);
     const playerRole = getPlayerRoleForLobby(currentMatch, user?.id ?? null);
     const myPayment = getPaymentInfoForPlayer(paymentStatus, playerRole);
-    const hasLocalDeposit = isLocalDepositForIdentity(localDeposit, {
-        matchId: currentMatch.id,
-        userId: user?.id ?? null,
-        walletAddress: user?.kaspa_address ?? null,
-    });
     const iHavePaid = hasPlayerDeposited(paymentStatus, playerRole) || hasLocalDeposit;
     const successState = iHavePaid || currentMatch.status === 'FUNDED';
-
-    useEffect(() => {
-        const shouldRedirect =
-            hasLocalDeposit || currentMatch.status === 'FUNDED' || currentMatch.status === 'LOCKED';
-        if (!shouldRedirect || !lobbyId) return;
-
-        const timer = setTimeout(() => navigate(`/match/${lobbyId}`), 1500);
-        return () => clearTimeout(timer);
-    }, [currentMatch.status, hasLocalDeposit, lobbyId, navigate]);
 
     const handleDepositClick = async () => {
         setLocalError(null);

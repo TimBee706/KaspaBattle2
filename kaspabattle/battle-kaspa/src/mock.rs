@@ -157,7 +157,7 @@ impl KaspaRpc for MockKaspaClient {
             server_version: "mock-0.15.0".to_string(),
             is_synced: synced,
             is_utxo_indexed: true,
-            network: "testnet-10".to_string(),
+            network: "testnet-12".to_string(),
         })
     }
 
@@ -223,7 +223,7 @@ mod tests {
         assert!(info.is_synced);
         assert!(info.is_utxo_indexed);
         assert_eq!(info.server_version, "mock-0.15.0");
-        assert_eq!(info.network, "testnet-10");
+        assert_eq!(info.network, "testnet-12");
     }
 
     #[tokio::test]
