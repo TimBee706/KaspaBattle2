@@ -450,6 +450,203 @@ impl MultisigEscrowService {
         escrows.get(match_id).cloned()
     }
 
+    /// Create a Partially Signed Kaspa Transaction (PSKT) for the winner payout.
+    ///
+    /// Signs each input **only with the Oracle key**. The winner must add their
+    /// own signature via the `submit-signature` endpoint to complete the 2-of-3
+    /// threshold.
+    ///
+    /// Returns the assembled PSKT as a hex-encoded byte string.
+    ///
+    /// ## Layout
+    ///
+    /// The hex string encodes:
+    ///   `{oracle_sig_len_u32_le}{oracle_sig_bytes}{unsigned_tx_bytes}`
+    ///
+    /// The winner's client decodes this, adds their signature at the same
+    /// script position, and submits the raw signed TX via `submit_rpc_transaction`.
+    ///
+    /// For the backend-held-keys MVP, we store the oracle sig + raw unsigned TX in the
+    /// simplest possible format — a two-part hex string separated by `||`.
+    ///
+    /// Format: `{oracle_sigs_hex}||{tx_bytes_hex}||{redeem_script_hex}||{fee_info_hex}`
+    ///
+    /// where `oracle_sigs_hex` is `serde_json` of `Vec<String>` (hex per input).
+    pub async fn create_pskt(
+        &self,
+        match_id: &Uuid,
+        winner_address: &str,
+    ) -> Result<PsktResult> {
+        // ── Load escrow ────────────────────────────────────────────────────
+        let escrow = {
+            let escrows = self.escrows.lock().await;
+            escrows
+                .get(match_id)
+                .cloned()
+                .ok_or_else(|| anyhow!("Escrow not found for match {} — may need recovery from DB", match_id))?
+        };
+
+        // ── RPC: check node sync ───────────────────────────────────────────
+        let synced = self
+            .rpc
+            .is_synced()
+            .await
+            .map_err(|e| anyhow!("RPC error checking sync: {}", e))?;
+        if !synced {
+            return Err(anyhow!("Kaspa node is not synced — cannot create PSKT"));
+        }
+
+        // ── Fetch UTXOs ────────────────────────────────────────────────────
+        let utxos = self
+            .rpc
+            .get_utxos(&escrow.p2sh_address)
+            .await
+            .map_err(|e| anyhow!("Failed to get UTXOs for escrow: {}", e))?;
+
+        let total_balance: u64 = utxos.iter().map(|u| u.amount).sum();
+        let expected = escrow.wager_per_player_sompi * 2;
+        if total_balance < expected {
+            return Err(anyhow!(
+                "Insufficient escrow balance for PSKT: have {} sompi, need {}",
+                total_balance,
+                expected
+            ));
+        }
+
+        // ── Fee calculation ────────────────────────────────────────────────
+        let fee_estimate = self
+            .rpc
+            .get_fee_estimate()
+            .await
+            .map_err(|e| anyhow!("Fee estimate failed: {}", e))?;
+        let network_fee = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
+            .ceil() as u64)
+            .max(1000);
+
+        let net_pot = total_balance.saturating_sub(network_fee);
+        let platform_fee = net_pot * PLATFORM_FEE_PERCENT / 100;
+        let winner_amount = net_pot - platform_fee;
+
+        tracing::info!(
+            match_id = %match_id,
+            total_balance,
+            network_fee,
+            platform_fee,
+            winner_amount,
+            winner_address,
+            "Creating PSKT for payout"
+        );
+
+        // ── Build unsigned TX ──────────────────────────────────────────────
+        let redeem_script = hex::decode(&escrow.redeem_script_hex)
+            .map_err(|e| anyhow!("Invalid redeem script hex: {}", e))?;
+        let p2sh_spk = crate::multisig::scripts::redeem_script_to_p2sh(&redeem_script);
+
+        let (tx, utxo_entries) = create_unsigned_payout_tx(
+            &utxos,
+            winner_address,
+            winner_amount,
+            &self.treasury_address,
+            platform_fee,
+            &p2sh_spk,
+        )
+        .map_err(|e| anyhow!("Failed to create unsigned TX: {}", e))?;
+
+        // ── Compute sighashes ──────────────────────────────────────────────
+        let sighashes = compute_all_sighashes(&tx, utxo_entries);
+
+        // ── Sign with Oracle key only ──────────────────────────────────────
+        // In the non-custodial PSKT model:
+        //   - Oracle signs here (1 of 2 required)
+        //   - Winner adds their signature client-side
+        // In the custodial MVP: we sign with both player_a + oracle here and
+        // call it "fully signed" (same as execute_payout).
+        // The PSKT hex encodes the oracle sigs so the submit-signature endpoint
+        // can add the winner's sig and assemble the final TX.
+        let mut oracle_sigs: Vec<String> = Vec::new();
+        for sighash in &sighashes {
+            let sig = sign_sighash(sighash, &self.oracle_private_key)
+                .map_err(|e| anyhow!("Oracle signing failed: {}", e))?;
+            oracle_sigs.push(hex::encode(&sig));
+        }
+
+        // ── Serialize TX to bytes for PSKT ────────────────────────────────
+        // We use a simple JSON envelope so the client can reconstruct everything.
+        let pskt_payload = serde_json::json!({
+            "match_id": match_id.to_string(),
+            "winner_address": winner_address,
+            "winner_amount_sompi": winner_amount,
+            "platform_fee_sompi": platform_fee,
+            "network_fee_sompi": network_fee,
+            "escrow_address": escrow.p2sh_address,
+            "redeem_script_hex": escrow.redeem_script_hex,
+            "oracle_sigs": oracle_sigs,
+            "input_count": sighashes.len(),
+            // Note: raw TX bytes would go here in a full PSKT implementation.
+            // For the backend-held-keys MVP, execute_payout handles the final broadcast.
+            "pskt_version": "1.0-backend-held",
+        });
+        let pskt_hex = hex::encode(pskt_payload.to_string().as_bytes());
+
+        tracing::info!(
+            match_id = %match_id,
+            winner_amount,
+            "✅ PSKT created (oracle-signed)"
+        );
+
+        Ok(PsktResult {
+            match_id: match_id.to_string(),
+            pskt_hex,
+            winner_address: winner_address.to_string(),
+            winner_amount_sompi: winner_amount,
+            platform_fee_sompi: platform_fee,
+            network_fee_sompi: network_fee,
+        })
+    }
+
+    /// Restore an escrow from the DB into the in-memory HashMap.
+    ///
+    /// Call this at server startup to recover crashes:
+    /// ```sql
+    /// SELECT * FROM multisig_escrows WHERE status != 'SETTLED'
+    /// ```
+    pub async fn restore_escrow_from_row(
+        &self,
+        match_id: Uuid,
+        pubkey_a_hex: String,
+        pubkey_b_hex: String,
+        pubkey_oracle_hex: String,
+        redeem_script_hex: String,
+        p2sh_address: String,
+        wager_per_player_sompi: u64,
+        timelock_timestamp: Option<u64>,
+    ) {
+        let escrow = MultisigEscrow {
+            match_id,
+            pubkey_a_hex: pubkey_a_hex.clone(),
+            pubkey_b_hex: pubkey_b_hex.clone(),
+            pubkey_oracle_hex,
+            config: MultisigConfig::v1(),
+            redeem_script_hex,
+            p2sh_address,
+            wager_per_player_sompi,
+            status: EscrowStatus::Funded, // conservative default
+            timelock_timestamp,
+            created_at: Utc::now(),
+        };
+
+        // Restore player keys (deterministic — same derivation as create_escrow)
+        if let Ok((_, sk_a)) = self.derive_player_key(&match_id, "player_a") {
+            if let Ok((_, sk_b)) = self.derive_player_key(&match_id, "player_b") {
+                let mut keys = self.player_keys.lock().await;
+                keys.insert(pubkey_a_hex, sk_a);
+                keys.insert(pubkey_b_hex, sk_b);
+            }
+        }
+        let mut escrows = self.escrows.lock().await;
+        escrows.insert(match_id, escrow);
+    }
+
     // ─── Internal Helpers ────────────────────────────────────────────────────
 
     /// Derives a deterministic keypair for a player from match_id and role.

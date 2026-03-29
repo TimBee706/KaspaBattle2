@@ -8,7 +8,7 @@ import type {
 export async function createMatch(data: CreateMatchRequest): Promise<CreateMatchResponse> {
     const res = await apiClient.post<any>('/challenges', {
         game_id: data.game_id,
-        stake_kas: data.wager_amount_sompi,
+        wager_sompi: data.wager_amount_sompi,
         mode: data.match_mode.toUpperCase()
     });
     return {

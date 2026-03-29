@@ -8,6 +8,12 @@
         "back_to_lobby": "TO LOBBY",
         "profile": "Profile"
     },
+    "footer_links": {
+        "whitepaper": "Whitepaper",
+        "terms": "Terms",
+        "discord": "Discord",
+        "support": "Support"
+    },
     "hero": {
         "beta_tag": "ENTRY PHASE 1: OPEN BETA",
         "title": "PLAY TO WIN <1>KASPA</1>",
@@ -79,7 +85,12 @@
         "connect_wallet_join": "Connect wallet to join!",
         "faceit_connected_as": "Connected to FACEIT as",
         "connect_faceit_join": "Connect FACEIT to join!",
-        "test_mode_notice": "Test mode: Joining without FACEIT is possible."
+        "test_mode_notice": "Test mode: Joining without FACEIT is possible.",
+        "match_suffix": "Match",
+        "role_creator": "Creator",
+        "role_opponent": "Opponent",
+        "waiting_for_opponent": "Waiting for opponent...",
+        "status_label": "Status:"
     },
     "wallet": {
         "import_title": "Import Wallet",
@@ -124,7 +135,23 @@
             "net_profit": "Net Profit"
         },
         "rank": "Player Rank",
-        "next_level": "Next level after {{count}} wins"
+        "next_level": "Next level after {{count}} wins",
+        "not_connected_title": "FACEIT Not Connected",
+        "not_connected_text": "To view your profile, please connect your FACEIT account first.",
+        "connect_faceit": "Connect with FACEIT",
+        "cs2_stats_title": "CS2 FACEIT Stats",
+        "stats_retry_failed": "Retry attempt failed.",
+        "stats_retry": "Try again",
+        "ranks": {
+            "silver_commander": "SILVER COMMANDER"
+        },
+        "stats_labels": {
+            "matches": "Matches",
+            "kd": "K/D",
+            "hs": "HS %",
+            "wins": "Wins",
+            "recent_results": "Recent Results:"
+        }
     },
     "challenge": {
         "create": "Create Challenge",
@@ -191,6 +218,8 @@
         "deposit_stake": "DEPOSIT STAKE",
         "waiting_funding": "Waiting for funding...",
         "waiting_funding_info": "Once both players have deposited, the match will be locked and the Oracle will start tracking.",
+        "game_id_input": "FACEIT match ID required",
+        "game_id_input_info": "Both players need to submit the same FACEIT match ID before the match can continue.",
         "running": "MATCH RUNNING...",
         "running_info": "Play now on FACEIT. The result will be automatically tracked after the game.",
         "paid_out": "Winnings Paid Out",
@@ -220,13 +249,21 @@
         "close": "CLOSE"
     },
     "status": {
+        "DRAFT": "Draft",
         "OPEN": "Open",
+        "AWAITING_FUNDING": "Awaiting Funding",
         "FUNDED": "Funding In Progress",
         "LOCKED": "Locked / In Game",
+        "GAME_ID_INPUT": "Waiting for Match ID",
+        "IN_GAME": "In Game",
+        "FINISHED_FACEIT": "FACEIT Finished",
+        "READY_FOR_PAYOUT": "Ready for Payout",
+        "RESOLVING": "Resolving",
         "RESOLVED": "Resolved",
         "PAID_OUT": "Paid Out",
         "DISPUTED": "Dispute",
-        "CANCELLED": "Cancelled"
+        "CANCELLED": "Cancelled",
+        "UNKNOWN": "Unknown"
     },
     "escrow": {
         "title": "Challenge created!",
@@ -238,7 +275,12 @@
         "low_balance": "Insufficient balance.",
         "waiting_opponent": "Your deposit is confirmed — waiting for opponent...",
         "deposit_now": "💰 Deposit now",
-        "disclaimer": "Note: After deposit, the challenge will be published in the lobby."
+        "disclaimer": "Note: After deposit, the challenge will be published in the lobby.",
+        "status_confirmed": "✅ Confirmed",
+        "status_waiting": "⏳ Waiting...",
+        "status_confirmations": "⏳ Confirmations...",
+        "me_suffix": "(Me)",
+        "low_balance_hint": "Min {{amount}} KAS required"
     },
     "common": {
         "loading": "Loading...",
@@ -254,7 +296,8 @@
         "header": {
             "title": "Kaspa Battle",
             "wallet": "Wallet",
-            "language": "Language"
+            "language": "Language",
+            "test_mode": "TestMode"
         },
         "buttons": {
             "next": "Next",

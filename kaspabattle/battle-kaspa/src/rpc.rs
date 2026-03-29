@@ -508,8 +508,7 @@ impl KaspaRpc for RealKaspaClient {
             }
             match self.get_node_info().await {
                 Ok(info) => {
-                    eprintln!(
-                        "🔍 Node status: synced={}, utxo_indexed={}, version={}",
+                    tracing::debug!("🔍 Node status: synced={}, utxo_indexed={}, version={}",
                         info.is_synced, info.is_utxo_indexed, info.server_version
                     );
                     if info.is_synced && info.is_utxo_indexed {
@@ -520,8 +519,7 @@ impl KaspaRpc for RealKaspaClient {
                         return Ok(());
                     }
                     if !info.is_utxo_indexed {
-                        eprintln!(
-                            "🚨 UTXO index NOT enabled — start kaspad with --utxoindex"
+                        tracing::info!("🚨 UTXO index NOT enabled — start kaspad with --utxoindex"
                         );
                     }
                     tracing::info!(
@@ -531,7 +529,7 @@ impl KaspaRpc for RealKaspaClient {
                 }
                 Err(e) => {
                     tracing::warn!("Node not reachable yet: {}", e);
-                    eprintln!("⏳ Waiting for Kaspa node RPC... ({})", e);
+                    tracing::debug!("⏳ Waiting for Kaspa node RPC... ({})", e);
                 }
             }
             tokio::time::sleep(Duration::from_secs(5)).await;

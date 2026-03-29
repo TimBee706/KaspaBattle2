@@ -1,1 +1,1 @@
-ALTER TYPE match_status ADD VALUE 'FUNDED';
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid = 'match_status'::regtype AND enumlabel = 'FUNDED') THEN ALTER TYPE match_status ADD VALUE 'FUNDED'; END IF; END $$;

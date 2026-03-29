@@ -41,7 +41,7 @@ export const ChallengeModal: React.FC = () => {
             : isFaceIdMissing
                 ? t('challenge.connect_faceit_hint')
                 : isBalanceLow
-                    ? t('challenge.low_balance_hint', `Mindestens ${minWager} KAS erforderlich`)
+                    ? t('escrow.low_balance_hint', { amount: minWager })
                     : null;
 
         return (

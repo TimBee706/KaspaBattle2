@@ -1,8 +1,9 @@
 use crate::errors::MatchError;
 use serde::{Deserialize, Serialize};
 
-/// Match states — reflects the full lifecycle including Dispute.
+/// Match states — reflects the full lifecycle including FaceIT integration and Dispute.
 /// F-009: Added `Disputed` variant to block payouts and enable dispute resolution.
+/// F-010: Added FaceIT integration states: GameIdInput, InGame, FinishedFaceit, ReadyForPayout.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MatchState {
     WaitingForOpponent,
@@ -11,6 +12,27 @@ pub enum MatchState {
         player_b_deposited: bool,
     },
     Locked,
+    /// F-010: Both deposits confirmed, waiting for both players to enter FaceIT match ID.
+    /// Entered automatically from Locked/Funded state (no manual trigger needed).
+    GameIdInput {
+        faceit_id_a: Option<String>,
+        faceit_id_b: Option<String>,
+    },
+    /// F-010: Both players confirmed the same FaceIT match ID. Watcher is active.
+    InGame {
+        faceit_match_id: String,
+    },
+    /// F-010: FaceIT reported the match as finished. Winner has been mapped.
+    FinishedFaceit {
+        winner_id: String,
+        loser_id: String,
+        score: String,
+    },
+    /// F-010: PSKT has been created and signed by the oracle. Waiting for winner to sign.
+    ReadyForPayout {
+        winner_id: String,
+        pskt_hex: String,
+    },
     Resolved {
         winner_id: String,
     },
@@ -33,6 +55,10 @@ impl MatchState {
             MatchState::WaitingForOpponent => "WaitingForOpponent",
             MatchState::WaitingForDeposits { .. } => "WaitingForDeposits",
             MatchState::Locked => "Locked",
+            MatchState::GameIdInput { .. } => "GameIdInput",
+            MatchState::InGame { .. } => "InGame",
+            MatchState::FinishedFaceit { .. } => "FinishedFaceit",
+            MatchState::ReadyForPayout { .. } => "ReadyForPayout",
             MatchState::Resolved { .. } => "Resolved",
             MatchState::Disputed { .. } => "Disputed",
             MatchState::Cancelled { .. } => "Cancelled",
@@ -62,6 +88,30 @@ pub enum MatchAction {
         player_id: String,
         tx_hash: String,
         amount: u64,
+    },
+    /// F-010: Automatically transitions from Locked/Funded to GameIdInput.
+    /// Triggered by the episode runner immediately after both deposits are confirmed.
+    TransitionToGameIdInput,
+    /// F-010: A player submits their FaceIT match ID.
+    SubmitFaceitMatchId {
+        player_id: String,
+        faceit_match_id: String,
+    },
+    /// F-010: FaceIT Watcher determined the match result.
+    FaceitMatchFinished {
+        winner_id: String,
+        loser_id: String,
+        score: String,
+    },
+    /// F-010: Backend oracle created the PSKT and signed it.
+    PsktCreated {
+        winner_id: String,
+        pskt_hex: String,
+    },
+    /// F-010: Winner submitted their signature, TX has been broadcast.
+    PayoutBroadcast {
+        tx_hash: String,
+        winner_id: String,
     },
     ResolveWinner {
         winner_id: String,
@@ -124,8 +174,29 @@ pub fn transition(
             })
         }
 
+        // GameIdInput can be cancelled by either player (before game starts)
+        (MatchState::GameIdInput { .. }, MatchAction::Cancel { player_id, reason }) => {
+            let is_player_a = player_id == player_a_id;
+            let is_player_b = player_b_id.map(|b| player_id == b).unwrap_or(false);
+            if !is_player_a && !is_player_b {
+                return Err(MatchError::NotAPlayer);
+            }
+            Ok(MatchState::Cancelled { reason: reason.clone() })
+        }
+
         // Cancel after Locked → Error
         (MatchState::Locked, MatchAction::Cancel { .. }) => {
+            Err(MatchError::CannotCancelLockedMatch)
+        }
+        (MatchState::InGame { .. }, MatchAction::Cancel { .. }) => {
+            Err(MatchError::CannotCancelLockedMatch)
+        }
+        // Match is finished on FaceIT side — result is final, no cancellation
+        (MatchState::FinishedFaceit { .. }, MatchAction::Cancel { .. }) => {
+            Err(MatchError::CannotCancelLockedMatch)
+        }
+        // Payout is pending winner signature — no cancellation allowed
+        (MatchState::ReadyForPayout { .. }, MatchAction::Cancel { .. }) => {
             Err(MatchError::CannotCancelLockedMatch)
         }
         (MatchState::Resolved { .. }, MatchAction::Cancel { .. }) => {
@@ -193,6 +264,132 @@ pub fn transition(
             action: "DepositConfirmed".to_string(),
         }),
 
+        // === TRANSITION TO GAME ID INPUT ===
+        // F-010: Episode runner triggers this automatically after both deposits are confirmed.
+        (MatchState::Locked, MatchAction::TransitionToGameIdInput) => {
+            Ok(MatchState::GameIdInput {
+                faceit_id_a: None,
+                faceit_id_b: None,
+            })
+        }
+
+        // Already in GameIdInput — idempotent
+        (MatchState::GameIdInput { .. }, MatchAction::TransitionToGameIdInput) => {
+            Ok(current_state.clone())
+        }
+
+        (_, MatchAction::TransitionToGameIdInput) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "TransitionToGameIdInput".to_string(),
+        }),
+
+        // === SUBMIT FACEIT MATCH ID ===
+        // F-010: A player submits their FaceIT match ID.
+        (
+            MatchState::GameIdInput { faceit_id_a, faceit_id_b },
+            MatchAction::SubmitFaceitMatchId { player_id, faceit_match_id },
+        ) => {
+            let is_player_a = player_id == player_a_id;
+            let is_player_b = player_b_id.map(|b| player_id == b).unwrap_or(false);
+
+            if !is_player_a && !is_player_b {
+                return Err(MatchError::NotAPlayer);
+            }
+
+            let new_id_a = if is_player_a {
+                Some(faceit_match_id.clone())
+            } else {
+                faceit_id_a.clone()
+            };
+            let new_id_b = if is_player_b {
+                Some(faceit_match_id.clone())
+            } else {
+                faceit_id_b.clone()
+            };
+
+            // Check if both are submitted and whether they match
+            match (&new_id_a, &new_id_b) {
+                (Some(id_a), Some(id_b)) => {
+                    if id_a == id_b {
+                        Ok(MatchState::InGame {
+                            faceit_match_id: faceit_match_id.clone(),
+                        })
+                    } else {
+                        // IDs mismatch — store both but remain in GameIdInput
+                        // The handler layer should return a 409 and inform the user
+                        Err(MatchError::FaceitMatchIdMismatch {
+                            id_a: id_a.clone(),
+                            id_b: id_b.clone(),
+                        })
+                    }
+                }
+                // Only one player has submitted so far
+                _ => Ok(MatchState::GameIdInput {
+                    faceit_id_a: new_id_a,
+                    faceit_id_b: new_id_b,
+                }),
+            }
+        }
+
+        (_, MatchAction::SubmitFaceitMatchId { .. }) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "SubmitFaceitMatchId".to_string(),
+        }),
+
+        // === FACEIT MATCH FINISHED ===
+        // F-010: FaceIT Watcher reports match result.
+        (MatchState::InGame { .. }, MatchAction::FaceitMatchFinished { winner_id, loser_id, score }) => {
+            Ok(MatchState::FinishedFaceit {
+                winner_id: winner_id.clone(),
+                loser_id: loser_id.clone(),
+                score: score.clone(),
+            })
+        }
+
+        (_, MatchAction::FaceitMatchFinished { .. }) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "FaceitMatchFinished".to_string(),
+        }),
+
+        // === PSKT CREATED ===
+        // F-010: Backend created the PSKT after FaceIT confirmed the winner.
+        (MatchState::FinishedFaceit { winner_id, .. }, MatchAction::PsktCreated { winner_id: pskt_winner, pskt_hex }) => {
+            if winner_id != pskt_winner {
+                return Err(MatchError::InvalidTransition {
+                    from: "FinishedFaceit".to_string(),
+                    action: "PsktCreated (winner mismatch)".to_string(),
+                });
+            }
+            Ok(MatchState::ReadyForPayout {
+                winner_id: winner_id.clone(),
+                pskt_hex: pskt_hex.clone(),
+            })
+        }
+
+        (_, MatchAction::PsktCreated { .. }) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "PsktCreated".to_string(),
+        }),
+
+        // === PAYOUT BROADCAST ===
+        // F-010: Winner signed and TX was broadcast.
+        (MatchState::ReadyForPayout { winner_id, .. }, MatchAction::PayoutBroadcast { winner_id: broadcast_winner, .. }) => {
+            if winner_id != broadcast_winner {
+                return Err(MatchError::InvalidTransition {
+                    from: "ReadyForPayout".to_string(),
+                    action: "PayoutBroadcast (winner mismatch)".to_string(),
+                });
+            }
+            Ok(MatchState::Resolved {
+                winner_id: winner_id.clone(),
+            })
+        }
+
+        (_, MatchAction::PayoutBroadcast { .. }) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "PayoutBroadcast".to_string(),
+        }),
+
         // === RESOLVE WINNER ===
         // F-009: Resolve is blocked if match is already Disputed.
         (MatchState::Disputed { .. }, MatchAction::ResolveWinner { .. }) => {
@@ -241,6 +438,8 @@ pub fn transition(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Existing Tests (preserved) ───────────────────────────────────────────
 
     #[test]
     fn test_join_match_success() {
@@ -365,11 +564,10 @@ mod tests {
         }
     }
 
-    // === F-009 Dispute Tests ===
+    // ── F-009 Dispute Tests ──────────────────────────────────────────────────
 
     #[test]
     fn test_initiate_dispute_from_resolved_by_player_a() {
-        // Scenario: Oracle resolved with player_b but player_a disputes
         let state = MatchState::Resolved {
             winner_id: "bob".to_string(),
         };
@@ -437,7 +635,6 @@ mod tests {
 
     #[test]
     fn test_dispute_from_locked_is_invalid() {
-        // Can only dispute after Resolved, not from Locked
         let state = MatchState::Locked;
         let action = MatchAction::InitiateDispute {
             player_id: "alice".to_string(),
@@ -454,7 +651,6 @@ mod tests {
 
     #[test]
     fn test_resolve_is_blocked_when_disputed() {
-        // F-009: Once disputed, can't resolve again
         let state = MatchState::Disputed {
             reason: "Some dispute".to_string(),
             disputed_by: "alice".to_string(),
@@ -487,5 +683,293 @@ mod tests {
             reason: "test".to_string()
         }
         .allows_payout());
+    }
+
+    // ── F-010 FaceIT Integration Tests ───────────────────────────────────────
+
+    #[test]
+    fn test_transition_locked_to_game_id_input() {
+        let state = MatchState::Locked;
+        let result = transition(&state, &MatchAction::TransitionToGameIdInput, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::GameIdInput { faceit_id_a, faceit_id_b } => {
+                assert!(faceit_id_a.is_none());
+                assert!(faceit_id_b.is_none());
+            }
+            other => panic!("Expected GameIdInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_transition_to_game_id_input_idempotent() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: Some("abc".to_string()),
+            faceit_id_b: None,
+        };
+        let result = transition(&state, &MatchAction::TransitionToGameIdInput, "alice", Some("bob"));
+        assert!(result.is_ok());
+        // Should stay in GameIdInput unchanged
+        match result.unwrap() {
+            MatchState::GameIdInput { .. } => {}
+            other => panic!("Expected GameIdInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_transition_to_game_id_input_from_wrong_state_fails() {
+        let state = MatchState::WaitingForOpponent;
+        let result = transition(&state, &MatchAction::TransitionToGameIdInput, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::InvalidTransition { .. } => {}
+            other => panic!("Expected InvalidTransition, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_submit_faceit_id_player_a_first() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: None,
+            faceit_id_b: None,
+        };
+        let action = MatchAction::SubmitFaceitMatchId {
+            player_id: "alice".to_string(),
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::GameIdInput { faceit_id_a, faceit_id_b } => {
+                assert_eq!(faceit_id_a, Some("match-uuid-123".to_string()));
+                assert!(faceit_id_b.is_none());
+            }
+            other => panic!("Expected GameIdInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_submit_faceit_id_both_same_triggers_in_game() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: Some("match-uuid-123".to_string()),
+            faceit_id_b: None,
+        };
+        let action = MatchAction::SubmitFaceitMatchId {
+            player_id: "bob".to_string(),
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::InGame { faceit_match_id } => {
+                assert_eq!(faceit_match_id, "match-uuid-123");
+            }
+            other => panic!("Expected InGame, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_submit_faceit_id_mismatch_returns_error() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: Some("match-uuid-AAA".to_string()),
+            faceit_id_b: None,
+        };
+        let action = MatchAction::SubmitFaceitMatchId {
+            player_id: "bob".to_string(),
+            faceit_match_id: "match-uuid-BBB".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::FaceitMatchIdMismatch { id_a, id_b } => {
+                assert_eq!(id_a, "match-uuid-AAA");
+                assert_eq!(id_b, "match-uuid-BBB");
+            }
+            other => panic!("Expected FaceitMatchIdMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_submit_faceit_id_stranger_fails() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: None,
+            faceit_id_b: None,
+        };
+        let action = MatchAction::SubmitFaceitMatchId {
+            player_id: "stranger".to_string(),
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::NotAPlayer => {}
+            other => panic!("Expected NotAPlayer, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_submit_faceit_id_in_wrong_state_fails() {
+        let state = MatchState::Locked;
+        let action = MatchAction::SubmitFaceitMatchId {
+            player_id: "alice".to_string(),
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::InvalidTransition { .. } => {}
+            other => panic!("Expected InvalidTransition, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_faceit_match_finished_from_in_game() {
+        let state = MatchState::InGame {
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let action = MatchAction::FaceitMatchFinished {
+            winner_id: "alice".to_string(),
+            loser_id: "bob".to_string(),
+            score: "16:10".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::FinishedFaceit { winner_id, score, .. } => {
+                assert_eq!(winner_id, "alice");
+                assert_eq!(score, "16:10");
+            }
+            other => panic!("Expected FinishedFaceit, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_faceit_match_finished_from_wrong_state_fails() {
+        let state = MatchState::Locked;
+        let action = MatchAction::FaceitMatchFinished {
+            winner_id: "alice".to_string(),
+            loser_id: "bob".to_string(),
+            score: "16:10".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::InvalidTransition { .. } => {}
+            other => panic!("Expected InvalidTransition, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pskt_created_from_finished_faceit() {
+        let state = MatchState::FinishedFaceit {
+            winner_id: "alice".to_string(),
+            loser_id: "bob".to_string(),
+            score: "16:10".to_string(),
+        };
+        let action = MatchAction::PsktCreated {
+            winner_id: "alice".to_string(),
+            pskt_hex: "deadbeef".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::ReadyForPayout { winner_id, pskt_hex } => {
+                assert_eq!(winner_id, "alice");
+                assert_eq!(pskt_hex, "deadbeef");
+            }
+            other => panic!("Expected ReadyForPayout, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pskt_created_winner_mismatch_fails() {
+        let state = MatchState::FinishedFaceit {
+            winner_id: "alice".to_string(),
+            loser_id: "bob".to_string(),
+            score: "16:10".to_string(),
+        };
+        let action = MatchAction::PsktCreated {
+            winner_id: "bob".to_string(), // WRONG: alice won
+            pskt_hex: "deadbeef".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::InvalidTransition { .. } => {}
+            other => panic!("Expected InvalidTransition, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_payout_broadcast_from_ready_for_payout() {
+        let state = MatchState::ReadyForPayout {
+            winner_id: "alice".to_string(),
+            pskt_hex: "deadbeef".to_string(),
+        };
+        let action = MatchAction::PayoutBroadcast {
+            winner_id: "alice".to_string(),
+            tx_hash: "on-chain-tx-hash".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::Resolved { winner_id } => {
+                assert_eq!(winner_id, "alice");
+            }
+            other => panic!("Expected Resolved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_payout_broadcast_wrong_winner_fails() {
+        let state = MatchState::ReadyForPayout {
+            winner_id: "alice".to_string(),
+            pskt_hex: "deadbeef".to_string(),
+        };
+        let action = MatchAction::PayoutBroadcast {
+            winner_id: "bob".to_string(), // WRONG
+            tx_hash: "on-chain-tx-hash".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::InvalidTransition { .. } => {}
+            other => panic!("Expected InvalidTransition, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cancel_in_game_id_input_by_player_a() {
+        let state = MatchState::GameIdInput {
+            faceit_id_a: None,
+            faceit_id_b: None,
+        };
+        let action = MatchAction::Cancel {
+            player_id: "alice".to_string(),
+            reason: "Taking too long".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_ok());
+        match result.unwrap() {
+            MatchState::Cancelled { reason } => assert_eq!(reason, "Taking too long"),
+            other => panic!("Expected Cancelled, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cancel_in_game_fails() {
+        let state = MatchState::InGame {
+            faceit_match_id: "match-uuid-123".to_string(),
+        };
+        let action = MatchAction::Cancel {
+            player_id: "alice".to_string(),
+            reason: "Rage quit".to_string(),
+        };
+        let result = transition(&state, &action, "alice", Some("bob"));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MatchError::CannotCancelLockedMatch => {}
+            other => panic!("Expected CannotCancelLockedMatch, got {:?}", other),
+        }
     }
 }

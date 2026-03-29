@@ -177,6 +177,13 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                             </div>
                         )}
 
+                        {match.status === 'GAME_ID_INPUT' && (
+                            <div className="p-4 bg-cyan-900/10 border border-cyan-500/20 rounded-xl">
+                                <p className="text-xs text-cyan-400 font-bold mb-1">{t('match.game_id_input')}</p>
+                                <p className="text-[10px] text-gray-400">{t('match.game_id_input_info')}</p>
+                            </div>
+                        )}
+
                         {match.status === 'PAID_OUT' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
                                 <div className="text-3xl mb-2">💎</div>

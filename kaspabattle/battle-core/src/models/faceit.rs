@@ -14,8 +14,8 @@ pub struct FaceitOAuthConfig {
 /// Wird in der DB gespeichert: Zuordnung User ↔ FACEIT-Account
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FaceitLink {
-    pub id: String,
-    pub user_id: String,
+    pub id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
     pub faceit_player_id: String, // FACEIT GUID
     pub faceit_nickname: String,
     pub faceit_elo: Option<i32>,

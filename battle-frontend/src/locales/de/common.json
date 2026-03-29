@@ -8,6 +8,12 @@
         "back_to_lobby": "ZUR LOBBY",
         "profile": "Profil"
     },
+    "footer_links": {
+        "whitepaper": "Whitepaper",
+        "terms": "AGB",
+        "discord": "Discord",
+        "support": "Support"
+    },
     "hero": {
         "beta_tag": "Beitritt Phase 1: OPEN BETA",
         "title": "PLAY TO WIN <1>KASPA</1>",
@@ -79,7 +85,12 @@
         "connect_wallet_join": "Wallet verbinden zum Beitreten!",
         "faceit_connected_as": "Mit FACEIT verbunden als",
         "connect_faceit_join": "FACEIT verbinden zum Beitreten!",
-        "test_mode_notice": "Test-Modus: Beitreten ohne FACEIT möglich."
+        "test_mode_notice": "Test-Modus: Beitreten ohne FACEIT möglich.",
+        "match_suffix": "Match",
+        "role_creator": "Creator",
+        "role_opponent": "Gegner",
+        "waiting_for_opponent": "Warten auf Gegner...",
+        "status_label": "Status:"
     },
     "wallet": {
         "import_title": "Wallet importieren",
@@ -124,7 +135,23 @@
             "net_profit": "Netto Profit"
         },
         "rank": "Player Rank",
-        "next_level": "Nächstes Level bei {{count}} Siegen"
+        "next_level": "Nächstes Level bei {{count}} Siegen",
+        "not_connected_title": "FACEIT nicht verbunden",
+        "not_connected_text": "Um dein Profil zu sehen, verbinde zuerst deinen FACEIT-Account.",
+        "connect_faceit": "Mit FACEIT verbinden",
+        "cs2_stats_title": "CS2 FACEIT Stats",
+        "stats_retry_failed": "Erneuter Versuch fehlgeschlagen.",
+        "stats_retry": "Erneut versuchen",
+        "ranks": {
+            "silver_commander": "SILVER COMMANDER"
+        },
+        "stats_labels": {
+            "matches": "Matches",
+            "kd": "K/D",
+            "hs": "HS %",
+            "wins": "Wins",
+            "recent_results": "Letzte Ergebnisse:"
+        }
     },
     "challenge": {
         "create": "Challenge erstellen",
@@ -191,6 +218,8 @@
         "deposit_stake": "EINSATZ EINZAHLEN",
         "waiting_funding": "Warten auf Funding...",
         "waiting_funding_info": "Sobald beide Spieler eingezahlt haben, wird das Match gesperrt und der Oracle beginnt das Tracking.",
+        "game_id_input": "FACEIT Match-ID wird erwartet",
+        "game_id_input_info": "Beide Spieler mussen dieselbe FACEIT Match-ID einreichen, bevor das Match weiterverarbeitet wird.",
         "running": "MATCH LÄUFT...",
         "running_info": "Spiele jetzt auf FACEIT. Das Ergebnis wird nach dem Spiel automatisch erfasst.",
         "paid_out": "Gewinn Ausgezahlt",
@@ -220,13 +249,21 @@
         "close": "SCHLIESSEN"
     },
     "status": {
+        "DRAFT": "Entwurf",
         "OPEN": "Offen",
+        "AWAITING_FUNDING": "Wartet auf Einzahlung",
         "FUNDED": "Funding läuft",
         "LOCKED": "Sperre / Im Spiel",
+        "GAME_ID_INPUT": "Wartet auf Match-ID",
+        "IN_GAME": "Im Spiel",
+        "FINISHED_FACEIT": "FACEIT beendet",
+        "READY_FOR_PAYOUT": "Bereit fur Auszahlung",
+        "RESOLVING": "Wird aufgelost",
         "RESOLVED": "Beendet",
         "PAID_OUT": "Ausgezahlt",
         "DISPUTED": "Dispute",
-        "CANCELLED": "Abgebrochen"
+        "CANCELLED": "Abgebrochen",
+        "UNKNOWN": "Unbekannt"
     },
     "escrow": {
         "title": "Challenge erstellt!",
@@ -238,7 +275,12 @@
         "low_balance": "Nicht genügend Guthaben vorhanden.",
         "waiting_opponent": "Deine Einzahlung ist bestätigt — warte auf deinen Gegner...",
         "deposit_now": "💰 Jetzt einzahlen",
-        "disclaimer": "Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht."
+        "disclaimer": "Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht.",
+        "status_confirmed": "✅ Bestätigt",
+        "status_waiting": "⏳ Warte...",
+        "status_confirmations": "⏳ Confirmations...",
+        "me_suffix": "(Du)",
+        "low_balance_hint": "Mindestens {{amount}} KAS erforderlich"
     },
     "common": {
         "loading": "Laden...",
@@ -254,7 +296,8 @@
         "header": {
             "title": "Kaspa Battle",
             "wallet": "Wallet",
-            "language": "Sprache"
+            "language": "Sprache",
+            "test_mode": "TestModus"
         },
         "buttons": {
             "next": "Weiter",

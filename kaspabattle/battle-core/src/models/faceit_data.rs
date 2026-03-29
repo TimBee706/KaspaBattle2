@@ -72,12 +72,32 @@ pub struct FaceitMatchDetails {
     pub status: String,
     pub game_id: String,
     pub results: Option<FaceitMatchResults>,
+    pub teams: Option<FaceitMatchTeams>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FaceitMatchTeams {
+    pub faction1: FaceitMatchFaction,
+    pub faction2: FaceitMatchFaction,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FaceitMatchFaction {
+    pub faction_id: String,
+    pub name: String,
+    pub roster: Vec<FaceitMatchRosterPlayer>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FaceitMatchRosterPlayer {
+    pub player_id: String,
+    pub nickname: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FaceitStatsSnapshot {
-    pub id: String,
-    pub user_id: String,
+    pub id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
     pub faceit_player_id: String,
     pub game_id: String,
     pub elo: i32,

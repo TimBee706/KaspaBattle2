@@ -39,7 +39,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                             <span className="font-black text-white tracking-tight group-hover:text-emerald-400 transition-colors uppercase">
                                 {m.game_id || 'CS2'} | {m.match_mode || (m as any).mode || 'BO1'}
                             </span>
-                            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Status: {m.status}</span>
+                            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">{t('lobby.status_label')} {m.status}</span>
                         </div>
                         <div className="flex items-center gap-6">
                             <span className="font-black text-xl text-emerald-400 tracking-tighter">
@@ -54,7 +54,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                                     disabled={loading === m.id || !kaspaAddress || (!isFaceitConnected && !testMode)}
                                     className="bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 rounded-lg font-black uppercase tracking-tighter disabled:opacity-30 disabled:hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
                                 >
-                                    {loading === m.id ? '...' : 'Join'}
+                                    {loading === m.id ? '...' : t('lobby.join')}
                                 </button>
                             )}
                         </div>

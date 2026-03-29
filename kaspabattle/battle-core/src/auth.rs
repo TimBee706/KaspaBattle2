@@ -105,7 +105,7 @@ impl AuthService {
             .await?;
 
         Ok(AuthResponse {
-            user_id: user_id.to_string(),
+            user_id,
             display_name,
             session_token,
             expires_at: expires_at.to_rfc3339(),
@@ -155,7 +155,7 @@ impl AuthService {
             .await?;
 
         Ok(AuthResponse {
-            user_id: user_id.to_string(),
+            user_id,
             display_name,
             session_token,
             expires_at: expires_at.to_rfc3339(),
@@ -180,7 +180,7 @@ impl AuthService {
             let last_login_at: Option<DateTime<Utc>> = r.try_get("last_login_at")?;
 
             Ok(User {
-                id: id.to_string(),
+                id,
                 email: r.try_get("email")?,
                 email_verified: r.try_get("email_verified")?,
                 password_hash: r.try_get("password_hash")?,
@@ -244,7 +244,7 @@ impl AuthService {
             let last_login_at: Option<DateTime<Utc>> = r.try_get("last_login_at")?;
 
             Ok(User {
-                id: id.to_string(),
+                id,
                 email: r.try_get("email")?,
                 email_verified: r.try_get("email_verified")?,
                 password_hash: r.try_get("password_hash")?,
@@ -271,14 +271,14 @@ impl AuthService {
 
         if let Some(r) = row {
             let id: Uuid = r.try_get("id")?;
-            let user_id_res: Uuid = r.try_get("user_id")?;
+            let user_id_res: Uuid = r.try_get("user_id")? ;
             let linked_at: DateTime<Utc> = r.try_get("linked_at")?;
             let elo: Option<i32> = r.try_get("faceit_elo")?;
             let skill: Option<i32> = r.try_get("faceit_skill_level")?;
 
             Ok(Some(FaceitLink {
-                id: id.to_string(),
-                user_id: user_id_res.to_string(),
+                id,
+                user_id: user_id_res,
                 faceit_player_id: r.try_get("faceit_player_id")?,
                 faceit_nickname: r.try_get("faceit_nickname")?,
                 faceit_elo: elo,
@@ -341,8 +341,8 @@ impl AuthService {
             let snapshot_at: DateTime<Utc> = r.try_get("snapshot_at")?;
 
             Ok(Some(crate::models::faceit_data::FaceitStatsSnapshot {
-                id: id.to_string(),
-                user_id: user_id.to_string(),
+                id,
+                user_id,
                 faceit_player_id: r.try_get("faceit_player_id")?,
                 game_id: r.try_get("game_id")?,
                 elo: r.try_get("elo")?,

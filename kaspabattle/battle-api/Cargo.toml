@@ -17,6 +17,7 @@ sqlx = { version = "0.8", default-features = false, features = [
     "macros",
     "uuid",
     "chrono",
+    "migrate",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -104,11 +104,11 @@ impl FaceitOAuthService {
     ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>, Option<String>)> {
         let pending_state = {
             let mut states = self.pending_states.lock().await;
-            eprintln!("🔍 FACEIT callback: state='{}', {} pending states in memory", state, states.len());
+            tracing::debug!("🔍 FACEIT callback: state='{}', {} pending states in memory", state, states.len());
             states
                 .remove(state)
                 .ok_or_else(|| {
-                    eprintln!("❌ FACEIT state '{}' not found in pending_states (backend may have restarted during OAuth flow)", state);
+                    tracing::error!("❌ FACEIT state '{}' not found in pending_states (backend may have restarted during OAuth flow)", state);
                     anyhow!("Ungültiger oder abgelaufener State-Parameter — bitte erneut einloggen")
                 })?
         };
@@ -269,8 +269,8 @@ impl FaceitOAuthService {
         tx.commit().await?;
 
         Ok(FaceitLink {
-            id: link_id.to_string(),
-            user_id: user_id.to_string(),
+            id: link_id,
+            user_id: uid,
             faceit_player_id: info.guid.clone(),
             faceit_nickname: info.nickname.clone(),
             faceit_elo: None,

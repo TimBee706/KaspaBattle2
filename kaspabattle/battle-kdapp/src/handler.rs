@@ -68,9 +68,9 @@ impl BattleHandler {
 
         self.block_on(async move {
             let result = sqlx::query(
-                "INSERT INTO matches (onchain_match_id, stake_kas, game_id, status, created_at) \
-                 VALUES ($1, $2, $3, 'OPEN', NOW()) \
-                 ON CONFLICT (onchain_match_id) DO UPDATE SET stake_kas = $2"
+                "INSERT INTO matches (onchain_match_id, wager_sompi, wager_amount_sompi, game_id, status, created_at) \
+                 VALUES ($1, $2, $2, $3, 'OPEN', NOW()) \
+                 ON CONFLICT (onchain_match_id) DO UPDATE SET wager_sompi = $2, wager_amount_sompi = $2"
             )
             .bind(episode_id as i64)
             .bind(wager as i64)

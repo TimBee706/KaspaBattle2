@@ -1,5 +1,19 @@
 export type MatchMode = 'BO1' | 'BO3';
-export type MatchStatus = 'DRAFT' | 'OPEN' | 'AWAITING_FUNDING' | 'FUNDED' | 'LOCKED' | 'IN_GAME' | 'RESOLVING' | 'RESOLVED' | 'PAID_OUT' | 'DISPUTED' | 'CANCELLED';
+export type MatchStatus =
+    | 'DRAFT'
+    | 'OPEN'
+    | 'AWAITING_FUNDING'
+    | 'FUNDED'
+    | 'LOCKED'
+    | 'GAME_ID_INPUT'
+    | 'IN_GAME'
+    | 'FINISHED_FACEIT'
+    | 'READY_FOR_PAYOUT'
+    | 'RESOLVING'
+    | 'RESOLVED'
+    | 'PAID_OUT'
+    | 'DISPUTED'
+    | 'CANCELLED';
 
 // ── Payment Status Types ──
 export interface PlayerPaymentInfo {

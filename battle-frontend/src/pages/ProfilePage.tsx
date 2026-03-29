@@ -58,7 +58,7 @@ export function ProfilePage() {
                 setStatsError(t('profile.stats_error'));
                 setLoadingStats(false);
             });
-    }, [user, isFaceitConnected]);
+    }, [user, isFaceitConnected, t]);
 
     const handleDisconnect = async () => {
         setDisconnecting(true);
@@ -81,13 +81,13 @@ export function ProfilePage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
                 <div className="text-5xl mb-6">🔗</div>
-                <h2 className="text-2xl font-bold mb-2">FACEIT nicht verbunden</h2>
-                <p className="text-gray-400 max-w-md mb-8">Um dein Profil zu sehen, verbinde zuerst deinen FACEIT-Account.</p>
+                <h2 className="text-2xl font-bold mb-2">{t('profile.not_connected_title')}</h2>
+                <p className="text-gray-400 max-w-md mb-8">{t('profile.not_connected_text')}</p>
                 <button
                     onClick={() => (isAuthenticated ? startFaceitLink() : startFaceitLogin())}
                     className="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-all"
                 >
-                    Mit FACEIT verbinden
+                    {t('profile.connect_faceit')}
                 </button>
             </div>
         );
@@ -165,7 +165,7 @@ export function ProfilePage() {
             {/* ── FACEIT Game Stats (CS2) ─────────────────────────── */}
             <div>
                 <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-orange-500 pl-4 flex items-center gap-3">
-                    CS2 FACEIT Stats
+                    {t('profile.cs2_stats_title')}
                     {gameStats?.is_cached && <span className="text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded-full font-bold normal-case">cached</span>}
                 </h3>
 
@@ -178,11 +178,11 @@ export function ProfilePage() {
                                 setLoadingStats(true);
                                 faceitApi.getStats('cs2')
                                     .then(res => { setGameStats(res); setLoadingStats(false); })
-                                    .catch(() => { setStatsError("Erneuter Versuch fehlgeschlagen."); setLoadingStats(false); });
+                                    .catch(() => { setStatsError(t('profile.stats_retry_failed')); setLoadingStats(false); });
                             }}
                             className="px-4 py-2 bg-kaspa-border hover:bg-gray-700 rounded-lg text-sm font-bold transition-colors"
                         >
-                            Erneut versuchen
+                            {t('profile.stats_retry')}
                         </button>
                     </div>
                 ) : loadingStats ? (
@@ -192,7 +192,7 @@ export function ProfilePage() {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="card text-center p-6">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">Matches</span>
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.matches')}</span>
                             <span className="text-3xl font-black text-white">{csMatches}</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-green-500">
@@ -200,15 +200,15 @@ export function ProfilePage() {
                             <span className="text-3xl font-black text-green-400">{csWinRate}%</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-blue-500">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">K/D</span>
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.kd')}</span>
                             <span className="text-3xl font-black text-blue-400">{csKD}</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-yellow-500">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">HS %</span>
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.hs')}</span>
                             <span className="text-3xl font-black text-yellow-400">{csHS}%</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-emerald-500">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">Wins</span>
+                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.wins')}</span>
                             <span className="text-3xl font-black text-emerald-400">{csWins}</span>
                         </div>
                     </div>
@@ -217,7 +217,7 @@ export function ProfilePage() {
                 {/* Recent Results Streak */}
                 {Array.isArray(csRecentResults) && csRecentResults.length > 0 && (
                     <div className="mt-4 flex items-center gap-2">
-                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Letzte Ergebnisse:</span>
+                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{t('profile.stats_labels.recent_results')}</span>
                         <div className="flex gap-1">
                             {csRecentResults.slice(0, 20).map((r: string, i: number) => (
                                 <div
@@ -281,7 +281,7 @@ export function ProfilePage() {
                     <div className="text-center">
                         <p className="text-[10px] text-gray-500 font-black uppercase mb-2">{t('profile.rank')}</p>
                         <div className="text-6xl mb-2">🥈</div>
-                        <p className="text-xl font-bold italic tracking-tighter">SILVER COMMANDER</p>
+                        <p className="text-xl font-bold italic tracking-tighter">{t('profile.ranks.silver_commander')}</p>
                         <p className="text-[10px] text-gray-600 mt-2">{t('profile.next_level', { count: 10 })}</p>
                     </div>
                 </div>
