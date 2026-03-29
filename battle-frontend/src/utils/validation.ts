@@ -20,3 +20,20 @@ export function validateWagerAmount(kasAmount: number): { valid: boolean; error?
 export function validateKaspaAddress(address: string): boolean {
     return /^(kaspa|kaspatest):[a-z0-9]{42,63}$/.test(address);
 }
+
+export function validateFaceitMatchId(faceitMatchId: string): { valid: boolean; error?: string } {
+    const normalized = faceitMatchId.trim();
+
+    if (!normalized) {
+        return { valid: false, error: i18n.t('validation.faceit_match_id_required') };
+    }
+
+    const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (!uuidPattern.test(normalized)) {
+        return { valid: false, error: i18n.t('validation.faceit_match_id_invalid') };
+    }
+
+    return { valid: true };
+}

@@ -44,6 +44,10 @@ export interface BattleMatch {
     player_a_faceit_nickname: string;
     player_b_faceit_nickname: string | null;
     faceit_match_id: string | null;
+    faceit_match_id_player_a?: string | null;
+    faceit_match_id_player_b?: string | null;
+    faceit_match_id_final?: string | null;
+    faceit_match_status?: string | null;
     wager_amount_sompi: number;
     stake_kas?: number;                   // Backend property fallback
     escrow_address: string;
@@ -78,6 +82,19 @@ export interface SubmitDepositRequest {
     match_id: string;
     tx_hash: string;
     player_role: 'A' | 'B';
+}
+
+export interface SubmitFaceitMatchIdRequest {
+    match_id: string;
+    faceit_match_id: string;
+}
+
+export interface SubmitFaceitMatchIdResponse {
+    status: 'submitted' | 'confirmed';
+    both_submitted: boolean;
+    match_status: MatchStatus;
+    faceit_match_id?: string;
+    message?: string;
 }
 
 export interface InitiateDisputeRequest {

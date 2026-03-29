@@ -188,7 +188,9 @@
         "wager_min_0": "Stake must be greater than 0",
         "wager_min": "Minimum stake: {{amount}} KAS",
         "wager_max": "Maximum stake: {{amount}} KAS",
-        "invalid_amount": "Invalid amount"
+        "invalid_amount": "Invalid amount",
+        "faceit_match_id_required": "Please enter a FACEIT match ID.",
+        "faceit_match_id_invalid": "Please enter a valid FACEIT match ID in UUID format."
     },
     "match": {
         "status": {
@@ -220,6 +222,19 @@
         "waiting_funding_info": "Once both players have deposited, the match will be locked and the Oracle will start tracking.",
         "game_id_input": "FACEIT match ID required",
         "game_id_input_info": "Both players need to submit the same FACEIT match ID before the match can continue.",
+        "faceit_input_placeholder": "e.g. 550e8400-e29b-41d4-a716-446655440000",
+        "faceit_submit": "SUBMIT MATCH ID",
+        "faceit_submit_update": "UPDATE MATCH ID",
+        "faceit_submit_loading": "SUBMITTING...",
+        "faceit_submit_waiting": "Your match ID has been saved. Waiting for the other player to submit theirs.",
+        "faceit_submit_confirmed": "Both players submitted the same match ID. The match is now being processed.",
+        "faceit_submit_mismatch": "The submitted FACEIT match IDs do not match. Please verify the ID and submit it again.",
+        "faceit_submit_locked": "The match ID can no longer be edited in this status.",
+        "faceit_submit_error_generic": "The FACEIT match ID could not be saved.",
+        "faceit_status_you_submitted": "You submitted",
+        "faceit_status_you_pending": "Your ID is still missing",
+        "faceit_status_opponent_submitted": "Opponent submitted",
+        "faceit_status_opponent_pending": "Waiting for opponent",
         "running": "MATCH RUNNING...",
         "running_info": "Play now on FACEIT. The result will be automatically tracked after the game.",
         "paid_out": "Winnings Paid Out",

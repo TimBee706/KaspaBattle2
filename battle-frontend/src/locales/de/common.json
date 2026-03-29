@@ -188,7 +188,9 @@
         "wager_min_0": "Einsatz muss größer als 0 sein",
         "wager_min": "Mindest-Einsatz: {{amount}} KAS",
         "wager_max": "Maximal-Einsatz: {{amount}} KAS",
-        "invalid_amount": "Ungültiger Betrag"
+        "invalid_amount": "Ungültiger Betrag",
+        "faceit_match_id_required": "Bitte gib eine FACEIT Match-ID ein.",
+        "faceit_match_id_invalid": "Bitte gib eine gültige FACEIT Match-ID im UUID-Format ein."
     },
     "match": {
         "status": {
@@ -220,6 +222,19 @@
         "waiting_funding_info": "Sobald beide Spieler eingezahlt haben, wird das Match gesperrt und der Oracle beginnt das Tracking.",
         "game_id_input": "FACEIT Match-ID wird erwartet",
         "game_id_input_info": "Beide Spieler mussen dieselbe FACEIT Match-ID einreichen, bevor das Match weiterverarbeitet wird.",
+        "faceit_input_placeholder": "z. B. 550e8400-e29b-41d4-a716-446655440000",
+        "faceit_submit": "MATCH-ID EINREICHEN",
+        "faceit_submit_update": "MATCH-ID AKTUALISIEREN",
+        "faceit_submit_loading": "WIRD GESENDET...",
+        "faceit_submit_waiting": "Deine Match-ID wurde gespeichert. Wir warten jetzt auf die Einreichung des anderen Spielers.",
+        "faceit_submit_confirmed": "Beide Spieler haben dieselbe Match-ID eingereicht. Das Match wird weiterverarbeitet.",
+        "faceit_submit_mismatch": "Die eingereichten FACEIT Match-IDs stimmen nicht uberein. Bitte prufe die ID und reiche sie erneut ein.",
+        "faceit_submit_locked": "Die Match-ID kann in diesem Status nicht mehr bearbeitet werden.",
+        "faceit_submit_error_generic": "Die FACEIT Match-ID konnte nicht gespeichert werden.",
+        "faceit_status_you_submitted": "Du hast eingereicht",
+        "faceit_status_you_pending": "Deine ID fehlt noch",
+        "faceit_status_opponent_submitted": "Gegner hat eingereicht",
+        "faceit_status_opponent_pending": "Warte auf Gegner",
         "running": "MATCH LÄUFT...",
         "running_info": "Spiele jetzt auf FACEIT. Das Ergebnis wird nach dem Spiel automatisch erfasst.",
         "paid_out": "Gewinn Ausgezahlt",
