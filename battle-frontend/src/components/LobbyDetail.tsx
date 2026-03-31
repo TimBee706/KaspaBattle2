@@ -36,7 +36,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                 <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
                     <div>
                         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
-                            {lobby.game_id || 'CS2'} Match
+                            {lobby.game_id || 'CS2'} {t('lobby.match_suffix')}
                         </h2>
                         <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
                             ID: {lobby.id.slice(0, 8)}
@@ -68,16 +68,16 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                         <div className="space-y-3">
                             <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
                                 <span className="text-slate-300 text-sm font-mono">{shortenAddr(lobby.player_a_kas_address || '')}</span>
-                                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded font-black uppercase tracking-tighter">Creator</span>
+                                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded font-black uppercase tracking-tighter">{t('lobby.role_creator')}</span>
                             </div>
                             {lobby.player_b_kas_address ? (
                                 <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
                                     <span className="text-slate-300 text-sm font-mono">{shortenAddr(lobby.player_b_kas_address || '')}</span>
-                                    <span className="text-[10px] bg-slate-700 text-slate-400 px-2 py-1 rounded font-black uppercase tracking-tighter">Opponent</span>
+                                    <span className="text-[10px] bg-slate-700 text-slate-400 px-2 py-1 rounded font-black uppercase tracking-tighter">{t('lobby.role_opponent')}</span>
                                 </div>
                             ) : (
                                 <div className="p-3 border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm italic text-center">
-                                    Warten auf Gegner...
+                                    {t('lobby.waiting_for_opponent')}
                                 </div>
                             )}
                         </div>

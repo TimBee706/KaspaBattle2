@@ -13,8 +13,11 @@ pub enum MatchStatus {
     AwaitingFunding, // PENDING_DEPOSITS
     Funded,          // READY_TO_LOCK (both deposits confirmed)
     Locked,          // IN_GAME (escrow locked, FACEIT running)
-    InGame,          // Actively in game on platform
-    Resolving,       // Oracle querying result
+    GameIdInput,     // F-010: Waiting for both players to enter FaceIT match ID
+    InGame,          // Actively in game on platform, FaceIT watcher polling
+    FinishedFaceit,  // F-010: FaceIT match finished, winner identified
+    ReadyForPayout,  // F-010: PSKT created, waiting for winner signature
+    Resolving,       // Oracle querying result (legacy)
     Resolved,        // Winner determined
     PaidOut,         // Payout executed
     Disputed,        // Dispute filed
@@ -38,6 +41,8 @@ pub struct User {
     pub nickname: Option<String>,
 }
 
+pub const MATCH_SELECT_COLS: &str = "id, onchain_match_id, escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, COALESCE(wager_amount_sompi, wager_sompi) AS wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash, player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, faceit_match_id_player_a, faceit_match_id_player_b, faceit_match_id_final, faceit_match_status, faceit_finished_at, faceit_winner_faction, faceit_score, winner_user_id, loser_user_id, payout_pskt_hex, payout_tx_hash, payout_status";
+
 #[derive(Serialize, Deserialize, Debug, Clone, FromRow)]
 pub struct Match {
     pub id: Uuid,
@@ -46,7 +51,7 @@ pub struct Match {
     pub creator_user_id: Uuid,
     pub opponent_user_id: Option<Uuid>,
     pub game_id: String,
-    pub stake_kas: i64,
+    pub wager_sompi: i64,
     pub mode: MatchMode,
     pub status: MatchStatus,
     pub external_match_id: Option<String>,
@@ -75,13 +80,50 @@ pub struct Match {
     pub player_a_deposit_amount_sompi: Option<i64>,
     #[sqlx(default)]
     pub player_b_deposit_amount_sompi: Option<i64>,
+
+    // ── v1.0 FaceIT Match-ID Input (F-010) ──
+    #[sqlx(default)]
+    pub faceit_match_id_player_a: Option<String>,
+    #[sqlx(default)]
+    pub faceit_match_id_player_b: Option<String>,
+    /// Confirmed match ID — only set when both players submitted the same value
+    #[sqlx(default)]
+    pub faceit_match_id_final: Option<String>,
+    /// Last known FaceIT match status (e.g. "created", "ongoing", "finished", "cancelled")
+    #[sqlx(default)]
+    pub faceit_match_status: Option<String>,
+    /// Unix timestamp (from FaceIT) when the match ended
+    #[sqlx(default)]
+    pub faceit_finished_at: Option<DateTime<Utc>>,
+    /// Winning faction: "faction1" or "faction2"
+    #[sqlx(default)]
+    pub faceit_winner_faction: Option<String>,
+    /// Score string, e.g. "16:10"
+    #[sqlx(default)]
+    pub faceit_score: Option<String>,
+
+    // ── v1.0 Winner/Loser tracking (F-010) ──
+    #[sqlx(default)]
+    pub winner_user_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub loser_user_id: Option<Uuid>,
+
+    // ── v1.0 Payout PSKT (F-010) ──
+    /// Hex-encoded Partially Signed Kaspa Transaction (with Oracle signature)
+    #[sqlx(default)]
+    pub payout_pskt_hex: Option<String>,
+    /// Payout TX hash after broadcast
+    #[sqlx(default)]
+    pub payout_tx_hash: Option<String>,
+    /// Status of the payout process: "pending_winner_sig", "broadcast", "confirmed"
+    #[sqlx(default)]
+    pub payout_status: Option<String>,
 }
 
 impl Match {
     pub fn calculate_wager(&mut self) {
-        // The DB field stake_kas actually stores the value in Sompi
-        // because the frontend converts it before sending.
-        self.wager_amount_sompi = self.stake_kas;
+        // Obsolete legacy mapping, keep no-op or align:
+        self.wager_amount_sompi = self.wager_sompi;
     }
 
     /// Returns true if this match has both players' deposits confirmed
@@ -98,13 +140,41 @@ impl Match {
                 player_a_deposited: self.player_a_deposit_confirmed.unwrap_or(false),
                 player_b_deposited: self.player_b_deposit_confirmed.unwrap_or(false),
             },
-            MatchStatus::Funded
-            | MatchStatus::Locked
-            | MatchStatus::InGame
-            | MatchStatus::Resolving => MatchState::Locked,
+            MatchStatus::Funded | MatchStatus::Locked => MatchState::Locked,
+            MatchStatus::GameIdInput => MatchState::GameIdInput {
+                faceit_id_a: self.faceit_match_id_player_a.clone(),
+                faceit_id_b: self.faceit_match_id_player_b.clone(),
+            },
+            MatchStatus::InGame => MatchState::InGame {
+                faceit_match_id: self
+                    .faceit_match_id_final
+                    .clone()
+                    .unwrap_or_default(),
+            },
+            MatchStatus::FinishedFaceit => MatchState::FinishedFaceit {
+                winner_id: self
+                    .winner_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                loser_id: self
+                    .loser_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                score: self.faceit_score.clone().unwrap_or_default(),
+            },
+            MatchStatus::ReadyForPayout => MatchState::ReadyForPayout {
+                winner_id: self
+                    .winner_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                pskt_hex: self.payout_pskt_hex.clone().unwrap_or_default(),
+            },
+            MatchStatus::Resolving => MatchState::Locked,
             MatchStatus::Resolved | MatchStatus::PaidOut => MatchState::Resolved {
-                // Approximate winner_id (pure transition validation only requires the variant for most checks)
-                winner_id: String::new(),
+                winner_id: self
+                    .winner_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
             },
             MatchStatus::Disputed => MatchState::Disputed {
                 reason: String::new(),

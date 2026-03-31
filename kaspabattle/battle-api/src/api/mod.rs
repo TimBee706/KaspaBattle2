@@ -27,7 +27,7 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize)]
 pub struct CreateReq {
     pub game_id: String,
-    pub stake_kas: i64,
+    pub wager_sompi: i64,
     pub mode: MatchMode,
     pub escrow_address: Option<String>,
 }
@@ -48,9 +48,7 @@ pub async fn simulate_deposit_test(
 
     let dummy_tx = "fake_tx_testmode_123".to_string();
 
-    let mut record = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET status = 'LOCKED' WHERE id = $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
-    )
+    let mut record = sqlx::query_as::<_, Match>(&format!("UPDATE matches SET status = 'LOCKED' WHERE id = $1 RETURNING {}", crate::models::MATCH_SELECT_COLS))
     .bind(id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -107,6 +105,12 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/cancel", post(cancel_match_handler))
         // NOTE: /lobbies/:id/simulate-deposit removed — test-only endpoint
         .route("/webhook/faceit", post(faceit_webhook))
+        // ── v1.0 FaceIT Match-Watcher (F-010) ──
+        .route("/matches/:id/faceit-match-id", post(submit_faceit_match_id))
+        // ── v1.0 Payout Flow (Phase 4b) ──
+        .route("/matches/:id/payout/pskt", get(get_payout_pskt))
+        .route("/matches/:id/payout/submit-signature", post(submit_payout_signature))
+        .route("/matches/:id/payout/status", get(get_payout_status))
         .route("/me", get(get_me))
         .route("/auth/me", get(get_me))
         .route("/auth/logout", post(logout))
@@ -225,7 +229,7 @@ pub struct WalletVerifyReq {
     pub link_to_existing_user: bool,
 }
 
-fn build_auth_cookie(session_token: &str) -> String {
+pub fn build_auth_cookie(session_token: &str) -> String {
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let is_secure = frontend_url.starts_with("https");
@@ -340,10 +344,10 @@ pub async fn create_wallet_login_challenge(
     State(state): State<AppState>,
     Json(payload): Json<WalletChallengeReq>,
 ) -> Result<Json<WalletChallengeResponse>, (StatusCode, Json<ApiErrorResponse>)> {
-    eprintln!("[wallet-challenge] Request for address: {}", payload.kaspa_address);
+    tracing::info!("[wallet-challenge] Request for address: {}", payload.kaspa_address);
 
     if !payload.kaspa_address.starts_with("kaspa:") && !payload.kaspa_address.starts_with("kaspatest:") {
-        eprintln!("[wallet-challenge] Rejected: invalid address prefix");
+        tracing::info!("[wallet-challenge] Rejected: invalid address prefix");
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ApiErrorResponse {
@@ -384,8 +388,7 @@ pub async fn create_wallet_login_challenge(
                     kaspa_address = %payload.kaspa_address,
                     "wallet-challenge DB pool timed out"
                 );
-                eprintln!(
-                    "[wallet-challenge] DB pool timeout: pool_size={}, pool_idle={}",
+                tracing::info!("[wallet-challenge] DB pool timeout: pool_size={}, pool_idle={}",
                     pool_size, pool_idle
                 );
                 (
@@ -404,7 +407,7 @@ pub async fn create_wallet_login_challenge(
                     kaspa_address = %payload.kaspa_address,
                     "wallet-challenge DB insert failed"
                 );
-                eprintln!("[wallet-challenge] DB insert failed: {}", e);
+                tracing::error!("[wallet-challenge] DB insert failed: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ApiErrorResponse {
@@ -416,7 +419,7 @@ pub async fn create_wallet_login_challenge(
         }
     })?;
 
-    eprintln!("[wallet-challenge] ✅ Challenge created: {} for {}", challenge_id, payload.kaspa_address);
+    tracing::info!("[wallet-challenge] ✅ Challenge created: {} for {}", challenge_id, payload.kaspa_address);
 
     Ok(Json(WalletChallengeResponse {
         challenge_id: challenge_id.to_string(),
@@ -430,10 +433,10 @@ pub async fn verify_wallet_login(
     headers: axum::http::HeaderMap,
     Json(payload): Json<WalletVerifyReq>,
 ) -> Result<axum::response::Response, StatusCode> {
-    eprintln!("[wallet-verify] Request: challenge_id={}, addr={}", payload.challenge_id, payload.kaspa_address);
+    tracing::info!("[wallet-verify] Request: challenge_id={}, addr={}", payload.challenge_id, payload.kaspa_address);
 
     let challenge_id = Uuid::parse_str(&payload.challenge_id).map_err(|e| {
-        eprintln!("[wallet-verify] Invalid challenge_id: {}", e);
+        tracing::info!("[wallet-verify] Invalid challenge_id: {}", e);
         StatusCode::BAD_REQUEST
     })?;
     let challenge_row = sqlx::query(
@@ -443,11 +446,11 @@ pub async fn verify_wallet_login(
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
-        eprintln!("[wallet-verify] DB query failed: {}", e);
+        tracing::error!("[wallet-verify] DB query failed: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?
     .ok_or_else(|| {
-        eprintln!("[wallet-verify] Challenge not found: {}", challenge_id);
+        tracing::info!("[wallet-verify] Challenge not found: {}", challenge_id);
         StatusCode::UNAUTHORIZED
     })?;
 
@@ -465,44 +468,44 @@ pub async fn verify_wallet_login(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if challenge_address != payload.kaspa_address {
-        eprintln!("[wallet-verify] Address mismatch: challenge={} vs payload={}", challenge_address, payload.kaspa_address);
+        tracing::info!("[wallet-verify] Address mismatch: challenge={} vs payload={}", challenge_address, payload.kaspa_address);
         return Err(StatusCode::UNAUTHORIZED);
     }
     if !challenge_is_active(challenge_expires_at, challenge_used_at, chrono::Utc::now()) {
-        eprintln!("[wallet-verify] Challenge expired or used: expires_at={}, used_at={:?}", challenge_expires_at, challenge_used_at);
+        tracing::info!("[wallet-verify] Challenge expired or used: expires_at={}, used_at={:?}", challenge_expires_at, challenge_used_at);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    eprintln!("[wallet-verify] Verifying signature for {} (pubkey={}...)", payload.kaspa_address, &payload.public_key[..16.min(payload.public_key.len())]);
+    tracing::info!("[wallet-verify] Verifying signature for {} (pubkey={}...)", payload.kaspa_address, &payload.public_key[..16.min(payload.public_key.len())]);
     verify_wallet_signature(
         &payload.kaspa_address,
         &payload.public_key,
         &challenge_message,
         &payload.signature,
     ).map_err(|status| {
-        eprintln!("[wallet-verify] ❌ Signature verification failed (status={})", status);
+        tracing::error!("[wallet-verify] ❌ Signature verification failed (status={})", status);
         status
     })?;
-    eprintln!("[wallet-verify] ✅ Signature valid for {}", payload.kaspa_address);
+    tracing::info!("[wallet-verify] ✅ Signature valid for {}", payload.kaspa_address);
 
     sqlx::query("UPDATE wallet_login_challenges SET used_at = NOW() WHERE id = $1")
         .bind(challenge_id)
         .execute(&state.pool)
         .await
         .map_err(|e| {
-            eprintln!("[wallet-verify] DB update failed: {}", e);
+            tracing::error!("[wallet-verify] DB update failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    eprintln!("[wallet-verify] Challenge marked as used, proceeding to user lookup...");
+    tracing::info!("[wallet-verify] Challenge marked as used, proceeding to user lookup...");
 
     // 2. Prüfen ob der Caller BEREITS authentifiziert ist (FaceIT-Session aktiv?)
     let existing_token_opt = extract_session_token_from_headers(&headers);
-    eprintln!("[wallet-verify] Existing session token: {}", if existing_token_opt.is_some() { "found" } else { "none" });
+    tracing::info!("[wallet-verify] Existing session token: {}", if existing_token_opt.is_some() { "found" } else { "none" });
 
     let auth_service = battle_core::auth::AuthService::new(state.pool.clone());
 
     if payload.link_to_existing_user && existing_token_opt.is_none() {
-        eprintln!("[wallet-verify] Wallet link requested without active session");
+        tracing::info!("[wallet-verify] Wallet link requested without active session");
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -520,12 +523,12 @@ pub async fn verify_wallet_login(
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| {
-                eprintln!("[wallet-verify] DB conflict check failed: {}", e);
+                tracing::error!("[wallet-verify] DB conflict check failed: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
             if conflict.is_some() {
-                eprintln!("[wallet_login] Clearing kaspa_address from conflicting guest user");
+                tracing::info!("[wallet_login] Clearing kaspa_address from conflicting guest user");
                 sqlx::query(
                     "UPDATE users SET kaspa_address = NULL WHERE kaspa_address = $1 AND id != $2::uuid"
                 )
@@ -534,7 +537,7 @@ pub async fn verify_wallet_login(
                 .execute(&state.pool)
                 .await
                 .map_err(|e| {
-                    eprintln!("[wallet-verify] DB clear conflict failed: {}", e);
+                    tracing::error!("[wallet-verify] DB clear conflict failed: {}", e);
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
             }
@@ -546,7 +549,7 @@ pub async fn verify_wallet_login(
                 .execute(&state.pool)
                 .await
                 .map_err(|e| {
-                    eprintln!("[wallet_login] UPDATE kaspa_address failed: {e}");
+                    tracing::error!("[wallet_login] UPDATE kaspa_address failed: {e}");
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
 
@@ -585,7 +588,7 @@ pub async fn verify_wallet_login(
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| {
-            eprintln!("[wallet-verify] DB user lookup failed: {}", e);
+            tracing::error!("[wallet-verify] DB user lookup failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -608,7 +611,7 @@ pub async fn verify_wallet_login(
         sqlx::query("INSERT INTO users (id, email, password_hash, display_name, kaspa_address) VALUES ($1, $2, $3, $4, $5)")
             .bind(new_user_id).bind(email).bind(password_hash).bind(&display_name).bind(&payload.kaspa_address)
             .execute(&state.pool).await.map_err(|e| {
-                eprintln!("Error creating user: {}", e);
+                tracing::error!("Error creating user: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
         (new_user_id, display_name)
@@ -620,10 +623,10 @@ pub async fn verify_wallet_login(
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
         .bind(&session_token).bind(&user_id).bind(expires_at)
         .execute(&state.pool).await.map_err(|e| {
-            eprintln!("[wallet-verify] DB session insert failed: {}", e);
+            tracing::error!("[wallet-verify] DB session insert failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    eprintln!("[wallet-verify] ✅ Session created for user {} ({})", user_id, display_name_str);
+    tracing::info!("[wallet-verify] ✅ Session created for user {} ({})", user_id, display_name_str);
 
     let mut response = Json(WalletAuthResponse {
         user_id: user_id.to_string(),
@@ -643,14 +646,14 @@ pub async fn disconnect_wallet(
     State(state): State<AppState>,
     crate::api::auth_guard::SessionUserNoWallet(user): crate::api::auth_guard::SessionUserNoWallet,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let user_id = uuid::Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id = user.id;
 
     sqlx::query("UPDATE users SET kaspa_address = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1")
         .bind(user_id)
         .execute(&state.pool)
         .await
         .map_err(|e| {
-            eprintln!("Error clearing kaspa_address: {}", e);
+            tracing::error!("Error clearing kaspa_address: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -691,7 +694,7 @@ pub async fn update_wallet_address(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<UpdateWalletReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let user_id = uuid::Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id = user.id;
 
     sqlx::query("UPDATE users SET kaspa_address = $1 WHERE id = $2")
         .bind(&payload.kaspa_address)
@@ -699,7 +702,7 @@ pub async fn update_wallet_address(
         .execute(&state.pool)
         .await
         .map_err(|e| {
-            eprintln!("Error updating kaspa_address: {}", e);
+            tracing::error!("Error updating kaspa_address: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -711,7 +714,23 @@ pub async fn update_wallet_address(
 
 pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
     let mut matches = sqlx::query_as::<_, Match>(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status IN ('OPEN', 'AWAITING_FUNDING', 'LOCKED', 'IN_GAME') ORDER BY created_at DESC"
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+         creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+         player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+         player_a_deposit_confirmed, player_b_deposit_confirmed, \
+         player_a_faceid_hash, player_b_faceid_hash, \
+         player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+         faceit_match_id_player_a, faceit_match_id_player_b, \
+         faceit_match_id_final, faceit_match_status, \
+         faceit_finished_at, faceit_winner_faction, faceit_score, \
+         winner_user_id, loser_user_id, \
+         payout_pskt_hex, payout_tx_hash, payout_status \
+         FROM matches \
+         WHERE status IN (\
+           'OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED', \
+           'GAME_ID_INPUT', 'IN_GAME', 'FINISHED_FACEIT', \
+           'READY_FOR_PAYOUT', 'DISPUTED'\
+         ) ORDER BY created_at DESC LIMIT 100",
     )
     .fetch_all(&state.pool)
     .await
@@ -729,9 +748,17 @@ pub async fn get_match(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Match>, StatusCode> {
     let mut m = sqlx::query_as::<_, Match>(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, \
-         player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, \
-         player_a_faceid_hash, player_b_faceid_hash, player_a_deposit_amount_sompi, player_b_deposit_amount_sompi \
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+         creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+         player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+         player_a_deposit_confirmed, player_b_deposit_confirmed, \
+         player_a_faceid_hash, player_b_faceid_hash, \
+         player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+         faceit_match_id_player_a, faceit_match_id_player_b, \
+         faceit_match_id_final, faceit_match_status, \
+         faceit_finished_at, faceit_winner_faction, faceit_score, \
+         winner_user_id, loser_user_id, \
+         payout_pskt_hex, payout_tx_hash, payout_status \
          FROM matches WHERE id = $1",
     )
     .bind(id)
@@ -747,11 +774,28 @@ pub async fn get_match(
 }
 
 pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match>>, StatusCode> {
-    let mut matches = sqlx::query_as::<_, Match>("SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE status = 'RESOLVED'")
-        .fetch_all(&state.pool).await.map_err(|e| {
-            eprintln!("SQL Error in get_history: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let mut matches = sqlx::query_as::<_, Match>(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+         creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+         player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+         player_a_deposit_confirmed, player_b_deposit_confirmed, \
+         player_a_faceid_hash, player_b_faceid_hash, \
+         player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+         faceit_match_id_player_a, faceit_match_id_player_b, \
+         faceit_match_id_final, faceit_match_status, \
+         faceit_finished_at, faceit_winner_faction, faceit_score, \
+         winner_user_id, loser_user_id, \
+         payout_pskt_hex, payout_tx_hash, payout_status \
+         FROM matches \
+         WHERE status IN ('RESOLVED', 'PAID_OUT', 'CANCELLED') \
+         ORDER BY created_at DESC LIMIT 200",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("SQL Error in get_history: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     for m in &mut matches {
         m.calculate_wager();
@@ -764,7 +808,7 @@ pub async fn create_challenge(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<CreateReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id = user.id;
 
     // Require wallet — address derivation is purely cryptographic (no Kaspa node needed).
     let wallet = state.escrow_wallet.as_ref().ok_or_else(|| {
@@ -780,12 +824,10 @@ pub async fn create_challenge(
     })?;
 
     // 1. INSERT match (escrow_address will be set below — use a temp placeholder).
-    let record = sqlx::query_as::<_, Match>(
-        "INSERT INTO matches (creator_user_id, game_id, stake_kas, mode) VALUES ($1, $2, $3, $4) RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
-    )
+    let record = sqlx::query_as::<_, Match>(&format!("INSERT INTO matches (creator_user_id, game_id, wager_sompi, wager_amount_sompi, mode) VALUES ($1, $2, $3, $3, $4) RETURNING {}", crate::models::MATCH_SELECT_COLS))
     .bind(user_id)
     .bind(&payload.game_id)
-    .bind(payload.stake_kas)
+    .bind(payload.wager_sompi)
     .bind(payload.mode)
     .fetch_one(&mut *db_tx)
     .await
@@ -813,7 +855,7 @@ pub async fn create_challenge(
 
     // 3. UPDATE match with the freshly-derived escrow address.
     let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at",
+        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at",
     )
     .bind(&escrow_addr)
     .bind(record.id)
@@ -845,10 +887,10 @@ pub async fn join_challenge(
 ) -> Result<Json<Match>, StatusCode> {
     tracing::info!(match_id = %id, caller = %user.id, "join_challenge called");
 
-    let joiner_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let joiner_id = user.id;
 
     let current_match: Match = sqlx::query_as(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
     )
         .bind(id)
         .fetch_one(&state.pool)
@@ -871,9 +913,7 @@ pub async fn join_challenge(
         })?;
 
     // SICHERHEIT: AND creator_user_id != $1 verhindert, dass man gegen sich selbst spielt!
-    let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at"
-    )
+    let mut updated = sqlx::query_as::<_, Match>(&format!("UPDATE matches SET opponent_user_id = $1, status = $3 WHERE id = $2 AND status = $4 AND creator_user_id != $1 RETURNING {}", crate::models::MATCH_SELECT_COLS))
     .bind(joiner_id)
     .bind(id)
     .bind(crate::models::MatchStatus::AwaitingFunding)
@@ -907,7 +947,7 @@ pub async fn submit_deposit(
 
     // Step 1: Fetch the current match to determine player roles and current state
     let m: Match = sqlx::query_as(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at, player_a_deposit_tx_hash, player_b_deposit_tx_hash FROM matches WHERE id = $1"
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, player_a_deposit_tx_hash, player_b_deposit_tx_hash FROM matches WHERE id = $1"
     )
         .bind(id)
         .fetch_one(&state.pool)
@@ -927,8 +967,7 @@ pub async fn submit_deposit(
             status = ?m.status,
             "Deposit rejected: match not in a depositable state (OPEN/AWAITING_FUNDING)"
         );
-        eprintln!(
-            "❌ Deposit rejected for match {}: status is {:?}",
+        tracing::error!("❌ Deposit rejected for match {}: status is {:?}",
             id, m.status
         );
         return Err(StatusCode::CONFLICT);
@@ -940,8 +979,7 @@ pub async fn submit_deposit(
         "A" => ("player_a_deposit_tx_hash", "player_a_deposit_confirmed"),
         "B" => ("player_b_deposit_tx_hash", "player_b_deposit_confirmed"),
         _ => {
-            eprintln!(
-                "❌ submit_deposit: invalid player_role '{}'",
+            tracing::error!("❌ submit_deposit: invalid player_role '{}'",
                 payload.player_role
             );
             return Err(StatusCode::BAD_REQUEST);
@@ -963,8 +1001,7 @@ pub async fn submit_deposit(
             new_tx = %payload.tx_hash,
             "⚠️ Double deposit attempt blocked"
         );
-        eprintln!(
-            "⚠️ Double deposit blocked: match={}, role={}, existing_tx={}",
+        tracing::warn!("⚠️ Double deposit blocked: match={}, role={}, existing_tx={}",
             id, payload.player_role, existing
         );
         return Err(StatusCode::CONFLICT);
@@ -980,13 +1017,13 @@ pub async fn submit_deposit(
     .execute(&state.pool)
     .await
     .map_err(|e| {
-        eprintln!("❌ SQL error recording deposit: {:?}", e);
+        tracing::error!("❌ SQL error recording deposit: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
     // Step 5: Check whether BOTH players have now deposited
     let updated: Match = sqlx::query_as(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
     )
         .bind(id)
         .fetch_one(&state.pool)
@@ -1001,8 +1038,7 @@ pub async fn submit_deposit(
 
     // We no longer transition to FUNDED here. The MatchEpisode (Blockchain Watcher)
     // is responsible for confirming the actual UTXO and setting the status.
-    eprintln!(
-        "⏳ Deposit TX recorded for match {}. Waiting for blockchain confirmation.",
+    tracing::debug!("⏳ Deposit TX recorded for match {}. Waiting for blockchain confirmation.",
         id
     );
 
@@ -1019,23 +1055,24 @@ pub async fn submit_deposit(
 /// Check deposit status for a match via EscrowService (on-chain balance check)
 pub async fn check_deposits(
     State(state): State<AppState>,
+    SessionUser(_user): SessionUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let escrow_svc = state.escrow_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ EscrowService not available");
+        tracing::error!("❌ EscrowService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
-    // Look up the match to get escrow_address and stake_kas
+    // Look up the match to get escrow_address and wager_sompi
     let row: (Option<String>, i64) =
-        sqlx::query_as("SELECT escrow_address, stake_kas FROM matches WHERE id = $1")
+        sqlx::query_as("SELECT escrow_address, wager_sompi FROM matches WHERE id = $1")
             .bind(id)
             .fetch_one(&state.pool)
             .await
             .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let escrow_address = row.0.unwrap_or_default();
-    let stake_kas = row.1 as u64;
+    let wager_sompi = row.1 as u64;
 
     if escrow_address.is_empty() {
         return Ok(Json(serde_json::json!({
@@ -1044,10 +1081,10 @@ pub async fn check_deposits(
         })));
     }
 
-    match escrow_svc.check_deposits(&escrow_address, stake_kas).await {
+    match escrow_svc.check_deposits(&escrow_address, wager_sompi).await {
         Ok(status) => Ok(Json(serde_json::to_value(status).unwrap())),
         Err(e) => {
-            eprintln!("❌ check_deposits failed: {:?}", e);
+            tracing::error!("❌ check_deposits failed: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -1070,11 +1107,12 @@ pub async fn check_deposits(
 /// ```
 pub async fn get_payment_status(
     State(state): State<AppState>,
+    SessionUser(_user): SessionUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Fetch match basics
     let row: (Option<String>, i64, Option<bool>, Option<bool>) = sqlx::query_as(
-        "SELECT escrow_address, stake_kas, player_a_deposit_confirmed, player_b_deposit_confirmed \
+        "SELECT escrow_address, wager_sompi, player_a_deposit_confirmed, player_b_deposit_confirmed \
          FROM matches WHERE id = $1",
     )
     .bind(id)
@@ -1171,7 +1209,7 @@ pub async fn admin_resolve_match(
     tracing::info!("Admin resolve match {} → winner: {}", id, payload.winner);
 
     // Get the match
-    let m = sqlx::query_as::<_, Match>("SELECT * FROM matches WHERE id = $1")
+    let m = sqlx::query_as::<_, Match>(&format!("SELECT {} FROM matches WHERE id = $1", crate::models::MATCH_SELECT_COLS))
         .bind(id)
         .fetch_one(&state.pool)
         .await
@@ -1230,17 +1268,19 @@ pub async fn faceit_webhook(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Validate HMAC-SHA256 signature
     let webhook_secret = std::env::var("FACEIT_WEBHOOK_SECRET").unwrap_or_default();
-    if !webhook_secret.is_empty() {
-        let signature = headers
-            .get("Faceit-Signature")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-        if !verify_faceit_hmac(&body, &webhook_secret, signature) {
-            tracing::warn!("Faceit webhook: HMAC signature mismatch — rejecting request");
-            return Err(StatusCode::UNAUTHORIZED);
-        }
-    } else {
-        tracing::warn!("FACEIT_WEBHOOK_SECRET not set — skipping signature validation (insecure!)");
+    if webhook_secret.is_empty() {
+        tracing::error!("FACEIT_WEBHOOK_SECRET not set — rejecting webhook request");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let signature = headers
+        .get("Faceit-Signature")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+        
+    if !verify_faceit_hmac(&body, &webhook_secret, signature) {
+        tracing::warn!("Faceit webhook: HMAC signature mismatch — rejecting request");
+        return Err(StatusCode::UNAUTHORIZED);
     }
 
     // Deserialize body now that signature is verified
@@ -1265,9 +1305,7 @@ pub async fn faceit_webhook(
     }
 
     // Find match by external_match_id (Faceit match ID)
-    let m = sqlx::query_as::<_, Match>(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, stake_kas, mode, status, external_match_id, created_at FROM matches WHERE external_match_id = $1"
-    )
+    let m = sqlx::query_as::<_, Match>(&format!("SELECT {} FROM matches WHERE external_match_id = $1", crate::models::MATCH_SELECT_COLS))
     .bind(&match_id)
     .fetch_optional(&state.pool)
     .await
@@ -1276,7 +1314,7 @@ pub async fn faceit_webhook(
     let m = match m {
         Some(m) => m,
         None => {
-            eprintln!("⚠️ No match found for faceit match_id: {}", match_id);
+            tracing::warn!("⚠️ No match found for faceit match_id: {}", match_id);
             return Ok(Json(
                 serde_json::json!({ "status": "no_match", "match_id": match_id }),
             ));
@@ -1300,8 +1338,7 @@ pub async fn faceit_webhook(
     let winner_address = match winner_user {
         Some((_, addr)) => addr,
         None => {
-            eprintln!(
-                "⚠️ Winner faceit_id {} not found in users",
+            tracing::warn!("⚠️ Winner faceit_id {} not found in users",
                 winner_faceit_id
             );
             return Ok(Json(serde_json::json!({
@@ -1342,7 +1379,7 @@ async fn execute_payout_for_match(
     winner_address: &str,
 ) -> Result<serde_json::Value, StatusCode> {
     let payout_svc = state.payout_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ PayoutService not available");
+        tracing::error!("❌ PayoutService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -1354,7 +1391,7 @@ async fn execute_payout_for_match(
                 payout_svc
                     .register_escrow_key(escrow_address.to_string(), privkey)
                     .await;
-                eprintln!("🔑 Escrow key registered for {}", escrow_address);
+                tracing::info!("🔑 Escrow key registered for {}", escrow_address);
             }
         }
     }
@@ -1377,10 +1414,10 @@ async fn execute_payout_for_match(
         player_a_faceit_id: String::new(),
         player_b_faceit_id: String::new(),
         faceit_match_id: m.external_match_id.clone(),
-        // IMPORTANT: stake_kas stores the wager in Sompi (the frontend converts
+        // IMPORTANT: wager_sompi stores the wager in Sompi (the frontend converts
         // KAS → Sompi before POSTing to /challenges, so no multiplication here).
-        // See battle-frontend/src/hooks/useLobby.ts: stake_kas = stakeKas * 100_000_000
-        wager_amount_sompi: m.stake_kas as u64,
+        // See battle-frontend/src/hooks/useLobby.ts: wager_sompi = stakeKas * 100_000_000
+        wager_amount_sompi: m.wager_sompi as u64,
         escrow_address: escrow_address.to_string(),
         status: battle_core::models::match_::MatchStatus::Resolved,
         winner_kas_address: Some(winner_address.to_string()),
@@ -1397,8 +1434,7 @@ async fn execute_payout_for_match(
         .await
     {
         Ok(result) => {
-            eprintln!(
-                "✅ Payout executed: TX={}, winner={} sompi, treasury={} sompi",
+            tracing::info!("✅ Payout executed: TX={}, winner={} sompi, treasury={} sompi",
                 result.winner_tx_id, result.winner_amount_sompi, result.treasury_amount_sompi
             );
             Ok(serde_json::json!({
@@ -1410,7 +1446,7 @@ async fn execute_payout_for_match(
             }))
         }
         Err(e) => {
-            eprintln!("❌ Payout failed: {:?}", e);
+            tracing::error!("❌ Payout failed: {:?}", e);
             Ok(serde_json::json!({
                 "status": "PAYOUT_FAILED",
                 "error": format!("{}", e),
@@ -1469,7 +1505,7 @@ pub async fn submit_faceid_handler(
     Path(id): Path<Uuid>,
     Json(payload): Json<FaceIdReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let user_id = user.id;
 
     let m: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
         .bind(id)
@@ -1496,7 +1532,7 @@ pub async fn submit_faceid_handler(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    eprintln!("🪪  Match {}: {} FaceID hash recorded", id, col);
+    tracing::info!("🪪  Match {}: {} FaceID hash recorded", id, col);
     Ok(Json(updated))
 }
 
@@ -1511,7 +1547,7 @@ pub async fn cancel_match_handler(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Match>, StatusCode> {
-    let user_id = Uuid::parse_str(&user.id).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let user_id = user.id;
 
     let current_match: Match = sqlx::query_as("SELECT * FROM matches WHERE id = $1")
         .bind(id)
@@ -1600,7 +1636,7 @@ async fn execute_refund_for_match(
     escrow_address: &str,
 ) -> Result<(String, String), StatusCode> {
     let payout_svc = state.payout_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ PayoutService not available");
+        tracing::error!("❌ PayoutService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -1612,7 +1648,7 @@ async fn execute_refund_for_match(
                 payout_svc
                     .register_escrow_key(escrow_address.to_string(), privkey)
                     .await;
-                eprintln!("🔑 Escrow key registered for refund {}", escrow_address);
+                tracing::info!("🔑 Escrow key registered for refund {}", escrow_address);
             }
         }
     }
@@ -1635,7 +1671,7 @@ async fn execute_refund_for_match(
         player_a_faceit_id: String::new(),
         player_b_faceit_id: String::new(),
         faceit_match_id: m.external_match_id.clone(),
-        wager_amount_sompi: m.stake_kas as u64,
+        wager_amount_sompi: m.wager_sompi as u64,
         escrow_address: escrow_address.to_string(),
         status: battle_core::models::match_::MatchStatus::Cancelled,
         winner_kas_address: None,
@@ -1649,11 +1685,11 @@ async fn execute_refund_for_match(
 
     match payout_svc.execute_refund(&battle_match).await {
         Ok(res) => {
-            eprintln!("✅ Refund executed: TX A={}, TX B={}", res.0, res.1);
+            tracing::info!("✅ Refund executed: TX A={}, TX B={}", res.0, res.1);
             Ok(res)
         }
         Err(e) => {
-            eprintln!("❌ Refund failed: {:?}", e);
+            tracing::error!("❌ Refund failed: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -1737,4 +1773,465 @@ mod tests {
             now,
         ));
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: FaceIT Match-ID Submit (F-010)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// POST /api/v1/matches/{id}/faceit-match-id
+///
+/// A match participant submits the FaceIT match ID for the active lobby.
+/// - First submission: stores per-player field, transitions FUNDED→GAME_ID_INPUT.
+/// - Second submission (same ID): sets faceit_match_id_final, transitions →IN_GAME,
+///   creates faceit_watcher_jobs row.
+/// - Mismatch: returns 409 Conflict.
+pub async fn submit_faceit_match_id(
+    State(state): State<AppState>,
+    SessionUser(user): SessionUser,
+    Path(match_id): Path<Uuid>,
+    Json(payload): Json<SubmitFaceitMatchIdReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let api_err = |status: StatusCode, code: &'static str, msg: &str| {
+        (status, Json(serde_json::json!({"error": code, "message": msg})))
+    };
+
+    let caller_id = user.id;
+
+    // Validate UUID format
+    let faceit_id = payload.faceit_match_id.trim().to_string();
+    if Uuid::parse_str(&faceit_id).is_err() {
+        return Err(api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_faceit_match_id",
+            "faceit_match_id must be a valid UUID (e.g. from the FaceIT match URL)",
+        ));
+    }
+
+    // Load match
+    let m = load_match_full(&state.pool, match_id).await.map_err(|_| {
+        api_err(StatusCode::NOT_FOUND, "match_not_found", "Match not found")
+    })?;
+
+    // Auth: caller must be a participant
+    let is_creator = m.creator_user_id == caller_id;
+    let is_opponent = m.opponent_user_id.map(|id| id == caller_id).unwrap_or(false);
+    if !is_creator && !is_opponent {
+        return Err(api_err(
+            StatusCode::FORBIDDEN,
+            "not_participant",
+            "Only match participants can submit the FaceIT match ID",
+        ));
+    }
+
+    // Status check: must be FUNDED or GAME_ID_INPUT
+    use crate::models::MatchStatus;
+    match m.status {
+        MatchStatus::Funded | MatchStatus::GameIdInput => {}
+        _ => {
+            return Err(api_err(
+                StatusCode::CONFLICT,
+                "wrong_status",
+                &format!("Cannot submit FaceIT match ID when match is in status {:?}", m.status),
+            ));
+        }
+    }
+
+    // Optional: verify match exists on FaceIT (use FaceitDataService if available)
+    // We skip the live API call here to keep this path fast and avoid blocking on
+    // network errors — the FaceIT Watcher will detect invalid IDs via 404/errors.
+
+    // Determine which player column to update
+    let player_field = if is_creator { "faceit_match_id_player_a" } else { "faceit_match_id_player_b" };
+
+    // Update this player's submission field + transition to GAME_ID_INPUT if still FUNDED
+    sqlx::query(&format!(
+        "UPDATE matches SET {player_field} = $1, \
+         status = CASE WHEN status = 'FUNDED' THEN 'GAME_ID_INPUT'::match_status ELSE status END \
+         WHERE id = $2",
+    ))
+    .bind(&faceit_id)
+    .bind(match_id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(match_id = %match_id, error = %e, "submit_faceit_match_id: DB error");
+        api_err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "Failed to save FaceIT match ID")
+    })?;
+
+    // Reload to check if both players have submitted
+    let updated = load_match_full(&state.pool, match_id).await.map_err(|_| {
+        api_err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "Failed to reload match")
+    })?;
+
+    // Read the *other* player's already-submitted ID from the struct
+    let other_val_opt = if is_creator {
+        updated.faceit_match_id_player_b.clone()
+    } else {
+        updated.faceit_match_id_player_a.clone()
+    };
+    let other_val = other_val_opt.as_deref().unwrap_or("");
+
+    // Both submitted?
+    if !other_val.is_empty() {
+        if other_val != faceit_id.as_str() {
+            // Mismatch — notify via WS but don't block
+            let _ = state.tx.send(serde_json::json!({
+                "type": "faceit_id_mismatch",
+                "match_id": match_id.to_string(),
+            }).to_string());
+            return Err(api_err(
+                StatusCode::CONFLICT,
+                "faceit_id_mismatch",
+                "Both players submitted different FaceIT match IDs. Please verify and resubmit.",
+            ));
+        }
+
+        // IDs match → finalize and transition to IN_GAME
+        sqlx::query(
+            "UPDATE matches \
+             SET faceit_match_id_final = $1, \
+                 status = 'IN_GAME'::match_status \
+             WHERE id = $2 AND status = 'GAME_ID_INPUT'",
+        )
+        .bind(&faceit_id)
+        .bind(match_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!(match_id = %match_id, error = %e, "submit_faceit_match_id: finalize error");
+            api_err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "Failed to finalize match ID")
+        })?;
+
+        // Create watcher job (idempotent via ON CONFLICT DO NOTHING)
+        sqlx::query(
+            "INSERT INTO faceit_watcher_jobs (match_id, faceit_match_id) \
+             VALUES ($1, $2) ON CONFLICT (match_id) DO NOTHING",
+        )
+        .bind(match_id)
+        .bind(&faceit_id)
+        .execute(&state.pool)
+        .await
+        .ok(); // non-fatal
+
+        tracing::info!(
+            match_id = %match_id,
+            faceit_match_id = %faceit_id,
+            "✅ FaceIT match ID confirmed by both players → IN_GAME"
+        );
+
+        let _ = state.tx.send(serde_json::json!({
+            "type": "match_status",
+            "match_id": match_id.to_string(),
+            "status": "IN_GAME",
+            "faceit_match_id": faceit_id,
+        }).to_string());
+
+        return Ok(Json(serde_json::json!({
+            "status": "confirmed",
+            "both_submitted": true,
+            "match_status": "IN_GAME",
+            "faceit_match_id": faceit_id,
+        })));
+    }
+
+    // Only one player has submitted so far
+    let _ = state.tx.send(serde_json::json!({
+        "type": "faceit_id_submitted",
+        "match_id": match_id.to_string(),
+        "submitted_by": caller_id.to_string(),
+    }).to_string());
+
+    tracing::info!(
+        match_id = %match_id,
+        caller = %caller_id,
+        faceit_match_id = %faceit_id,
+        "FaceIT match ID submitted (waiting for other player)"
+    );
+
+    Ok(Json(serde_json::json!({
+        "status": "submitted",
+        "both_submitted": false,
+        "match_status": "GAME_ID_INPUT",
+        "message": "Waiting for the other player to submit the same FaceIT match ID",
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct SubmitFaceitMatchIdReq {
+    pub faceit_match_id: String,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4b: Payout Flow Handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Request body for submitting a winner signature.
+#[derive(Deserialize)]
+pub struct SubmitSignatureReq {
+    pub signature_hex: Option<String>,
+    pub signed_tx_hex: Option<String>,
+}
+
+/// GET /api/v1/matches/{id}/payout/pskt
+///
+/// Returns the oracle-signed PSKT to the winner.
+pub async fn get_payout_pskt(
+    State(state): State<AppState>,
+    SessionUser(user): SessionUser,
+    Path(match_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let api_err = |status: StatusCode, code: &'static str, msg: &str| {
+        (status, Json(serde_json::json!({"error": code, "message": msg})))
+    };
+
+    let caller_id = user.id;
+
+    let m = load_match_full(&state.pool, match_id).await.map_err(|_| {
+        api_err(StatusCode::NOT_FOUND, "match_not_found", "Match not found")
+    })?;
+
+    let winner_id = m.winner_user_id.ok_or_else(|| {
+        api_err(StatusCode::CONFLICT, "no_winner", "No winner determined yet")
+    })?;
+    if winner_id != caller_id {
+        return Err(api_err(StatusCode::FORBIDDEN, "not_winner", "Only the winner may access the PSKT"));
+    }
+
+    use crate::models::MatchStatus;
+    if m.status != MatchStatus::ReadyForPayout {
+        return Err(api_err(
+            StatusCode::CONFLICT,
+            "wrong_status",
+            &format!("PSKT only available when READY_FOR_PAYOUT. Current: {:?}", m.status),
+        ));
+    }
+
+    let pskt_hex = m.payout_pskt_hex.clone().ok_or_else(|| {
+        api_err(StatusCode::INTERNAL_SERVER_ERROR, "pskt_missing", "PSKT not generated yet")
+    })?;
+
+    tracing::info!(match_id = %match_id, caller = %caller_id, "get_payout_pskt");
+
+    let pskt_json: serde_json::Value = hex::decode(&pskt_hex)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({"raw_hex": &pskt_hex}));
+
+    Ok(Json(serde_json::json!({
+        "match_id": match_id.to_string(),
+        "pskt_hex": pskt_hex,
+        "pskt": pskt_json,
+        "payout_status": m.payout_status,
+        "winner_user_id": winner_id.to_string(),
+    })))
+}
+
+/// POST /api/v1/matches/{id}/payout/submit-signature
+///
+/// Backend-held-keys MVP: calls execute_payout directly → TX broadcast → RESOLVED.
+pub async fn submit_payout_signature(
+    State(state): State<AppState>,
+    SessionUser(user): SessionUser,
+    Path(match_id): Path<Uuid>,
+    Json(payload): Json<SubmitSignatureReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let api_err = |status: StatusCode, code: &'static str, msg: &str| {
+        (status, Json(serde_json::json!({"error": code, "message": msg})))
+    };
+
+    let caller_id = user.id;
+
+    let m = load_match_full(&state.pool, match_id).await.map_err(|_| {
+        api_err(StatusCode::NOT_FOUND, "match_not_found", "Match not found")
+    })?;
+
+    let winner_id = m.winner_user_id.ok_or_else(|| {
+        api_err(StatusCode::CONFLICT, "no_winner", "No winner determined yet")
+    })?;
+    if winner_id != caller_id {
+        return Err(api_err(StatusCode::FORBIDDEN, "not_winner", "Only the winner may submit the signature"));
+    }
+
+    use crate::models::MatchStatus;
+    if m.status != MatchStatus::ReadyForPayout {
+        return Err(api_err(
+            StatusCode::CONFLICT,
+            "wrong_status",
+            &format!("Signature only accepted when READY_FOR_PAYOUT. Current: {:?}", m.status),
+        ));
+    }
+
+    if m.payout_tx_hash.is_some() {
+        return Err(api_err(StatusCode::CONFLICT, "already_broadcast", "Payout TX already broadcast"));
+    }
+
+    tracing::info!(
+        match_id = %match_id, caller = %caller_id,
+        has_sig = payload.signature_hex.is_some(),
+        "submit_payout_signature"
+    );
+
+    if let Some(ref multisig_svc) = state.multisig_service {
+        // Load winner kaspa address
+        let winner_addr = sqlx::query("SELECT kaspa_address FROM users WHERE id = $1")
+            .bind(winner_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "submit_payout_signature: DB error");
+                api_err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "Failed to load winner address")
+            })?
+            .and_then(|row| row.try_get::<Option<String>, _>("kaspa_address").ok().flatten())
+            .ok_or_else(|| api_err(StatusCode::CONFLICT, "no_kaspa_address", "Winner has no Kaspa address linked"))?;
+
+        // Restore escrow from DB if needed
+        if multisig_svc.get_escrow(&match_id).await.is_none() {
+            if let Ok(Some(er)) = sqlx::query(
+                "SELECT pubkey_a_hex, pubkey_b_hex, pubkey_oracle_hex, redeem_script_hex, \
+                 p2sh_address, wager_per_player_sompi, timelock_timestamp \
+                 FROM multisig_escrows WHERE match_id = $1",
+            )
+            .bind(match_id)
+            .fetch_optional(&state.pool)
+            .await {
+                let pk_a: String     = er.try_get("pubkey_a_hex").unwrap_or_default();
+                let pk_b: String     = er.try_get("pubkey_b_hex").unwrap_or_default();
+                let pk_o: String     = er.try_get("pubkey_oracle_hex").unwrap_or_default();
+                let rs: String       = er.try_get("redeem_script_hex").unwrap_or_default();
+                let p2sh: String     = er.try_get("p2sh_address").unwrap_or_default();
+                let wager: i64       = er.try_get("wager_per_player_sompi").unwrap_or(0);
+                let tl: Option<i64>  = er.try_get("timelock_timestamp").unwrap_or(None);
+                multisig_svc.restore_escrow_from_row(
+                    match_id, pk_a, pk_b, pk_o, rs, p2sh,
+                    wager as u64, tl.map(|v| v as u64),
+                ).await;
+            }
+        }
+
+        match multisig_svc.execute_payout(&match_id, &winner_addr).await {
+            Ok(result) => {
+                tracing::info!(
+                    match_id = %match_id, tx_id = %result.tx_id,
+                    winner_sompi = result.winner_amount_sompi,
+                    "✅ Payout TX broadcast"
+                );
+                sqlx::query(
+                    "UPDATE matches SET payout_tx_hash = $1, payout_status = 'broadcast', \
+                     status = 'RESOLVED' WHERE id = $2 AND status = 'READY_FOR_PAYOUT'",
+                )
+                .bind(&result.tx_id)
+                .bind(match_id)
+                .execute(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "submit_payout_signature: DB update failed after broadcast");
+                    api_err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "TX broadcast OK but DB update failed")
+                })?;
+
+                let _ = state.tx.send(serde_json::json!({
+                    "type": "payout_broadcast",
+                    "match_id": match_id.to_string(),
+                    "tx_id": result.tx_id,
+                    "status": "RESOLVED",
+                }).to_string());
+
+                return Ok(Json(serde_json::json!({
+                    "status": "broadcast",
+                    "tx_id": result.tx_id,
+                    "winner_amount_sompi": result.winner_amount_sompi,
+                    "platform_fee_sompi": result.platform_fee_sompi,
+                    "network_fee_sompi": result.network_fee_sompi,
+                    "match_status": "RESOLVED",
+                })));
+            }
+            Err(e) => {
+                tracing::error!(match_id = %match_id, error = %e, "execute_payout failed");
+                return Err(api_err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "payout_failed",
+                    &format!("Payout failed: {}", e),
+                ));
+            }
+        }
+    }
+
+    Err(api_err(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "no_multisig_service",
+        "Multisig payout service not available",
+    ))
+}
+
+/// GET /api/v1/matches/{id}/payout/status
+///
+/// Returns current payout progress to any match participant.
+pub async fn get_payout_status(
+    State(state): State<AppState>,
+    SessionUser(user): SessionUser,
+    Path(match_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let api_err = |status: StatusCode, code: &'static str, msg: &str| {
+        (status, Json(serde_json::json!({"error": code, "message": msg})))
+    };
+
+    let caller_id = user.id;
+
+    let m = load_match_full(&state.pool, match_id).await.map_err(|_| {
+        api_err(StatusCode::NOT_FOUND, "match_not_found", "Match not found")
+    })?;
+
+    let is_participant = m.creator_user_id == caller_id
+        || m.opponent_user_id.map(|id| id == caller_id).unwrap_or(false);
+    if !is_participant {
+        return Err(api_err(StatusCode::FORBIDDEN, "not_participant", "Only match participants may view payout status"));
+    }
+
+    let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-12".to_string());
+    let explorer_base = if kaspa_network.contains("mainnet") {
+        "https://explorer.kaspa.org/txs"
+    } else {
+        "https://explorer-tn12.kaspa.org/txs"
+    };
+    let explorer_url = m.payout_tx_hash.as_ref().map(|tx| format!("{}/{}", explorer_base, tx));
+
+    Ok(Json(serde_json::json!({
+        "match_id": match_id.to_string(),
+        "match_status": format!("{:?}", m.status),
+        "payout_status": m.payout_status,
+        "payout_tx_hash": m.payout_tx_hash,
+        "winner_user_id": m.winner_user_id.map(|id| id.to_string()),
+        "loser_user_id": m.loser_user_id.map(|id| id.to_string()),
+        "faceit_score": m.faceit_score,
+        "faceit_winner_faction": m.faceit_winner_faction,
+        "explorer_url": explorer_url,
+    })))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: load_match_full — loads all v1.0 columns for a single match
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn load_match_full(
+    pool: &sqlx::PgPool,
+    match_id: Uuid,
+) -> Result<crate::models::Match, sqlx::Error> {
+    sqlx::query_as::<_, crate::models::Match>(
+        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+         creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+         player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+         player_a_deposit_confirmed, player_b_deposit_confirmed, \
+         player_a_faceid_hash, player_b_faceid_hash, \
+         player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+         faceit_match_id_player_a, faceit_match_id_player_b, \
+         faceit_match_id_final, faceit_match_status, \
+         faceit_finished_at, faceit_winner_faction, faceit_score, \
+         winner_user_id, loser_user_id, \
+         payout_pskt_hex, payout_tx_hash, payout_status \
+         FROM matches WHERE id = $1",
+    )
+    .bind(match_id)
+    .fetch_one(pool)
+    .await
 }

@@ -199,6 +199,23 @@ pub struct MultisigDepositStatus {
     pub utxo_count: u32,
 }
 
+/// Result of `create_pskt()` — contains the oracle-signed PSKT and fee breakdown.
+#[derive(Debug, Clone, Serialize)]
+pub struct PsktResult {
+    /// Match ID this PSKT belongs to.
+    pub match_id: String,
+    /// Hex-encoded PSKT payload (oracle-signed, awaiting winner signature).
+    pub pskt_hex: String,
+    /// Winner's Kaspa address.
+    pub winner_address: String,
+    /// Amount the winner will receive (sompi).
+    pub winner_amount_sompi: u64,
+    /// Platform fee (sompi).
+    pub platform_fee_sompi: u64,
+    /// Network/miner fee (sompi).
+    pub network_fee_sompi: u64,
+}
+
 // ─── Key Roles ───────────────────────────────────────────────────────────────
 
 /// Identifies a signer role in the multisig.

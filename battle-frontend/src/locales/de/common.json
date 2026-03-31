@@ -8,6 +8,12 @@
         "back_to_lobby": "ZUR LOBBY",
         "profile": "Profil"
     },
+    "footer_links": {
+        "whitepaper": "Whitepaper",
+        "terms": "AGB",
+        "discord": "Discord",
+        "support": "Support"
+    },
     "hero": {
         "beta_tag": "Beitritt Phase 1: OPEN BETA",
         "title": "PLAY TO WIN <1>KASPA</1>",
@@ -15,7 +21,7 @@
     },
     "sections": {
         "what_is": "WAS IST KASPABATTLE?",
-        "what_is_content": "KaspaBattle ist eine dezentrale <1>Peer-to-Peer Gaming-Wager-Plattform</1> auf Kaspa. Zwei Spieler zahlen KAS in einen sicheren Smart-Contract-Escrow ein. Nach einem Match (z.B. CS2 auf FACEIT) wertet unser automatisiertes Oracle das Ergebnis aus und der Gewinner erhält automatisch den Payout.",
+        "what_is_content": "KaspaBattle ist eine dezentrale <1>Peer-to-Peer Gaming-Wager-Plattform</1> auf Kaspa. Zwei Spieler zahlen KAS in einen sicheren Multisig-Escrow ein (basierend auf Multi-Signature Transaktionen). Nach einem Match (z.B. CS2 auf FACEIT) wertet unser automatisiertes Oracle das Ergebnis aus und der Gewinner erhält automatisch den Payout.",
         "how_it_works": "SO FUNKTIONIERT EIN KASPA BATTLE",
         "how_it_works_steps": {
             "1": "WALLET VERBINDEN & FACEIT LOGIN",
@@ -24,6 +30,40 @@
             "4": "MATCH SPIELEN (z.B. CS2 auf FACEIT)",
             "5": "ERGEBNIS AUTOMATISCH IMPORTIERT (Oracle)",
             "6": "AUSZAHLUNG AUTOMATISCH (innerhalb Sekunden)"
+        },
+        "how_1vs1": {
+            "title": "So funktioniert dein <1>KaspaBattle 1vs1</1>",
+            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und Faceit spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – 100% vertrauenslos, transparent und ohne Bullshit.",
+            "steps": {
+                "1": {
+                    "title": "Faceit & Wallet verbinden",
+                    "text": "Verknüpfe dein Faceit-Konto mit unserer Plattform und verbinde deine Kaspa-Wallet (Reihenfolge ist egal). Das ist nötig, um das Match-Ergebnis zu tracken und den Gewinn an dich auszuzahlen.",
+                    "btn_wallet": "🔌 Verbinde deine Wallet",
+                    "btn_faceit": "🎮 Verbinde dein Faceit"
+                },
+                "2": {
+                    "title": "Lobby beitreten oder erstellen",
+                    "text": "Gehe in die <1>Lobby</1> und nimm eine offene Herausforderung an. Alternativ kannst du einfach selbst eine neue Challenge erstellen und deinen gewünschten KAS-Wetteinsatz festlegen."
+                },
+                "3": {
+                    "title": "Betrag einzahlen & auf Gegner warten",
+                    "text": "Zahle deinen KAS-Einsatz in den Match-Escrow ein. Du musst ggf. kurz warten, bis dein Gegner joint und die Transaktion im Kaspa-Netzwerk bestätigt ist."
+                },
+                "4": {
+                    "title": "Faceit 1vs1 starten",
+                    "text": "Wechselt jetzt beide zu Faceit in unseren <1>KaspaBattle CS2 Club</1>. In der Club Queue <3>„1 vs 1“</3> antreten, Match darüber starten und auf dem gleichen Server gegeneinander zocken.",
+                    "btn_club": "🏰 Club beitreten (Invite)",
+                    "btn_queue": "⚔️ 1vs1 Queue öffnen"
+                },
+                "5": {
+                    "title": "Match-ID eintragen",
+                    "text": "Sobald die Match-Seite auf Faceit angezeigt wird, kopiert einer von euch die Match-ID aus dem Faceit-Matchroom und trägt sie auf unserer Seite ein. So wird euer Match-Ergebnis automatisch verknüpft."
+                },
+                "6": {
+                    "title": "Spielen & automatische Auszahlung",
+                    "text": "Tryhard-Mode on! Spielt euer CS2 1vs1 zu Ende. Nach Match-Ende ermittelt unser System On-Chain den Gewinner. Der Kaspa-Pot geht komplett non-custodial via Kaspa Multisig-Transaktion direkt auf dessen Wallet (abzüglich Protokoll-Fee). GG WP!"
+                }
+            }
         },
         "implemented_features": "WAS SCHON IMPLEMENTIERT IST (BETA)",
         "already_live": "Bereits live",
@@ -79,7 +119,12 @@
         "connect_wallet_join": "Wallet verbinden zum Beitreten!",
         "faceit_connected_as": "Mit FACEIT verbunden als",
         "connect_faceit_join": "FACEIT verbinden zum Beitreten!",
-        "test_mode_notice": "Test-Modus: Beitreten ohne FACEIT möglich."
+        "test_mode_notice": "Test-Modus: Beitreten ohne FACEIT möglich.",
+        "match_suffix": "Match",
+        "role_creator": "Creator",
+        "role_opponent": "Gegner",
+        "waiting_for_opponent": "Warten auf Gegner...",
+        "status_label": "Status:"
     },
     "wallet": {
         "import_title": "Wallet importieren",
@@ -124,7 +169,23 @@
             "net_profit": "Netto Profit"
         },
         "rank": "Player Rank",
-        "next_level": "Nächstes Level bei {{count}} Siegen"
+        "next_level": "Nächstes Level bei {{count}} Siegen",
+        "not_connected_title": "FACEIT nicht verbunden",
+        "not_connected_text": "Um dein Profil zu sehen, verbinde zuerst deinen FACEIT-Account.",
+        "connect_faceit": "Mit FACEIT verbinden",
+        "cs2_stats_title": "CS2 FACEIT Stats",
+        "stats_retry_failed": "Erneuter Versuch fehlgeschlagen.",
+        "stats_retry": "Erneut versuchen",
+        "ranks": {
+            "silver_commander": "SILVER COMMANDER"
+        },
+        "stats_labels": {
+            "matches": "Matches",
+            "kd": "K/D",
+            "hs": "HS %",
+            "wins": "Wins",
+            "recent_results": "Letzte Ergebnisse:"
+        }
     },
     "challenge": {
         "create": "Challenge erstellen",
@@ -161,7 +222,9 @@
         "wager_min_0": "Einsatz muss größer als 0 sein",
         "wager_min": "Mindest-Einsatz: {{amount}} KAS",
         "wager_max": "Maximal-Einsatz: {{amount}} KAS",
-        "invalid_amount": "Ungültiger Betrag"
+        "invalid_amount": "Ungültiger Betrag",
+        "faceit_match_id_required": "Bitte gib eine FACEIT Match-ID ein.",
+        "faceit_match_id_invalid": "Bitte gib eine gültige FACEIT Match-ID im UUID-Format ein."
     },
     "match": {
         "status": {
@@ -191,6 +254,21 @@
         "deposit_stake": "EINSATZ EINZAHLEN",
         "waiting_funding": "Warten auf Funding...",
         "waiting_funding_info": "Sobald beide Spieler eingezahlt haben, wird das Match gesperrt und der Oracle beginnt das Tracking.",
+        "game_id_input": "FACEIT Match-ID wird erwartet",
+        "game_id_input_info": "Beide Spieler mussen dieselbe FACEIT Match-ID einreichen, bevor das Match weiterverarbeitet wird.",
+        "faceit_input_placeholder": "z. B. 550e8400-e29b-41d4-a716-446655440000",
+        "faceit_submit": "MATCH-ID EINREICHEN",
+        "faceit_submit_update": "MATCH-ID AKTUALISIEREN",
+        "faceit_submit_loading": "WIRD GESENDET...",
+        "faceit_submit_waiting": "Deine Match-ID wurde gespeichert. Wir warten jetzt auf die Einreichung des anderen Spielers.",
+        "faceit_submit_confirmed": "Beide Spieler haben dieselbe Match-ID eingereicht. Das Match wird weiterverarbeitet.",
+        "faceit_submit_mismatch": "Die eingereichten FACEIT Match-IDs stimmen nicht uberein. Bitte prufe die ID und reiche sie erneut ein.",
+        "faceit_submit_locked": "Die Match-ID kann in diesem Status nicht mehr bearbeitet werden.",
+        "faceit_submit_error_generic": "Die FACEIT Match-ID konnte nicht gespeichert werden.",
+        "faceit_status_you_submitted": "Du hast eingereicht",
+        "faceit_status_you_pending": "Deine ID fehlt noch",
+        "faceit_status_opponent_submitted": "Gegner hat eingereicht",
+        "faceit_status_opponent_pending": "Warte auf Gegner",
         "running": "MATCH LÄUFT...",
         "running_info": "Spiele jetzt auf FACEIT. Das Ergebnis wird nach dem Spiel automatisch erfasst.",
         "paid_out": "Gewinn Ausgezahlt",
@@ -220,13 +298,21 @@
         "close": "SCHLIESSEN"
     },
     "status": {
+        "DRAFT": "Entwurf",
         "OPEN": "Offen",
+        "AWAITING_FUNDING": "Wartet auf Einzahlung",
         "FUNDED": "Funding läuft",
         "LOCKED": "Sperre / Im Spiel",
+        "GAME_ID_INPUT": "Wartet auf Match-ID",
+        "IN_GAME": "Im Spiel",
+        "FINISHED_FACEIT": "FACEIT beendet",
+        "READY_FOR_PAYOUT": "Bereit fur Auszahlung",
+        "RESOLVING": "Wird aufgelost",
         "RESOLVED": "Beendet",
         "PAID_OUT": "Ausgezahlt",
         "DISPUTED": "Dispute",
-        "CANCELLED": "Abgebrochen"
+        "CANCELLED": "Abgebrochen",
+        "UNKNOWN": "Unbekannt"
     },
     "escrow": {
         "title": "Challenge erstellt!",
@@ -238,7 +324,12 @@
         "low_balance": "Nicht genügend Guthaben vorhanden.",
         "waiting_opponent": "Deine Einzahlung ist bestätigt — warte auf deinen Gegner...",
         "deposit_now": "💰 Jetzt einzahlen",
-        "disclaimer": "Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht."
+        "disclaimer": "Hinweis: Nach der Einzahlung wird die Challenge in der Lobby veröffentlicht.",
+        "status_confirmed": "✅ Bestätigt",
+        "status_waiting": "⏳ Warte...",
+        "status_confirmations": "⏳ Confirmations...",
+        "me_suffix": "(Du)",
+        "low_balance_hint": "Mindestens {{amount}} KAS erforderlich"
     },
     "common": {
         "loading": "Laden...",
@@ -254,7 +345,8 @@
         "header": {
             "title": "Kaspa Battle",
             "wallet": "Wallet",
-            "language": "Sprache"
+            "language": "Sprache",
+            "test_mode": "Test-Modus"
         },
         "buttons": {
             "next": "Weiter",

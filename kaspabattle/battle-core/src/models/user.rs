@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Das password_hash Feld wird NIEMALS in API-Responses zurückgegeben.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    pub id: String,
+    pub id: uuid::Uuid,
     pub email: String,
     pub email_verified: bool,
     #[serde(skip_serializing)] // NIEMALS in JSON-Output
@@ -19,7 +19,7 @@ pub struct User {
 /// Öffentliche User-Ansicht für API-Responses (ohne sensible Daten)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPublic {
-    pub id: String,
+    pub id: uuid::Uuid,
     pub display_name: String,
     pub kaspa_address: Option<String>,
     pub created_at: String,
@@ -29,7 +29,7 @@ pub struct UserPublic {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String, // 256-bit Token, base64url
-    pub user_id: String,
+    pub user_id: uuid::Uuid,
     pub expires_at: String, // ISO 8601 datetime
     pub created_at: String,
 }
@@ -52,7 +52,7 @@ pub struct LoginRequest {
 /// Response nach erfolgreichem Login/Register
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
-    pub user_id: String,
+    pub user_id: uuid::Uuid,
     pub display_name: String,
     pub session_token: String,
     pub expires_at: String,

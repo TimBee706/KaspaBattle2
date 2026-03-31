@@ -15,6 +15,8 @@ pub enum MatchError {
     MatchAlreadyResolved,
     CannotCancelLockedMatch,
     InternalError(String),
+    /// F-010: Both players submitted FaceIT match IDs but they don't match.
+    FaceitMatchIdMismatch { id_a: String, id_b: String },
 }
 
 impl fmt::Display for MatchError {
@@ -38,6 +40,9 @@ impl fmt::Display for MatchError {
             MatchError::MatchAlreadyResolved => write!(f, "Match already resolved"),
             MatchError::CannotCancelLockedMatch => write!(f, "Cannot cancel a locked match"),
             MatchError::InternalError(e) => write!(f, "Internal error: {}", e),
+            MatchError::FaceitMatchIdMismatch { id_a, id_b } => {
+                write!(f, "FaceIT match ID mismatch: player A entered '{}', player B entered '{}'", id_a, id_b)
+            }
         }
     }
 }

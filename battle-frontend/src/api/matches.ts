@@ -3,12 +3,13 @@ import type {
     BattleMatch, CreateMatchRequest, CreateMatchResponse,
     MatchListResponse, SubmitDepositRequest, AcceptMatchRequest,
     InitiateDisputeRequest, LobbyFilters, PaymentStatus,
+    SubmitFaceitMatchIdRequest, SubmitFaceitMatchIdResponse,
 } from './types';
 
 export async function createMatch(data: CreateMatchRequest): Promise<CreateMatchResponse> {
     const res = await apiClient.post<any>('/challenges', {
         game_id: data.game_id,
-        stake_kas: data.wager_amount_sompi,
+        wager_sompi: data.wager_amount_sompi,
         mode: data.match_mode.toUpperCase()
     });
     return {
@@ -38,6 +39,16 @@ export async function submitDeposit(data: SubmitDepositRequest): Promise<BattleM
         tx_hash: data.tx_hash,
         player_role: data.player_role,
     });
+    return res.data;
+}
+
+export async function submitFaceitMatchId(
+    data: SubmitFaceitMatchIdRequest,
+): Promise<SubmitFaceitMatchIdResponse> {
+    const res = await apiClient.post<SubmitFaceitMatchIdResponse>(
+        `/matches/${data.match_id}/faceit-match-id`,
+        { faceit_match_id: data.faceit_match_id },
+    );
     return res.data;
 }
 

@@ -73,16 +73,7 @@ fn infer_return_to(headers: &HeaderMap) -> String {
     default_frontend_url()
 }
 
-fn build_auth_cookie(session_token: &str, redirect_target: &str) -> String {
-    let is_secure = redirect_target.starts_with("https://");
-    let same_site = if is_secure { "None" } else { "Lax" };
-    let secure_flag = if is_secure { "; Secure" } else { "" };
 
-    format!(
-        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
-        session_token, same_site, secure_flag
-    )
-}
 
 fn append_query_param(base: &str, key: &str, value: &str) -> String {
     let separator = if base.contains('?') { '&' } else { '?' };
@@ -100,7 +91,7 @@ async fn auth_url_faceit(
     State(state): State<AppState>,
 ) -> Result<Json<AuthUrlResponse>, axum::http::StatusCode> {
     let return_to = default_frontend_url();
-    eprintln!("🔐 FACEIT auth-url: return_to={}", return_to);
+    tracing::info!("🔐 FACEIT auth-url: return_to={}", return_to);
 
     match state
         .faceit_service
@@ -108,11 +99,11 @@ async fn auth_url_faceit(
         .await
     {
         Ok((url, _)) => {
-            eprintln!("🔐 FACEIT auth URL (JSON): {}", url);
+            tracing::info!("🔐 FACEIT auth URL (JSON): {}", url);
             Ok(Json(AuthUrlResponse { url }))
         }
         Err(e) => {
-            eprintln!("❌ FACEIT auth-url generation failed: {}", e);
+            tracing::error!("❌ FACEIT auth-url generation failed: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -124,7 +115,7 @@ async fn login_faceit(
     headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let return_to = default_frontend_url();
-    eprintln!("🔐 FACEIT login: return_to={}", return_to);
+    tracing::info!("🔐 FACEIT login: return_to={}", return_to);
 
     match state
         .faceit_service
@@ -132,12 +123,12 @@ async fn login_faceit(
         .await
     {
         Ok((url, _)) => {
-            eprintln!("🔐 FACEIT auth URL: {}", url);
+            tracing::info!("🔐 FACEIT auth URL: {}", url);
             Ok(Redirect::temporary(&url))
         }
         Err(e) => {
-            eprintln!("❌ FACEIT auth URL generation failed");
-            eprintln!("  Detail: {}", e);
+            tracing::error!("❌ FACEIT auth URL generation failed");
+            tracing::info!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -153,13 +144,13 @@ async fn link_faceit(
 
     match state
         .faceit_service
-        .generate_auth_url(Some(&u.id), Some(return_to))
+        .generate_auth_url(Some(&u.id.to_string()), Some(return_to))
         .await
     {
         Ok((url, _)) => Ok(Redirect::temporary(&url)),
         Err(e) => {
-            eprintln!("❌ FACEIT link URL generation failed for user {}", mask_faceit_id(&u.id));
-            eprintln!("  Detail: {}", e);
+            tracing::error!("❌ FACEIT link URL generation failed for user {}", mask_faceit_id(&u.id.to_string()));
+            tracing::info!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -183,11 +174,11 @@ async fn faceit_callback(
         .handle_callback(&query.code, &query.state)
         .await
         .map_err(|e| {
-            eprintln!("❌ FACEIT callback error: {}", e);
+            tracing::error!("❌ FACEIT callback error: {}", e);
             axum::http::StatusCode::BAD_REQUEST
         })?;
 
-    eprintln!("✅ FACEIT callback: user {} linked", mask_faceit_id(&info.guid));
+    tracing::info!("✅ FACEIT callback: user {} linked", mask_faceit_id(&info.guid));
 
     // 2. Auth Session Generieren / Faceit Link speichern
     let (uid, session_token) = state
@@ -195,8 +186,8 @@ async fn faceit_callback(
         .handle_faceit_sso(&info, existing_user_id.as_deref())
         .await
         .map_err(|e| {
-            eprintln!("❌ Auth SSO Error for FACEIT user {}", mask_faceit_id(&info.guid));
-            eprintln!("  Detail: {}", e);
+            tracing::error!("❌ Auth SSO Error for FACEIT user {}", mask_faceit_id(&info.guid));
+            tracing::info!("  Detail: {}", e);
             axum::http::StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -208,7 +199,7 @@ async fn faceit_callback(
     // 3. Zurück ins Frontend mit Session-Cookie
     let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    let cookie_str = build_auth_cookie(&session_token, &frontend_url);
+    let cookie_str = super::build_auth_cookie(&session_token);
     let redirect_url = append_query_param(&frontend_url, "linked", "1");
 
     let response = axum::response::Response::builder()
@@ -239,7 +230,7 @@ async fn faceit_status(
 ) -> Result<Json<FaceitStatusResponse>, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
-    match state.faceit_service.get_link_status(&u.id).await {
+    match state.faceit_service.get_link_status(&u.id.to_string()).await {
         Ok(status) => Ok(Json(FaceitStatusResponse {
             connected: status.linked,
             faceit_nickname: status.faceit_nickname,
@@ -249,8 +240,8 @@ async fn faceit_status(
             linked_at: status.linked_at,
         })),
         Err(e) => {
-            eprintln!("❌ FACEIT status check failed for user {}", mask_faceit_id(&u.id));
-            eprintln!("  Detail: {}", e);
+            tracing::error!("❌ FACEIT status check failed for user {}", mask_faceit_id(&u.id.to_string()));
+            tracing::info!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -278,7 +269,7 @@ async fn faceit_profile(
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
     let faceit_data_svc = state.faceit_data_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
+        tracing::error!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
         axum::http::StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -286,7 +277,7 @@ async fn faceit_profile(
     let row = sqlx::query(
         "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url, faceit_elo, faceit_skill_level, faceit_cache_updated_at FROM faceit_links WHERE user_id = $1::uuid"
     )
-    .bind(&u.id)
+    .bind(&u.id.to_string())
     .fetch_optional(&state.pool)
     .await
     .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -306,7 +297,7 @@ async fn faceit_profile(
         .unwrap_or(false);
 
     if cache_fresh && cached_elo.is_some() && cached_level.is_some() {
-        eprintln!("📦 FACEIT profile [{}] served from cache", mask_faceit_id(&player_id));
+        tracing::info!("📦 FACEIT profile [{}] served from cache", mask_faceit_id(&player_id));
         return Ok(Json(FaceitProfileApiResponse {
             faceit_player_id: player_id.clone(),
             nickname: cached_nick.clone(),
@@ -321,7 +312,7 @@ async fn faceit_profile(
     }
 
     // Cache stale or missing → fetch live from FACEIT Data API
-    eprintln!("🌐 FACEIT profile [{}] fetching from API", mask_faceit_id(&player_id));
+    tracing::info!("🌐 FACEIT profile [{}] fetching from API", mask_faceit_id(&player_id));
 
     match faceit_data_svc.get_player_by_id(&player_id).await {
         Ok(profile) => {
@@ -338,7 +329,7 @@ async fn faceit_profile(
             )
             .bind(elo)
             .bind(skill_level)
-            .bind(&u.id)
+            .bind(&u.id.to_string())
             .execute(&state.pool)
             .await;
 
@@ -357,7 +348,7 @@ async fn faceit_profile(
             }))
         }
         Err(e) => {
-            eprintln!("⚠️ FACEIT Data API Error, using cached data: {}", e);
+            tracing::error!("⚠️ FACEIT Data API Error, using cached data: {}", e);
             // Fallback to cached data
             Ok(Json(FaceitProfileApiResponse {
                 faceit_player_id: player_id,
@@ -396,7 +387,7 @@ async fn faceit_stats(
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
     let faceit_data_svc = state.faceit_data_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
+        tracing::error!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
         axum::http::StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -406,7 +397,7 @@ async fn faceit_stats(
     let player_id: String = sqlx::query_scalar(
         "SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid"
     )
-    .bind(&u.id)
+    .bind(&u.id.to_string())
     .fetch_optional(&state.pool)
     .await
     .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?
@@ -422,7 +413,7 @@ async fn faceit_stats(
             }))
         }
         Err(e) => {
-            eprintln!("⚠️ FACEIT Stats API Error: {}", e);
+            tracing::error!("⚠️ FACEIT Stats API Error: {}", e);
             Err(axum::http::StatusCode::BAD_GATEWAY)
         }
     }
@@ -436,13 +427,13 @@ async fn faceit_disconnect(
 ) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
-    match state.faceit_service.unlink_faceit(&u.id).await {
+    match state.faceit_service.unlink_faceit(&u.id.to_string()).await {
         Ok(()) => Ok(Json(serde_json::json!({
             "success": true,
             "message": "FACEIT-Verbindung wurde getrennt"
         }))),
         Err(e) => {
-            eprintln!("Faceit Disconnect Error: {}", e);
+            tracing::error!("Faceit Disconnect Error: {}", e);
             // Idempotent: return success even if no link found
             Ok(Json(serde_json::json!({
                 "success": true,

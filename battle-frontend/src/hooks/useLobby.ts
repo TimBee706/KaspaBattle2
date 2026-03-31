@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useLobbyStore } from '../stores/useLobbyStore';
 import { useWalletStore } from '../stores/useWalletStore';
 import { FEATURE_FLAGS } from '../config/featureFlags';
+import { SUPPORTED_GAMES } from '../config/constants';
 import apiClient from '../api/client';
 
 export function useLobby() {
@@ -31,7 +32,11 @@ export function useLobby() {
         return isConnected && balanceKas >= MIN_WAGER_KAS;
     }, [isConnected, balanceSompi]);
 
-    const createChallenge = useCallback(async (data: { stakeKas: number, mode: 'BO1' | 'BO3' }) => {
+    const createChallenge = useCallback(async (data: {
+        stakeKas: number,
+        mode: 'BO1' | 'BO3',
+        gameId?: string,
+    }) => {
         if (!canCreateChallenge) throw new Error("Voraussetzungen nicht erfüllt");
         if (!address) throw new Error("Wallet nicht verbunden");
 
@@ -45,10 +50,9 @@ export function useLobby() {
                 const escrowAddr = (account as any)?.escrowAddress || address;
 
                 const response = await apiClient.post('/challenges', {
-                    game_id: 'CS2',
-                    stake_kas: Math.round(data.stakeKas * 100_000_000),
+                    game_id: data.gameId || SUPPORTED_GAMES[0].id,
+                    wager_sompi: Math.round(data.stakeKas * 100_000_000),
                     mode: data.mode,
-                    creator_address: address,
                     escrow_address: escrowAddr,
                 });
                 if (response.data) addOrUpdateLobby(response.data);

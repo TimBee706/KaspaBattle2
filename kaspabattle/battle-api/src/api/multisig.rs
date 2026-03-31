@@ -8,7 +8,7 @@
 //! - Executing refunds
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
@@ -17,6 +17,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::api::AppState;
+use crate::api::auth_guard::SessionUser;
+use crate::api::admin_guard::AdminApiKey;
 
 // ─── Request / Response Types ─────────────────────────────────────────────
 
@@ -68,10 +70,11 @@ pub fn router() -> Router<AppState> {
 /// Returns the P2SH escrow address, redeem script, and public keys.
 async fn create_escrow(
     State(state): State<AppState>,
+    SessionUser(_user): SessionUser,
     Json(payload): Json<CreateEscrowReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ MultisigEscrowService not available");
+        tracing::error!("❌ MultisigEscrowService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -84,14 +87,13 @@ async fn create_escrow(
         .await
     {
         Ok(info) => {
-            eprintln!(
-                "✅ Multisig escrow created: match={}, address={}",
+            tracing::info!("✅ Multisig escrow created: match={}, address={}",
                 info.match_id, info.escrow_address
             );
             Ok(Json(serde_json::to_value(info).unwrap()))
         }
         Err(e) => {
-            eprintln!("❌ Failed to create multisig escrow: {}", e);
+            tracing::error!("❌ Failed to create multisig escrow: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -102,10 +104,11 @@ async fn create_escrow(
 /// Check deposit status for a multisig escrow address.
 async fn check_deposits(
     State(state): State<AppState>,
-    axum::extract::Query(params): axum::extract::Query<CheckDepositsReq>,
+    SessionUser(_user): SessionUser,
+    Query(params): Query<CheckDepositsReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ MultisigEscrowService not available");
+        tracing::error!("❌ MultisigEscrowService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -115,7 +118,7 @@ async fn check_deposits(
     {
         Ok(status) => Ok(Json(serde_json::to_value(status).unwrap())),
         Err(e) => {
-            eprintln!("❌ check_deposits failed: {}", e);
+            tracing::error!("❌ check_deposits failed: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -157,10 +160,11 @@ async fn get_escrow(
 async fn execute_payout(
     State(state): State<AppState>,
     Path(match_id): Path<Uuid>,
+    _admin: AdminApiKey,
     Json(payload): Json<ExecutePayoutReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ MultisigEscrowService not available");
+        tracing::error!("❌ MultisigEscrowService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -169,8 +173,7 @@ async fn execute_payout(
         .await
     {
         Ok(result) => {
-            eprintln!(
-                "✅ Multisig payout: match={}, tx={}, winner_sompi={}",
+            tracing::info!("✅ Multisig payout: match={}, tx={}, winner_sompi={}",
                 match_id, result.tx_id, result.winner_amount_sompi
             );
 
@@ -183,7 +186,7 @@ async fn execute_payout(
             Ok(Json(serde_json::to_value(result).unwrap()))
         }
         Err(e) => {
-            eprintln!("❌ Multisig payout failed: {}", e);
+            tracing::error!("❌ Multisig payout failed: {}", e);
             Ok(Json(serde_json::json!({
                 "status": "PAYOUT_FAILED",
                 "error": format!("{}", e),
@@ -198,10 +201,11 @@ async fn execute_payout(
 async fn execute_refund(
     State(state): State<AppState>,
     Path(match_id): Path<Uuid>,
+    _admin: AdminApiKey,
     Json(payload): Json<ExecuteRefundReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
-        eprintln!("❌ MultisigEscrowService not available");
+        tracing::error!("❌ MultisigEscrowService not available");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -214,8 +218,7 @@ async fn execute_refund(
         .await
     {
         Ok(result) => {
-            eprintln!(
-                "💸 Multisig refund: match={}, tx={}",
+            tracing::info!("💸 Multisig refund: match={}, tx={}",
                 match_id, result.tx_id
             );
 
@@ -228,7 +231,7 @@ async fn execute_refund(
             Ok(Json(serde_json::to_value(result).unwrap()))
         }
         Err(e) => {
-            eprintln!("❌ Multisig refund failed: {}", e);
+            tracing::error!("❌ Multisig refund failed: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

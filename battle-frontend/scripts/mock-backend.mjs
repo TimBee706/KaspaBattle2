@@ -274,7 +274,7 @@ const createBaseUser = () => ({
 const buildMockMatch = ({ session, payload }) => {
   const id = randomUUID();
   const createdAt = new Date().toISOString();
-  const wagerSompi = Number(payload.stake_kas || 0);
+  const wagerSompi = Number(payload.wager_sompi ?? payload.stake_kas ?? 0);
   const matchMode = String(payload.mode || 'BO1').toUpperCase();
   const gameId = String(payload.game_id || 'CS2').toUpperCase();
   const escrowAddress = payload.escrow_address || session.user.kaspa_address || 'kaspatest:mock-escrow';

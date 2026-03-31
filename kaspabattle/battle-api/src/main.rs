@@ -17,6 +17,7 @@ mod api;
 mod episodes;
 mod models;
 mod services;
+mod payout_worker;
 
 fn try_load_dotenv() -> Vec<std::path::PathBuf> {
     let mut candidates = Vec::new();
@@ -45,11 +46,11 @@ fn try_load_dotenv() -> Vec<std::path::PathBuf> {
         if path.exists() {
             match dotenvy::from_path(path) {
                 Ok(()) => {
-                    eprintln!("Loaded environment from {}", path.display());
+                    tracing::info!("Loaded environment from {}", path.display());
                     break;
                 }
                 Err(e) => {
-                    eprintln!("Failed to load {}: {}", path.display(), e);
+                    tracing::error!("Failed to load {}: {}", path.display(), e);
                 }
             }
         }
@@ -69,8 +70,7 @@ fn normalized_kaspa_node_url() -> Option<String> {
     // Retire the legacy public testnet endpoint so stale local env files no longer
     // bypass Resolver-based discovery.
     if trimmed.contains("photon-10.kaspa.red") {
-        eprintln!(
-            "Ignoring legacy KASPA_NODE_URL={} and falling back to Kaspa Resolver",
+        tracing::info!("Ignoring legacy KASPA_NODE_URL={} and falling back to Kaspa Resolver",
             trimmed
         );
         return None;
@@ -114,152 +114,33 @@ async fn main() {
         .await
         .expect("Failed to connect to PostgreSQL. Is the database running?");
 
-    // One-time migration: add escrow_address column if missing
-    sqlx::query("ALTER TABLE matches ADD COLUMN IF NOT EXISTS escrow_address TEXT")
-        .execute(&pool)
-        .await
-        .expect("Failed to add escrow_address column");
-    eprintln!("✅ DB migration: escrow_address column ensured");
+    // Run all SQL migrations from the `migrations` folder
+    // If any migration checksum mismatches (e.g. migration was made idempotent),
+    // clear the tracking table and re-apply all migrations cleanly.
+    let migration_result = sqlx::migrate!("../migrations")
+        .run(&pool)
+        .await;
 
-    // v0.2 migrations: deposit tracking + FaceID
-    let v02_migrations = [
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_tx_hash TEXT",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_tx_hash TEXT",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_confirmed BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_confirmed BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_faceid_hash TEXT",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_faceid_hash TEXT",
-    ];
-    for migration in &v02_migrations {
-        if let Err(e) = sqlx::query(migration).execute(&pool).await {
-            eprintln!("⚠️ v0.2 migration skipped (may already exist): {}", e);
+    match migration_result {
+        Ok(_) => {
+            tracing::info!("✅ DB migrations applied successfully");
+        }
+        Err(e) if e.to_string().contains("VersionMismatch") || e.to_string().contains("checksum") || e.to_string().contains("Checksum") => {
+            tracing::warn!("⚠️ Migration checksum mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
+            sqlx::query("DELETE FROM _sqlx_migrations")
+                .execute(&pool)
+                .await
+                .expect("Failed to reset _sqlx_migrations");
+            sqlx::migrate!("../migrations")
+                .run(&pool)
+                .await
+                .expect("Failed to run database migrations after reset");
+            tracing::info!("✅ DB migrations re-applied successfully after checksum reset");
+        }
+        Err(e) => {
+            panic!("Failed to run database migrations: {}", e);
         }
     }
-    eprintln!("✅ DB migration: v0.2 columns ensured (deposit tracking + FaceID)");
-
-    // v0.3 migrations: FACEIT cache columns
-    let v03_migrations = [
-        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_elo INTEGER",
-        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_skill_level INTEGER",
-        "ALTER TABLE faceit_links ADD COLUMN IF NOT EXISTS faceit_cache_updated_at TIMESTAMPTZ",
-    ];
-    for migration in &v03_migrations {
-        if let Err(e) = sqlx::query(migration).execute(&pool).await {
-            eprintln!("⚠️ v0.3 migration skipped (may already exist): {}", e);
-        }
-    }
-    eprintln!("✅ DB migration: v0.3 FACEIT cache columns ensured");
-
-    // v0.4 migrations: payment detection system
-    // 1. Extend match_status enum (ADD VALUE IF NOT EXISTS is idempotent)
-    let enum_variants = [
-        "FUNDED", "PAID_OUT", "DISPUTED", "RESOLVING", "IN_GAME", "DRAFT",
-    ];
-    for variant in &enum_variants {
-        let sql = format!(
-            "DO $$ BEGIN \
-             IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid = 'match_status'::regtype AND enumlabel = '{}') \
-             THEN ALTER TYPE match_status ADD VALUE '{}'; END IF; END $$",
-            variant, variant
-        );
-        if let Err(e) = sqlx::query(&sql).execute(&pool).await {
-            eprintln!("⚠️ v0.4 enum migration skipped for {}: {}", variant, e);
-        }
-    }
-    eprintln!("✅ DB migration: v0.4 match_status enum variants ensured");
-
-    // 2. Create payments table for on-chain UTXO tracking
-    let create_payments = "
-        CREATE TABLE IF NOT EXISTS payments (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-            player_id UUID REFERENCES users(id),
-            player_role TEXT NOT NULL CHECK (player_role IN ('A', 'B')),
-            tx_id TEXT NOT NULL,
-            amount_sompi BIGINT NOT NULL,
-            block_daa_score BIGINT NOT NULL DEFAULT 0,
-            confirmations INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            UNIQUE(tx_id, match_id)
-        )";
-    if let Err(e) = sqlx::query(create_payments).execute(&pool).await {
-        eprintln!("⚠️ v0.4 payments table migration failed: {}", e);
-    } else {
-        eprintln!("✅ DB migration: v0.4 payments table ensured");
-    }
-
-    let create_wallet_login_challenges = "
-        CREATE TABLE IF NOT EXISTS wallet_login_challenges (
-            id UUID PRIMARY KEY,
-            kaspa_address TEXT NOT NULL,
-            challenge_message TEXT NOT NULL,
-            expires_at TIMESTAMPTZ NOT NULL,
-            used_at TIMESTAMPTZ,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )";
-    if let Err(e) = sqlx::query(create_wallet_login_challenges).execute(&pool).await {
-        eprintln!("⚠️ wallet login challenge migration failed: {}", e);
-    } else {
-        eprintln!("✅ DB migration: wallet login challenge table ensured");
-    }
-
-    // 3. Add wager_amount_sompi to matches (mirrors stake_kas but preserves the domain field)
-    let v04_columns = [
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS wager_amount_sompi BIGINT",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_a_deposit_amount_sompi BIGINT",
-        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_b_deposit_amount_sompi BIGINT",
-    ];
-    for migration in &v04_columns {
-        if let Err(e) = sqlx::query(migration).execute(&pool).await {
-            eprintln!("⚠️ v0.4 column migration skipped (may already exist): {}", e);
-        }
-    }
-    eprintln!("✅ DB migration: v0.4 payment tracking columns ensured");
-
-    // v0.5 migrations: deposit integrity constraints
-    // First: clear duplicate (match_id, player_role) rows that block index creation
-    let v05_cleanup = "DELETE FROM payments p1 USING payments p2 \
-         WHERE p1.ctid < p2.ctid \
-         AND p1.match_id = p2.match_id \
-         AND p1.player_role = p2.player_role";
-    if let Err(e) = sqlx::query(v05_cleanup).execute(&pool).await {
-        eprintln!("⚠️ v0.5 dedup skipped: {}", e);
-    }
-    let v05_migrations = [
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_match_player_role \
-         ON payments (match_id, player_role)",
-    ];
-    for migration in &v05_migrations {
-        if let Err(e) = sqlx::query(migration).execute(&pool).await {
-            eprintln!("⚠️ v0.5 migration skipped: {}", e);
-        }
-    }
-    eprintln!("✅ DB migration: v0.5 deposit integrity constraints ensured");
-
-    // v0.6 migration: Redesign payments table for aggregate-per-role semantics.
-    //
-    // Old model (v0.5): one row per UTXO, UNIQUE(tx_id, match_id) + uq_payments_match_player_role
-    //   → caused duplicate-key errors when multiple UTXOs were attributed to same role.
-    //
-    // New model (v0.6): one row per (match_id, player_role), aggregating all UTXOs for that role.
-    //   → UPSERT with ON CONFLICT (match_id, player_role) DO UPDATE is now idempotent.
-    let v06_migrations: &[&str] = &[
-        // Drop conflicting per-tx constraint (the old unique index name varies)
-        "ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_tx_id_match_id_key",
-        // Drop old per-role index (created in v0.5)
-        "DROP INDEX IF EXISTS uq_payments_match_player_role",
-        // Drop old per-tx unique index if it exists under another name
-        "DROP INDEX IF EXISTS payments_tx_id_match_id_idx",
-        // Create new canonical unique index: one row per (match_id, player_role)
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_match_role ON payments (match_id, player_role)",
-    ];
-    for migration in v06_migrations {
-        if let Err(e) = sqlx::query(migration).execute(&pool).await {
-            eprintln!("⚠️ v0.6 migration skipped ({}): {}", migration.split_whitespace().take(4).collect::<Vec<_>>().join(" "), e);
-        }
-    }
-    eprintln!("✅ DB migration: v0.6 payments aggregate-per-role constraints ensured");
-
 
     let (tx, _) = broadcast::channel(100);
 
@@ -288,7 +169,7 @@ async fn main() {
         battle_kaspa::wallet::EscrowWallet::new(kaspa_mnemonic, &kaspa_network)
             .expect("Failed to initialize EscrowWallet"),
     );
-    eprintln!("✅ EscrowWallet initialized (network: {})", kaspa_network);
+    tracing::info!("✅ EscrowWallet initialized (network: {})", kaspa_network);
 
     // Connect to Kaspa node via Resolver (or explicit URL if set)
     let kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>> =
@@ -297,7 +178,7 @@ async fn main() {
             &kaspa_network,
         ).await {
             Ok(client) => {
-                eprintln!("✅ Connected to Kaspa node{}", 
+                tracing::info!("✅ Connected to Kaspa node{}", 
                     kaspa_node_url.as_ref()
                         .map(|u| format!(": {}", u))
                         .unwrap_or_else(|| " (via Resolver)".to_string())
@@ -305,8 +186,7 @@ async fn main() {
                 Some(Arc::new(client))
             }
             Err(e) => {
-                eprintln!(
-                    "⚠️ Kaspa RPC connection failed (escrow features disabled): {}",
+                tracing::error!("⚠️ Kaspa RPC connection failed (escrow features disabled): {}",
                     e
                 );
                 None
@@ -327,8 +207,7 @@ async fn main() {
     // Initialize PayoutService (real TX signing + submission)
     // Derive treasury address from TREASURY_MNEMONIC (or use TREASURY_ADDRESS directly)
     let treasury_mnemonic_result = std::env::var("TREASURY_MNEMONIC");
-    eprintln!(
-        "🔍 TREASURY_MNEMONIC: {:?}",
+    tracing::debug!("🔍 TREASURY_MNEMONIC: {:?}",
         treasury_mnemonic_result
             .as_ref()
             .map(|s| format!("{}...", &s[..20.min(s.len())]))
@@ -341,7 +220,7 @@ async fn main() {
             .derive_escrow_address("treasury-main")
             .expect("Failed to derive treasury address");
         let addr_str = addr.to_string();
-        eprintln!("✅ Treasury address derived: {}", addr_str);
+        tracing::info!("✅ Treasury address derived: {}", addr_str);
         addr_str
     } else {
         std::env::var("TREASURY_ADDRESS").unwrap_or_else(|_| {
@@ -356,8 +235,7 @@ async fn main() {
         ))
     });
     if payout_service.is_some() {
-        eprintln!(
-            "✅ PayoutService initialized (treasury: {})",
+        tracing::info!("✅ PayoutService initialized (treasury: {})",
             treasury_address
         );
     }
@@ -372,7 +250,11 @@ async fn main() {
         };
 
         // Derive oracle private key from ORACLE_PRIVATE_KEY env or deterministic fallback
+        // Derive oracle private key from ORACLE_PRIVATE_KEY env or deterministic fallback for dev
         let oracle_sk_hex = std::env::var("ORACLE_PRIVATE_KEY").unwrap_or_else(|_| {
+            if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+                panic!("CRITICAL: ORACLE_PRIVATE_KEY is missing in production environment");
+            }
             // Deterministic fallback: SHA256("kaspabattle-oracle-v1")
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
@@ -383,7 +265,7 @@ async fn main() {
         let oracle_sk_bytes: [u8; 32] = match hex::decode(&oracle_sk_hex) {
             Ok(bytes) if bytes.len() == 32 => bytes.try_into().unwrap(),
             _ => {
-                eprintln!("⚠️ Invalid ORACLE_PRIVATE_KEY — MultisigEscrowService disabled");
+                tracing::warn!("⚠️ Invalid ORACLE_PRIVATE_KEY — MultisigEscrowService disabled");
                 return None;
             }
         };
@@ -395,11 +277,11 @@ async fn main() {
             treasury_address.clone(),
         ) {
             Ok(service) => {
-                eprintln!("✅ MultisigEscrowService initialized (prefix: {:?})", prefix);
+                tracing::info!("✅ MultisigEscrowService initialized (prefix: {:?})", prefix);
                 Some(Arc::new(service))
             }
             Err(e) => {
-                eprintln!("⚠️ MultisigEscrowService failed: {} — disabled", e);
+                tracing::error!("⚠️ MultisigEscrowService failed: {} — disabled", e);
                 None
             }
         }
@@ -408,11 +290,11 @@ async fn main() {
     // ── FACEIT Data API Service (for profile/stats endpoints) ──
     let faceit_data_service = match std::env::var("FACEIT_DATA_API_KEY") {
         Ok(api_key) if !api_key.is_empty() => {
-            eprintln!("✅ FaceitDataService initialized (API key set)");
+            tracing::info!("✅ FaceitDataService initialized (API key set)");
             Some(Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key)))
         }
         _ => {
-            eprintln!("⚠️ FACEIT_DATA_API_KEY not set — /faceit/profile and /faceit/stats will be unavailable");
+            tracing::warn!("⚠️ FACEIT_DATA_API_KEY not set — /faceit/profile and /faceit/stats will be unavailable");
             None
         }
     };
@@ -423,7 +305,7 @@ async fn main() {
             rpc.clone(),
             std::time::Duration::from_secs(5),
         );
-        eprintln!("✅ BlockchainWatcher initialized");
+        tracing::info!("✅ BlockchainWatcher initialized");
         Arc::new(watcher)
     });
 
@@ -444,7 +326,7 @@ async fn main() {
     let frontend_url_str =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let frontend_url = frontend_url_str.parse::<HeaderValue>().unwrap_or_else(|_| {
-        eprintln!("⚠️ Invalid FRONTEND_URL: {}", frontend_url_str);
+        tracing::warn!("⚠️ Invalid FRONTEND_URL: {}", frontend_url_str);
         "http://localhost:5173".parse::<HeaderValue>().unwrap()
     });
 
@@ -461,7 +343,7 @@ async fn main() {
         .layer(cors)
         .with_state(state.clone());
 
-    eprintln!("🚀 KaspaBattle API running on 0.0.0.0:8080");
+    tracing::info!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
@@ -477,31 +359,40 @@ async fn main() {
         async move {
             // First poll runs immediately on startup (catch-up for deposits made while backend was down)
             tracing::info!("🚀 Episode runner starting — performing initial catch-up poll");
-            eprintln!("🚀 Episode runner: initial catch-up poll (no delay)");
+            tracing::info!("🚀 Episode runner: initial catch-up poll (no delay)");
 
             // Wait for Kaspa node to be fully synced before starting deposit detection.
             // This runs in the background so it does NOT block the HTTP server.
             if let Some(ref rpc) = ep_rpc {
-                eprintln!("⏳ Episode runner: waiting for Kaspa node to sync (timeout: 5 min)...");
+                tracing::debug!("⏳ Episode runner: waiting for Kaspa node to sync (timeout: 5 min)...");
                 match rpc.wait_for_sync(std::time::Duration::from_secs(300)).await {
-                    Ok(()) => eprintln!("✅ Episode runner: Kaspa node is synced and UTXO-indexed — starting deposit detection"),
+                    Ok(()) => tracing::info!("✅ Episode runner: Kaspa node is synced and UTXO-indexed — starting deposit detection"),
                     Err(e) => {
-                        eprintln!("⚠️ Episode runner: node sync wait failed: {} — will retry via health-check", e);
+                        tracing::error!("⚠️ Episode runner: node sync wait failed: {} — will retry via health-check", e);
                     }
                 }
             }
+            let mut consecutive_errors = 0;
             loop {
-                let active_ids: Vec<(uuid::Uuid,)> = sqlx::query_as(
+                // Phase 5.2: All statuses needing episode runner attention
+                let db_result = sqlx::query_as::<_, (uuid::Uuid,)>(
                     "SELECT id FROM matches WHERE status IN \
-                     ('OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED')",
+                     ('OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED', \
+                      'GAME_ID_INPUT', 'IN_GAME', 'FINISHED_FACEIT', 'READY_FOR_PAYOUT')",
                 )
                 .fetch_all(&ep_pool)
-                .await
-                .unwrap_or_default();
+                .await;
+
+                let active_ids = match &db_result {
+                    Ok(ids) => ids.clone(),
+                    Err(e) => {
+                        tracing::error!(error = %e, "Episode runner: DB fetch active matches failed");
+                        vec![]
+                    }
+                };
 
                 if !active_ids.is_empty() {
-                    eprintln!(
-                        "🔄 Episode runner: polling {} active match(es)",
+                    tracing::info!("🔄 Episode runner: polling {} active match(es)",
                         active_ids.len()
                     );
                 }
@@ -513,16 +404,18 @@ async fn main() {
                 if let Some(ref rpc) = ep_rpc {
                     match rpc.get_current_daa_score().await {
                         Ok(daa) if daa == 0 => {
-                            eprintln!("⚠️ Episode runner: DAA=0, node may not be ready — deposits won't be confirmed until node is synced");
+                            tracing::warn!("⚠️ Episode runner: DAA=0, node may not be ready — deposits won't be confirmed until node is synced");
                         }
                         Err(e) => {
-                            eprintln!("🚨 Episode runner: RPC health-check failed: {} — reconnect will be attempted on next RPC call", e);
+                            tracing::error!("🚨 Episode runner: RPC health-check failed: {} — reconnect will be attempted on next RPC call", e);
                         }
                         Ok(daa) => {
                             tracing::debug!(current_daa = daa, "Episode runner: RPC healthy");
                         }
                     }
                 }
+
+                let mut loop_had_errors = db_result.is_err();
 
                 for (match_id,) in active_ids {
                     use crate::episodes::match_episode::MatchEpisode;
@@ -538,18 +431,68 @@ async fn main() {
                         Ok(mut ep) => {
                             if let Err(e) = ep.execute().await {
                                 tracing::error!(match_id = %match_id, error = %e, "Episode runner failed");
+                                loop_had_errors = true;
                             }
                         }
                         Err(e) => {
                             tracing::error!(match_id = %match_id, error = %e, "Episode init failed");
+                            loop_had_errors = true;
                         }
                     }
                 }
-                // Sleep after poll (not before) so first cycle runs immediately
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+                if loop_had_errors {
+                    consecutive_errors += 1;
+                } else {
+                    consecutive_errors = 0;
+                }
+
+                let sleep_secs = match consecutive_errors {
+                    0 => 5,
+                    1 => 10,
+                    2 => 20,
+                    3 => 40,
+                    _ => 60,
+                };
+                
+                tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
             }
         }
     });
+
+    // ── FaceIT Watcher (Phase 3 / F-010) ────────────────────────────────────
+    // Polls faceit_watcher_jobs every FACEIT_WATCHER_POLL_INTERVAL_SECS seconds.
+    // Only started when FACEIT_DATA_API_KEY is set.
+    if let Some(ref faceit_data_svc) = state.faceit_data_service {
+        let watcher_pool = Arc::new(state.pool.clone());
+        let watcher_faceit = faceit_data_svc.clone();
+        let watcher_config = battle_core::workers::faceit_watcher::FaceitWatcherConfig::default();
+        tokio::spawn(async move {
+            battle_core::workers::faceit_watcher::run_faceit_watcher(
+                watcher_pool,
+                watcher_faceit,
+                watcher_config,
+            )
+            .await;
+        });
+        tracing::info!("✅ FaceIT Watcher started");
+    } else {
+        tracing::info!("ℹ️ FaceIT Watcher disabled (FACEIT_DATA_API_KEY not set)");
+    }
+
+    // ── Payout Worker (Phase 4a) ─────────────────────────────────────────────
+    // Polls FINISHED_FACEIT matches and auto-creates PSKTs → READY_FOR_PAYOUT.
+    // Only started when MultisigEscrowService is available (Kaspa RPC connected).
+    if let Some(ref multisig_svc) = state.multisig_service {
+        let pw_pool = Arc::new(state.pool.clone());
+        let pw_multisig = multisig_svc.clone();
+        tokio::spawn(async move {
+            crate::payout_worker::run_payout_worker(pw_pool, pw_multisig).await;
+        });
+        tracing::info!("✅ Payout Worker started");
+    } else {
+        tracing::info!("ℹ️ Payout Worker disabled (MultisigEscrowService not available)");
+    }
 
     // ── kdapp Engine + Proxy (v0.7 — on-chain Episode processing) ─────────
     // Runs parallel to the legacy episode-runner above.
@@ -566,10 +509,10 @@ async fn main() {
             kdapp_rpc_url,
         ) {
             Ok(_handle) => {
-                eprintln!("✅ kdapp Engine + Proxy started (network: {})", kdapp_network);
+                tracing::info!("✅ kdapp Engine + Proxy started (network: {})", kdapp_network);
             }
             Err(e) => {
-                eprintln!("⚠️ kdapp Engine + Proxy failed to start: {} — disabled", e);
+                tracing::error!("⚠️ kdapp Engine + Proxy failed to start: {} — disabled", e);
             }
         }
     }

@@ -30,7 +30,7 @@ export function Header() {
                     {import.meta.env.MODE === 'development' && (
                         <div className="flex items-center gap-2 mr-2 bg-kaspa-dark/50 px-3 py-1.5 rounded-lg border border-kaspa-border">
                             <label className="text-xs text-gray-400 font-mono cursor-pointer" onClick={() => setTestMode(!testMode)}>
-                                TestMode
+                                {t('common.header.test_mode')}
                             </label>
                             <button
                                 onClick={() => setTestMode(!testMode)}

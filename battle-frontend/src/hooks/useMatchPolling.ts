@@ -47,10 +47,24 @@ export function useMatchPolling(matchId: string | null) {
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                // The backend broadcasts the match payload. We only care about our matchId.
+                if (data?.type === 'match_update' && data.match?.id === matchId) {
+                    console.log('WS Match Update received:', data.match.status);
+                    handleMatchUpdate(data.match as BattleMatch);
+                    return;
+                }
+
                 if (data && data.id === matchId) {
                     console.log('WS Match Update received:', data.status);
                     handleMatchUpdate(data as BattleMatch);
+                    return;
+                }
+
+                if (
+                    typeof data?.match_id === 'string'
+                    && data.match_id === matchId
+                    && ['match_status', 'faceit_id_submitted', 'faceit_id_mismatch', 'payout_broadcast'].includes(data.type)
+                ) {
+                    void poll();
                 }
             } catch (e) {
                 console.error('WS Parse Error', e);

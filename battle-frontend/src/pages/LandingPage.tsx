@@ -48,62 +48,130 @@ export function LandingPage() {
                 </div>
             </section>
 
-            {/* 2. So funktioniert ein Kaspa Battle (Umbau zur vertikalen Nummern-Liste) */}
-            <section id="how" className="py-20 border-t border-kaspa-border">
-                <h2 className="text-3xl md:text-4xl font-black text-center mb-16 underline decoration-kaspa-primary decoration-4 underline-offset-8">{t('sections.how_it_works')}</h2>
-                <div className="max-w-3xl mx-auto flex flex-col gap-4 px-4">
-                    {[
-                        { step: "1", icon: "🔗", title: t('sections.how_it_works_steps.1') },
-                        { step: "2", icon: "⚔️", title: t('sections.how_it_works_steps.2') },
-                        { step: "3", icon: "💰", title: t('sections.how_it_works_steps.3') },
-                        { step: "4", icon: "🎮", title: t('sections.how_it_works_steps.4') },
-                        { step: "5", icon: "📊", title: t('sections.how_it_works_steps.5') },
-                        { step: "6", icon: "💸", title: t('sections.how_it_works_steps.6') }
-                    ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-6 p-6 bg-kaspa-card/50 rounded-2xl border border-kaspa-border hover:bg-kaspa-card hover:border-kaspa-primary/30 transition-all">
-                            <div className="w-14 h-14 shrink-0 rounded-full bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-2xl relative">
-                                {item.step}
-                                <span className="absolute -bottom-2 -right-2 text-xl">{item.icon}</span>
-                            </div>
-                            <h4 className="text-lg md:text-xl font-bold text-white tracking-wide">{item.title}</h4>
+            {/* 2. Schritt-für-Schritt Anleitung CS2 1vs1 */}
+            <section id="how" className="py-24 border-t border-kaspa-border relative">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-kaspa-primary/5 blur-[150px] rounded-full -z-10" />
+                
+                <div className="text-center max-w-3xl mx-auto mb-16 px-4">
+                    <h2 className="text-3xl md:text-5xl font-black mb-6 uppercase tracking-tight text-white drop-shadow-md">
+                        <Trans i18nKey="sections.how_1vs1.title">
+                            So funktioniert dein <span className="text-kaspa-primary">KaspaBattle 1vs1</span>
+                        </Trans>
+                    </h2>
+                    <p className="text-lg md:text-xl text-gray-400 font-medium leading-relaxed">
+                        {t('sections.how_1vs1.subtitle')}
+                    </p>
+                </div>
+
+                <div className="max-w-4xl mx-auto flex flex-col gap-6 px-4">
+                    {/* Step 1 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            1
                         </div>
-                    ))}
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.1.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed mb-4">
+                                {t('sections.how_1vs1.steps.1.text')}
+                            </p>
+                            <div className="flex flex-wrap gap-3">
+                                <Link to="/wallet/import" className="btn-primary flex items-center gap-2 text-sm px-6 py-2.5 bg-kaspa-primary/10 border border-kaspa-primary/30 hover:bg-kaspa-primary/20 text-kaspa-primary font-bold">
+                                    {t('sections.how_1vs1.steps.1.btn_wallet')}
+                                </Link>
+                                <button onClick={() => isAuthenticated ? startFaceitLink() : startFaceitLogin()} className="btn-primary flex items-center gap-2 text-sm px-6 py-2.5 bg-[#FF5500]/10 border border-[#FF5500]/30 hover:bg-[#FF5500]/20 text-[#FF5500] font-bold">
+                                    {t('sections.how_1vs1.steps.1.btn_faceit')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            2
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.2.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed">
+                                <Trans i18nKey="sections.how_1vs1.steps.2.text">
+                                    Gehe in die <Link to="/lobby" className="text-kaspa-primary hover:underline font-bold">Lobby</Link> und nimm eine offene Herausforderung an. 
+                                    Alternativ kannst du einfach selbst eine neue Challenge erstellen und deinen gewünschten KAS-Wetteinsatz festlegen.
+                                </Trans>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            3
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.3.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed">
+                                {t('sections.how_1vs1.steps.3.text')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            4
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.4.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed mb-4">
+                                <Trans i18nKey="sections.how_1vs1.steps.4.text">
+                                    Wechselt jetzt beide zu Faceit in unseren <strong>KaspaBattle CS2 Club</strong>. 
+                                    In der Club Queue <em>„1 vs 1“</em> antreten, Match darüber starten und auf dem gleichen Server gegeneinander zocken.
+                                </Trans>
+                            </p>
+                            <div className="flex flex-wrap gap-3">
+                                <a href="https://www.faceit.com/en/inv/uanMw8D" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 btn-primary text-sm px-6 py-2.5 bg-kaspa-card border border-kaspa-border hover:border-kaspa-primary/30 hover:bg-kaspa-card/80 text-white font-bold transition-all">
+                                    {t('sections.how_1vs1.steps.4.btn_club')}
+                                </a>
+                                <a href="https://www.faceit.com/en/club/f9352f23-4be0-41a4-a895-9cae45a716c2/queue/3e6b7f39-3c02-40d5-bf5e-17fefc15fdb7/chat" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 btn-primary text-sm px-6 py-2.5 bg-kaspa-primary/10 border border-kaspa-primary/40 hover:bg-kaspa-primary/20 text-kaspa-primary font-bold transition-all">
+                                    {t('sections.how_1vs1.steps.4.btn_queue')}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Step 5 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            5
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.5.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed">
+                                {t('sections.how_1vs1.steps.5.text')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Step 6 */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 bg-kaspa-card/60 backdrop-blur-sm rounded-2xl border border-kaspa-border hover:border-kaspa-primary/40 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-dark/80 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/20 text-3xl shadow-[0_0_15px_rgba(112,199,186,0.2)]">
+                            6
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.6.title')}</h4>
+                            <p className="text-gray-400 text-sm md:text-base leading-relaxed">
+                                {t('sections.how_1vs1.steps.6.text')}
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            {/* Was schon implementiert ist (Beta) */}
-            <section className="py-20 border-t border-kaspa-border">
-                <h2 className="text-3xl md:text-4xl font-black text-center mb-16 underline decoration-kaspa-primary decoration-4 underline-offset-8">{t('sections.implemented_features')}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-                    <div className="card border-l-4 border-l-kaspa-primary bg-kaspa-card/60 p-8 rounded-2xl relative overflow-hidden flex flex-col">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-kaspa-primary/10 blur-[50px] -z-10" />
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 rounded-xl bg-kaspa-primary/20 flex items-center justify-center text-2xl">⚡</div>
-                            <h3 className="text-2xl font-black text-white">{t('sections.already_live')}</h3>
-                        </div>
-                        <ul className="space-y-4 text-gray-300 font-medium flex-1">
-                            <li className="flex items-start gap-3"><span className="text-kaspa-primary mt-1 text-xl">✓</span> {t('sections.live_features.faceit')}</li>
-                            <li className="flex items-start gap-3"><span className="text-kaspa-primary mt-1 text-xl">✓</span> {t('sections.live_features.lobby')}</li>
-                            <li className="flex items-start gap-3"><span className="text-kaspa-primary mt-1 text-xl">✓</span> {t('sections.live_features.escrow')}</li>
-                            <li className="flex items-start gap-3"><span className="text-kaspa-primary mt-1 text-xl">✓</span> {t('sections.live_features.payout')}</li>
-                            <li className="flex items-start gap-3"><span className="text-kaspa-primary mt-1 text-xl">✓</span> {t('sections.live_features.history')}</li>
-                        </ul>
-                    </div>
-                    <div className="card border-l-4 border-l-blue-500 bg-kaspa-card/60 p-8 rounded-2xl relative overflow-hidden flex flex-col">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[50px] -z-10" />
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-2xl">🚀</div>
-                            <h3 className="text-2xl font-black text-white">{t('sections.in_progress')}</h3>
-                        </div>
-                        <ul className="space-y-4 text-gray-400 font-medium flex-1">
-                            <li className="flex items-start gap-3"><span className="text-blue-500 mt-1 text-lg">→</span> {t('sections.next_steps.more_games')}</li>
-                            <li className="flex items-start gap-3"><span className="text-blue-500 mt-1 text-lg">→</span> {t('sections.next_steps.smart_contracts')}</li>
-                            <li className="flex items-start gap-3"><span className="text-blue-500 mt-1 text-lg">→</span> {t('sections.next_steps.oracle')}</li>
-                            <li className="flex items-start gap-3"><span className="text-blue-500 mt-1 text-lg">→</span> {t('sections.next_steps.tournament')}</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
 
             {/* Warum Kaspa? */}
             <section className="py-20 border-t border-kaspa-border">

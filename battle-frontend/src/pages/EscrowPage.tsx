@@ -11,7 +11,6 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { SOMPI_PER_KAS } from '../config/constants';
 import {
     getLobbyRole,
-    getPaymentInfoForPlayer,
     getPlayerRoleForLobby,
     hasPlayerDeposited,
     isLocalDepositForIdentity,
@@ -27,6 +26,7 @@ interface DepositCardProps {
 }
 
 const DepositCard: React.FC<DepositCardProps> = ({ label, info, required, minConf, isCurrentPlayer }) => {
+    const { t } = useTranslation();
     const pct = Math.min(100, required > 0 ? Math.round((info.confirmed_sompi / required) * 100) : 0);
     const confPct = Math.min(100, minConf > 0 ? Math.round((info.min_confirmations / minConf) * 100) : 0);
 
@@ -41,11 +41,11 @@ const DepositCard: React.FC<DepositCardProps> = ({ label, info, required, minCon
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                     {label}
                     {isCurrentPlayer && (
-                        <span className="ml-2 text-kaspa-primary">(Du)</span>
+                        <span className="ml-2 text-kaspa-primary">{t('escrow.me_suffix')}</span>
                     )}
                 </span>
                 <span className={`text-xs font-bold ${info.paid ? 'text-green-400' : 'text-gray-500'}`}>
-                    {info.paid ? '✅ Bestätigt' : info.payment_count > 0 ? '⏳ Confirmations...' : '⏳ Warte...'}
+                    {info.paid ? t('escrow.status_confirmed') : info.payment_count > 0 ? t('escrow.status_confirmations') : t('escrow.status_waiting')}
                 </span>
             </div>
 
@@ -149,7 +149,6 @@ export const EscrowPage: React.FC = () => {
     // Determine player role — backend returns creator_user_id / opponent_user_id, not faceit fields
     const lobbyRole = getLobbyRole(currentMatch, user?.id ?? null);
     const playerRole = getPlayerRoleForLobby(currentMatch, user?.id ?? null);
-    const myPayment = getPaymentInfoForPlayer(paymentStatus, playerRole);
     const iHavePaid = hasPlayerDeposited(paymentStatus, playerRole) || hasLocalDeposit;
     const successState = iHavePaid || currentMatch.status === 'FUNDED';
 
@@ -157,11 +156,11 @@ export const EscrowPage: React.FC = () => {
         setLocalError(null);
         try {
             if (!playerRole) {
-                throw new Error('Nur Match-Teilnehmer können einzahlen.');
+                throw new Error(t('match.accept_error')); // Or a better specific key if exists
             }
             await executeDeposit(playerRole);
         } catch (err: any) {
-            setLocalError(err.message || 'Einzahlung fehlgeschlagen');
+            setLocalError(err.message || t('common.error', { message: '' }));
         }
     };
 
@@ -236,17 +235,17 @@ export const EscrowPage: React.FC = () => {
                         {paymentStatus ? (
                             <div className="space-y-3">
                                 <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2">
-                                    — Einzahlungsstatus —
+                                    — {t('match.status_actions')} —
                                 </p>
                                 <DepositCard
-                                    label="Player A (Ersteller)"
+                                    label={`${t('match.challenger')} (A)`}
                                     info={paymentStatus.playerA}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}
                                     isCurrentPlayer={playerRole === 'A'}
                                 />
                                 <DepositCard
-                                    label="Player B (Herausforderer)"
+                                    label={`${t('match.opponent')} (B)`}
                                     info={paymentStatus.playerB}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}
@@ -290,7 +289,7 @@ export const EscrowPage: React.FC = () => {
                         className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark h-14 rounded-2xl font-black uppercase tracking-tight text-lg shadow-xl shadow-kaspa-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                     >
                         {isDepositing
-                            ? '⏳ Sende...'
+                            ? `⏳ ${t('deposit.signing')}`
                             : iHavePaid
                             ? `✅ ${t('deposit.success_title')}`
                             : t('escrow.deposit_now')}

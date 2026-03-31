@@ -1,4 +1,4 @@
-use super::{DepositCheckResult, EpisodeTrait, PlayerRole};
+use super::{EpisodeTrait, PlayerRole};
 use crate::models::MatchStatus;
 use async_trait::async_trait;
 use battle_kaspa::escrow::EscrowService;
@@ -60,7 +60,7 @@ impl EpisodeTrait for MatchEpisode {
 
         let row = sqlx::query(
             "SELECT m.status, m.creator_user_id, m.opponent_user_id, \
-             m.escrow_address, m.stake_kas, m.created_at, \
+             m.escrow_address, m.wager_sompi, m.created_at, m.faceit_finished_at, \
              m.player_a_deposit_tx_hash, m.player_b_deposit_tx_hash, \
              u_a.kaspa_address AS player_a_addr, \
              u_b.kaspa_address AS player_b_addr \
@@ -93,8 +93,7 @@ impl EpisodeTrait for MatchEpisode {
                             age_min = age.num_minutes(),
                             "AWAITING_FUNDING timeout reached (>60 min) — cancelling match"
                         );
-                        eprintln!(
-                            "⏰ Match {} cancelled (AWAITING_FUNDING timeout: {} min)",
+                        tracing::info!("⏰ Match {} cancelled (AWAITING_FUNDING timeout: {} min)",
                             self.match_id, age.num_minutes()
                         );
                         sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
@@ -121,7 +120,7 @@ impl EpisodeTrait for MatchEpisode {
                     return Ok(());
                 }
 
-                let wager: i64 = row.try_get("stake_kas")?;
+                let wager: i64 = row.try_get("wager_sompi")?;
                 let player_a_addr: Option<String> = row.try_get("player_a_addr").ok();
                 let player_b_addr: Option<String> = row.try_get("player_b_addr").ok();
                 let creator_id: Uuid = row.try_get("creator_user_id")?;
@@ -170,8 +169,7 @@ impl EpisodeTrait for MatchEpisode {
                                 current_daa,
                                 "Escrow balance checked"
                             );
-                            eprintln!(
-                                "🔍 Match {}: {} UTXOs, balance={} sompi, current_daa={}",
+                            tracing::debug!("🔍 Match {}: {} UTXOs, balance={} sompi, current_daa={}",
                                 self.match_id,
                                 escrow_status.utxos.len(),
                                 escrow_status.total_balance,
@@ -234,8 +232,7 @@ impl EpisodeTrait for MatchEpisode {
                                     "B"
                                 };
 
-                                eprintln!(
-                                    "  🔬 UTXO: tx={} role={} amount={} confs={}/{}",
+                                tracing::info!("  🔬 UTXO: tx={} role={} amount={} confs={}/{}",
                                     &utxo.tx_id[..12.min(utxo.tx_id.len())], role,
                                     utxo.amount, confirmations, MIN_CONFIRMATIONS
                                 );
@@ -262,8 +259,7 @@ impl EpisodeTrait for MatchEpisode {
                             let a_confirmed = a_total_sompi >= wager_u64 && a_min_confs >= MIN_CONFIRMATIONS;
                             let b_confirmed = b_total_sompi >= wager_u64 && b_min_confs >= MIN_CONFIRMATIONS;
 
-                            eprintln!(
-                                "📊 Match {}: A={}/{} sompi ({} confs, {}), B={}/{} sompi ({} confs, {})",
+                            tracing::info!("📊 Match {}: A={}/{} sompi ({} confs, {}), B={}/{} sompi ({} confs, {})",
                                 self.match_id,
                                 a_total_sompi, wager_u64, a_min_confs,
                                 if a_confirmed { "✅" } else { "⏳" },
@@ -359,8 +355,7 @@ impl EpisodeTrait for MatchEpisode {
                                 .execute(&mut *db_tx)
                                 .await?;
 
-                                eprintln!(
-                                    "💰 Match {} → FUNDED (A={} confs, B={} confs)",
+                                tracing::info!("💰 Match {} → FUNDED (A={} confs, B={} confs)",
                                     self.match_id, a_min_confs, b_min_confs
                                 );
                                 tracing::info!(
@@ -412,7 +407,7 @@ impl EpisodeTrait for MatchEpisode {
                             Ok(deposit_status) if deposit_status.status
                                 == battle_kaspa::escrow::DepositState::Complete =>
                             {
-                                sqlx::query(
+                                 sqlx::query(
                                     "UPDATE matches SET status = 'FUNDED', \
                                      player_a_deposit_confirmed = true, \
                                      player_b_deposit_confirmed = true \
@@ -438,44 +433,102 @@ impl EpisodeTrait for MatchEpisode {
                 }
             }
 
-            // ─── Funded: lock escrow, start FACEIT match ────────────────────────
+            // ─── Funded: auto-transition to GAME_ID_INPUT immediately (F-010) ───
+            // Both deposits are confirmed on-chain. The match is now ready for
+            // players to submit their FaceIT match IDs.
+            // No FaceIT match creation here — players link an existing FaceIT match.
             MatchStatus::Funded => {
-                let creator_id: Uuid = row.try_get("creator_user_id")?;
-                let opponent_id: Option<Uuid> = row.try_get("opponent_user_id")?;
+                sqlx::query(
+                    "UPDATE matches SET status = 'GAME_ID_INPUT' WHERE id = $1 AND status = 'FUNDED'",
+                )
+                .bind(self.match_id)
+                .execute(&mut *db_tx)
+                .await?;
 
-                if let Some(opp_id) = opponent_id {
-                    let external_id = crate::services::faceit::create_faceit_match(
-                        &creator_id.to_string(),
-                        &opp_id.to_string(),
-                    )
-                    .await
-                    .unwrap_or_else(|_| format!("local-{}", self.match_id));
+                tracing::info!(
+                    match_id = %self.match_id,
+                    "▶️ FUNDED → GAME_ID_INPUT (waiting for both players to submit FaceIT match ID)"
+                );
+                tracing::info!("▶️ Match {} → GAME_ID_INPUT: deposits confirmed, waiting for FaceIT match IDs",
+                    self.match_id
+                );
+            }
 
-                    sqlx::query(
-                        "UPDATE matches SET status = 'LOCKED', \
-                         external_match_id = $1 WHERE id = $2",
-                    )
-                    .bind(&external_id)
-                    .bind(self.match_id)
-                    .execute(&mut *db_tx)
-                    .await?;
-
-                    if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
-                        "SELECT * FROM matches WHERE id = $1",
-                    )
-                    .bind(self.match_id)
-                    .fetch_one(&self.db_pool)
-                    .await
-                    {
-                        let mut m = updated;
-                        m.calculate_wager();
-                        let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+            // ─── GameIdInput: check for timeout (F-010) ─────────────────────────
+            // If players don't submit matching FaceIT IDs within 15 minutes, cancel.
+            MatchStatus::GameIdInput => {
+                // We use created_at as a proxy here; a dedicated `game_id_input_since` column
+                // would be more precise but adds migration complexity.
+                // NOTE: The match row doesn't carry the transition timestamp yet, so we
+                // approximate: if the match entered GAME_ID_INPUT recently enough, allow it.
+                // This is a best-effort timeout check; the watcher in Phase 3 will be the
+                // authoritative timeout mechanism.
+                let created_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("created_at").ok().flatten();
+                if let Some(created) = created_at {
+                    let age = chrono::Utc::now() - created;
+                    if age > chrono::Duration::minutes(120) {
+                        tracing::warn!(
+                            match_id = %self.match_id,
+                            age_min = age.num_minutes(),
+                            "⏰ GAME_ID_INPUT timeout — cancelling match (players did not submit FaceIT IDs within 120 min of creation)"
+                        );
+                        sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
+                            .bind(self.match_id)
+                            .execute(&mut *db_tx)
+                            .await?;
                     }
+                }
+            }
 
-                    tracing::info!(
+            // ─── InGame: heartbeat — no episode-runner action needed ─────────────
+            // The FaceIT Watcher handles IN_GAME→FINISHED_FACEIT transitions.
+            // The episode runner just ensures the WS broadcast (below) keeps the
+            // frontend updated with the latest faceit_match_status field.
+            MatchStatus::InGame => {
+                tracing::debug!(
+                    match_id = %self.match_id,
+                    "IN_GAME: FaceIT Watcher is active — no episode action needed"
+                );
+            }
+
+            // ─── FinishedFaceit: Payout Worker handles PSKT → READY_FOR_PAYOUT ──
+            // No direct action in the episode runner; we just broadcast state.
+            MatchStatus::FinishedFaceit => {
+                tracing::debug!(
+                    match_id = %self.match_id,
+                    "FINISHED_FACEIT: Payout Worker will create PSKT — no episode action needed"
+                );
+            }
+
+            // ─── ReadyForPayout: winner must call /payout/submit-signature ───────
+            // No auto-action; the WS broadcast below keeps frontend informed.
+            // Phase 6.2: Timeout check. If the match has been in READY_FOR_PAYOUT
+            // for more than 7 days, transition to DISPUTED to allow admin intervention.
+            MatchStatus::ReadyForPayout => {
+                let finished_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("faceit_finished_at").ok().flatten();
+                if let Some(finished) = finished_at {
+                    let age = chrono::Utc::now() - finished;
+                    if age > chrono::Duration::days(7) {
+                        tracing::warn!(
+                            match_id = %self.match_id,
+                            days_waiting = age.num_days(),
+                            "🚨 READY_FOR_PAYOUT timeout (>7 days) — transitioning to DISPUTED"
+                        );
+                        sqlx::query("UPDATE matches SET status = 'DISPUTED' WHERE id = $1")
+                            .bind(self.match_id)
+                            .execute(&mut *db_tx)
+                            .await?;
+                    } else {
+                        tracing::debug!(
+                            match_id = %self.match_id,
+                            days_waiting = age.num_days(),
+                            "READY_FOR_PAYOUT: waiting for winner signature via API"
+                        );
+                    }
+                } else {
+                    tracing::debug!(
                         match_id = %self.match_id,
-                        faceit_id = %external_id,
-                        "🔒 FUNDED → LOCKED"
+                        "READY_FOR_PAYOUT: waiting for winner signature via API (no faceit_finished_at set)"
                     );
                 }
             }
@@ -489,8 +542,20 @@ impl EpisodeTrait for MatchEpisode {
 
         // ── Post-commit: broadcast final committed state via WebSocket ──
         // Reading AFTER commit ensures clients see the real DB state.
+        // Phase 5.4: Use full column list (all v1.0 fields) + typed envelope.
         if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
-            "SELECT * FROM matches WHERE id = $1",
+            "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+             creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+             player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+             player_a_deposit_confirmed, player_b_deposit_confirmed, \
+             player_a_faceid_hash, player_b_faceid_hash, \
+             player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+             faceit_match_id_player_a, faceit_match_id_player_b, \
+             faceit_match_id_final, faceit_match_status, \
+             faceit_finished_at, faceit_winner_faction, faceit_score, \
+             winner_user_id, loser_user_id, \
+             payout_pskt_hex, payout_tx_hash, payout_status \
+             FROM matches WHERE id = $1",
         )
         .bind(self.match_id)
         .fetch_one(&self.db_pool)
@@ -498,11 +563,15 @@ impl EpisodeTrait for MatchEpisode {
         {
             let mut m = updated;
             m.calculate_wager();
-            let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+            // Wrap in a typed event envelope so the frontend can discriminate.
+            let event = serde_json::json!({
+                "type": "match_update",
+                "match": &m,
+            });
+            let _ = self.tx.send(event.to_string());
         }
 
         Ok(())
-
     }
 
     async fn rollback(&mut self) -> Result<(), Self::Error> {
@@ -515,14 +584,28 @@ impl EpisodeTrait for MatchEpisode {
         .await?;
 
         if let Ok(updated) =
-            sqlx::query_as::<_, crate::models::Match>("SELECT * FROM matches WHERE id = $1")
-                .bind(self.match_id)
-                .fetch_one(&self.db_pool)
-                .await
+            sqlx::query_as::<_, crate::models::Match>(
+                "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
+                 creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
+                 player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
+                 player_a_deposit_confirmed, player_b_deposit_confirmed, \
+                 player_a_faceid_hash, player_b_faceid_hash, \
+                 player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
+                 faceit_match_id_player_a, faceit_match_id_player_b, \
+                 faceit_match_id_final, faceit_match_status, \
+                 faceit_finished_at, faceit_winner_faction, faceit_score, \
+                 winner_user_id, loser_user_id, \
+                 payout_pskt_hex, payout_tx_hash, payout_status \
+                 FROM matches WHERE id = $1",
+            )
+            .bind(self.match_id)
+            .fetch_one(&self.db_pool)
+            .await
         {
             let mut m = updated;
             m.calculate_wager();
-            let _ = self.tx.send(serde_json::to_string(&m).unwrap_or_default());
+            let event = serde_json::json!({"type": "match_update", "match": &m});
+            let _ = self.tx.send(event.to_string());
         }
 
         tracing::info!(match_id = %self.match_id, "❌ Episode rolled back → CANCELLED");
@@ -541,76 +624,6 @@ impl EpisodeTrait for MatchEpisode {
         ))
     }
 
-    // ── v0.2: record_deposit ──────────────────────────────────────────────
-
-    async fn record_deposit(
-        &mut self,
-        player: PlayerRole,
-        tx_hash: &str,
-    ) -> Result<(), Self::Error> {
-        let col = match player {
-            PlayerRole::A => "player_a_deposit_tx_hash",
-            PlayerRole::B => "player_b_deposit_tx_hash",
-        };
-        sqlx::query(&format!("UPDATE matches SET {} = $1 WHERE id = $2", col))
-            .bind(tx_hash)
-            .bind(self.match_id)
-            .execute(&self.db_pool)
-            .await?;
-        Ok(())
-    }
-
-    // ── v0.2: confirm_deposits ────────────────────────────────────────────
-
-    async fn confirm_deposits(&mut self) -> Result<DepositCheckResult, Self::Error> {
-        let row =
-            sqlx::query("SELECT escrow_address, stake_kas FROM matches WHERE id = $1")
-                .bind(self.match_id)
-                .fetch_one(&self.db_pool)
-                .await?;
-
-        let addr: String = row.try_get("escrow_address").unwrap_or_default();
-        let wager: i64 = row.try_get("stake_kas")?;
-
-        if let Some(ref svc) = self.escrow_service {
-            let status = svc.check_deposits(&addr, wager as u64).await?;
-            match status.status {
-                battle_kaspa::escrow::DepositState::Complete => {
-                    sqlx::query(
-                        "UPDATE matches SET status = 'FUNDED', \
-                         player_a_deposit_confirmed = true, \
-                         player_b_deposit_confirmed = true \
-                         WHERE id = $1",
-                    )
-                    .bind(self.match_id)
-                    .execute(&self.db_pool)
-                    .await?;
-                    Ok(DepositCheckResult::Complete)
-                }
-                battle_kaspa::escrow::DepositState::Partial => Ok(DepositCheckResult::Partial {
-                    balance_sompi: status.deposited_sompi,
-                }),
-                battle_kaspa::escrow::DepositState::None => Ok(DepositCheckResult::None),
-            }
-        } else {
-            Ok(DepositCheckResult::None)
-        }
-    }
-
-    // ── v0.2: submit_faceid ───────────────────────────────────────────────
-
-    async fn submit_faceid(&mut self, player: PlayerRole, hash: &str) -> Result<(), Self::Error> {
-        let col = match player {
-            PlayerRole::A => "player_a_faceid_hash",
-            PlayerRole::B => "player_b_faceid_hash",
-        };
-        sqlx::query(&format!("UPDATE matches SET {} = $1 WHERE id = $2", col))
-            .bind(hash)
-            .bind(self.match_id)
-            .execute(&self.db_pool)
-            .await?;
-        Ok(())
-    }
 }
 
 // NOTE: The old `determine_player_role()` function was removed because it tried

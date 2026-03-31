@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { BattleMatch } from '../../api/types';
 import { formatKas, explorerAddressUrl, explorerTxUrl } from '../../utils/format';
 import { SUPPORTED_GAMES } from '../../config/constants';
 import { MatchStatusBadge } from './MatchStatusBadge';
 import { DepositConfirmModal } from './DepositConfirmModal';
-import { acceptMatch } from '../../api/matches';
+import { acceptMatch, getMatch, submitFaceitMatchId } from '../../api/matches';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { KASPA_NETWORK } from '../../config/constants';
 import { useTranslation } from 'react-i18next';
 import { useMatchStore } from '../../stores/useMatchStore';
 import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../domain/lobby';
+import { validateFaceitMatchId } from '../../utils/validation';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -18,6 +19,10 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const { setMatch } = useMatchStore();
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
+    const [faceitMatchIdInput, setFaceitMatchIdInput] = useState('');
+    const [isSubmittingFaceitId, setIsSubmittingFaceitId] = useState(false);
+    const [faceitSubmitError, setFaceitSubmitError] = useState<string | null>(null);
+    const [faceitSubmitSuccess, setFaceitSubmitSuccess] = useState<string | null>(null);
     const { t } = useTranslation();
     const game = SUPPORTED_GAMES.find(g => g.id === match.game_id);
 
@@ -28,12 +33,39 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const lobbyRole = getLobbyRole(match, currentUserId);
     const isPlayerA = lobbyRole === 'creator';
     const isPlayerB = lobbyRole === 'opponent';
+    const isParticipant = isPlayerA || isPlayerB;
+    const ownSubmittedFaceitId = isPlayerA
+        ? match.faceit_match_id_player_a ?? null
+        : isPlayerB
+            ? match.faceit_match_id_player_b ?? null
+            : null;
+    const opponentSubmittedFaceitId = isPlayerA
+        ? match.faceit_match_id_player_b ?? null
+        : isPlayerB
+            ? match.faceit_match_id_player_a ?? null
+            : null;
+    const playerAFaceitMatchId = match.faceit_match_id_player_a ?? null;
+    const playerBFaceitMatchId = match.faceit_match_id_player_b ?? null;
+    const bothPlayersSubmittedFaceitId = !!playerAFaceitMatchId && !!playerBFaceitMatchId;
+    const faceitIdsMismatch = bothPlayersSubmittedFaceitId && playerAFaceitMatchId !== playerBFaceitMatchId;
+    const faceitMatchIdLocked = match.status !== 'GAME_ID_INPUT';
+    const isFaceitSubmitDisabled =
+        isSubmittingFaceitId
+        || faceitMatchIdLocked
+        || !isParticipant
+        || !faceitMatchIdInput.trim();
 
     // Phase 1: Not yet accepted by anyone
     const canAccept = isAvailableChallenge(match, currentUserId) && !!user && (testMode || isFaceitConnected);
 
     // Phase 2: Accepted, but this user hasn't deposited
     const needsDeposit = needsPlayerDeposit(match, currentUserId);
+
+    useEffect(() => {
+        setFaceitMatchIdInput(ownSubmittedFaceitId ?? '');
+        setFaceitSubmitError(null);
+        setFaceitSubmitSuccess(null);
+    }, [match.id, ownSubmittedFaceitId]);
 
     const handleAccept = async () => {
         setIsAccepting(true);
@@ -44,6 +76,59 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
             alert(t('match.accept_error'));
         } finally {
             setIsAccepting(false);
+        }
+    };
+
+    const handleFaceitMatchIdSubmit = async () => {
+        if (!isParticipant || faceitMatchIdLocked) return;
+
+        const normalizedFaceitMatchId = faceitMatchIdInput.trim();
+        const validation = validateFaceitMatchId(normalizedFaceitMatchId);
+        if (!validation.valid) {
+            setFaceitSubmitSuccess(null);
+            setFaceitSubmitError(validation.error ?? t('match.faceit_submit_error_generic'));
+            return;
+        }
+
+        setIsSubmittingFaceitId(true);
+        setFaceitSubmitError(null);
+        setFaceitSubmitSuccess(null);
+
+        try {
+            const response = await submitFaceitMatchId({
+                match_id: match.id,
+                faceit_match_id: normalizedFaceitMatchId,
+            });
+            const refreshedMatch = await getMatch(match.id);
+            setMatch(refreshedMatch);
+            setFaceitMatchIdInput(normalizedFaceitMatchId);
+            setFaceitSubmitSuccess(
+                response.status === 'confirmed'
+                    ? t('match.faceit_submit_confirmed')
+                    : t('match.faceit_submit_waiting'),
+            );
+        } catch (err: any) {
+            const apiErrorCode = err?.response?.data?.error;
+            const apiMessage = err?.response?.data?.message;
+
+            if (apiErrorCode === 'faceit_id_mismatch') {
+                setFaceitSubmitError(t('match.faceit_submit_mismatch'));
+            } else if (apiErrorCode === 'invalid_faceit_match_id') {
+                setFaceitSubmitError(t('validation.faceit_match_id_invalid'));
+            } else if (apiErrorCode === 'wrong_status') {
+                setFaceitSubmitError(t('match.faceit_submit_locked'));
+            } else {
+                setFaceitSubmitError(apiMessage || t('match.faceit_submit_error_generic'));
+            }
+
+            try {
+                const refreshedMatch = await getMatch(match.id);
+                setMatch(refreshedMatch);
+            } catch (refreshErr) {
+                console.warn('[MatchDetailView] Failed to refresh match after FaceIT submit error', refreshErr);
+            }
+        } finally {
+            setIsSubmittingFaceitId(false);
         }
     };
 
@@ -174,6 +259,70 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                                 <div className="text-4xl animate-pulse mb-4">🎮</div>
                                 <h4 className="font-bold text-kaspa-primary">{t('match.running')}</h4>
                                 <p className="text-[10px] text-gray-500 mt-2">{t('match.running_info')}</p>
+                            </div>
+                        )}
+
+                        {match.status === 'GAME_ID_INPUT' && (
+                            <div className="p-4 bg-cyan-900/10 border border-cyan-500/20 rounded-xl">
+                                <p className="text-xs text-cyan-400 font-bold mb-3">{t('match.game_id_input')}</p>
+
+                                {isParticipant ? (
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wide">
+                                            <div className={`rounded-lg border px-3 py-2 ${ownSubmittedFaceitId ? 'border-emerald-500/30 bg-emerald-900/20 text-emerald-300' : 'border-cyan-500/20 bg-kaspa-dark text-gray-400'}`}>
+                                                {ownSubmittedFaceitId ? t('match.faceit_status_you_submitted') : t('match.faceit_status_you_pending')}
+                                            </div>
+                                            <div className={`rounded-lg border px-3 py-2 ${opponentSubmittedFaceitId ? 'border-emerald-500/30 bg-emerald-900/20 text-emerald-300' : 'border-cyan-500/20 bg-kaspa-dark text-gray-400'}`}>
+                                                {opponentSubmittedFaceitId ? t('match.faceit_status_opponent_submitted') : t('match.faceit_status_opponent_pending')}
+                                            </div>
+                                        </div>
+
+                                        {faceitIdsMismatch && (
+                                            <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                                                <p className="text-xs text-red-300 font-bold">{t('match.faceit_submit_mismatch')}</p>
+                                            </div>
+                                        )}
+
+                                        {faceitSubmitError && (
+                                            <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                                                <p className="text-xs text-red-300 font-bold">{faceitSubmitError}</p>
+                                            </div>
+                                        )}
+
+                                        {faceitSubmitSuccess && (
+                                            <div className="p-3 bg-emerald-900/20 border border-emerald-500/30 rounded-lg">
+                                                <p className="text-xs text-emerald-300 font-bold">{faceitSubmitSuccess}</p>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <input
+                                                type="text"
+                                                value={faceitMatchIdInput}
+                                                onChange={(e) => setFaceitMatchIdInput(e.target.value)}
+                                                disabled={isSubmittingFaceitId || faceitMatchIdLocked}
+                                                placeholder={t('match.faceit_input_placeholder')}
+                                                className="w-full bg-kaspa-dark border border-cyan-500/20 rounded-lg px-3 py-3 text-sm text-white font-mono focus:border-kaspa-primary outline-none transition-colors disabled:opacity-60"
+                                            />
+                                            <p className="text-[10px] text-gray-400 mt-2">{t('match.game_id_input_info')}</p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleFaceitMatchIdSubmit}
+                                            disabled={isFaceitSubmitDisabled}
+                                            className="w-full btn-primary h-11 flex items-center justify-center disabled:opacity-50 disabled:grayscale"
+                                        >
+                                            {isSubmittingFaceitId
+                                                ? t('match.faceit_submit_loading')
+                                                : ownSubmittedFaceitId
+                                                    ? t('match.faceit_submit_update')
+                                                    : t('match.faceit_submit')}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-gray-400">{t('match.game_id_input_info')}</p>
+                                )}
                             </div>
                         )}
 

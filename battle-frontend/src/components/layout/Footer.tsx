@@ -12,10 +12,10 @@ export function Footer() {
                     </div>
 
                     <div className="flex items-center gap-6 text-sm text-gray-400">
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">Whitepaper</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">AGB</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">Discord</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">Support</a>
+                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.whitepaper')}</a>
+                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.terms')}</a>
+                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.discord')}</a>
+                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.support')}</a>
                     </div>
                 </div>
             </div>

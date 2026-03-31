@@ -80,35 +80,34 @@ pub fn spawn_kdapp_services(
     tokio::task::spawn_blocking(move || {
         let handler = BattleHandler::new(engine_pool, engine_ws);
         let mut engine = Engine::<BattleEpisode, BattleHandler>::new(engine_rx);
-        eprintln!("🔗 kdapp Engine started (blocking thread)");
+        tracing::info!("🔗 kdapp Engine started (blocking thread)");
         engine.start(vec![handler]);
-        eprintln!("🔗 kdapp Engine exited");
+        tracing::info!("🔗 kdapp Engine exited");
     });
 
     // ── Proxy task (async) ──────────────────────────────────────────────
     let proxy_exit = exit_signal.clone();
     tokio::spawn(async move {
-        eprintln!("🌐 kdapp Proxy connecting (network: {})...", network_id);
+        tracing::info!("🌐 kdapp Proxy connecting (network: {})...", network_id);
 
         let client = match kdapp_proxy::connect_client(network_id, rpc_url).await {
             Ok(c) => {
-                eprintln!("✅ kdapp Proxy connected to Kaspa node");
+                tracing::info!("✅ kdapp Proxy connected to Kaspa node");
                 c
             }
             Err(e) => {
-                eprintln!("❌ kdapp Proxy connection failed: {} — disabled", e);
+                tracing::error!("❌ kdapp Proxy connection failed: {} — disabled", e);
                 return;
             }
         };
 
-        eprintln!(
-            "🔄 kdapp Proxy listener started (prefix={:#010x}, pattern={} bits)",
+        tracing::info!("🔄 kdapp Proxy listener started (prefix={:#010x}, pattern={} bits)",
             BATTLE_PREFIX, BATTLE_PATTERN.len()
         );
         kdapp_proxy::run_listener(client, engine_map, proxy_exit).await;
-        eprintln!("🌐 kdapp Proxy listener exited");
+        tracing::info!("🌐 kdapp Proxy listener exited");
     });
 
-    eprintln!("✅ kdapp Engine + Proxy background tasks launched");
+    tracing::info!("✅ kdapp Engine + Proxy background tasks launched");
     Ok(KdappHandle { exit_signal })
 }

@@ -31,6 +31,7 @@ export function CreateChallengeForm() {
             const result = await createChallenge({
                 stakeKas: wagerNumber,
                 mode: mode as any,
+                gameId,
             });
 
             if (result && result.id) {
