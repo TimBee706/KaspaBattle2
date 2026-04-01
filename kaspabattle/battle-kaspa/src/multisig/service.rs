@@ -20,7 +20,7 @@ use crate::multisig::transaction::{
     create_unsigned_refund_tx, sign_sighash, to_rpc_transaction,
 };
 use crate::multisig::types::*;
-use crate::rpc::KaspaRpc;
+use crate::rpc::KaspaBackend;
 
 use battle_core::types::SOMPI_PER_KAS;
 
@@ -46,7 +46,7 @@ const ESTIMATED_TX_MASS_GRAMS: u64 = 3000;
 /// 3. `create_payout()` → builds unsigned TX, signs with 2 keys, broadcasts
 /// 4. `create_refund()` → splits funds back to both players
 pub struct MultisigEscrowService {
-    rpc: Arc<dyn KaspaRpc>,
+    rpc: Arc<dyn KaspaBackend>,
     /// Network prefix (Mainnet or Testnet)
     prefix: Prefix,
     /// Platform/Oracle private key (32 bytes)
@@ -71,7 +71,7 @@ impl MultisigEscrowService {
     /// * `oracle_private_key` - 32-byte private key for the platform oracle
     /// * `treasury_address` - Address to receive platform fees
     pub fn new(
-        rpc: Arc<dyn KaspaRpc>,
+        rpc: Arc<dyn KaspaBackend>,
         prefix: Prefix,
         oracle_private_key: [u8; 32],
         treasury_address: String,
@@ -309,11 +309,12 @@ impl MultisigEscrowService {
         let signed_tx = assemble_signed_tx(tx, &sigs_per_input, &redeem_script)
             .map_err(|e| anyhow!("Failed to assemble TX: {}", e))?;
 
-        // Broadcast
         let rpc_tx = to_rpc_transaction(signed_tx);
+        let payload = serde_json::to_string(&rpc_tx)
+            .map_err(|e| anyhow!("Serialization failed: {}", e))?;
         let tx_id = self
             .rpc
-            .submit_rpc_transaction(rpc_tx)
+            .submit_transaction(&payload)
             .await
             .map_err(|e| anyhow!("Broadcast failed: {}", e))?;
 
@@ -412,9 +413,11 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to assemble TX: {}", e))?;
 
         let rpc_tx = to_rpc_transaction(signed_tx);
+        let payload = serde_json::to_string(&rpc_tx)
+            .map_err(|e| anyhow!("Serialization failed: {}", e))?;
         let tx_id = self
             .rpc
-            .submit_rpc_transaction(rpc_tx)
+            .submit_transaction(&payload)
             .await
             .map_err(|e| anyhow!("Broadcast failed: {}", e))?;
 
@@ -694,7 +697,7 @@ mod tests {
                 .unwrap();
 
         let service = MultisigEscrowService::new(
-            mock.clone() as Arc<dyn KaspaRpc>,
+            mock.clone() as Arc<dyn KaspaBackend>,
             Prefix::Testnet,
             oracle_sk,
             "kaspatest:qz7ks4hqswjj40zr58hxnhkdq75ky7f0kquq9ltyrdm5cpygkhfg5j8pf83l".to_string(),

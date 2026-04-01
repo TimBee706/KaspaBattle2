@@ -36,6 +36,7 @@ fn default_frontend_url() -> String {
     std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string())
 }
 
+#[allow(dead_code)]
 fn sanitize_return_to(candidate: &str) -> Option<String> {
     let trimmed = candidate.trim();
     if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
@@ -45,6 +46,7 @@ fn sanitize_return_to(candidate: &str) -> Option<String> {
     }
 }
 
+#[allow(dead_code)]
 fn infer_return_to(headers: &HeaderMap) -> String {
     let header_candidates = [
         headers.get("origin"),
@@ -112,7 +114,7 @@ async fn auth_url_faceit(
 
 async fn login_faceit(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let return_to = default_frontend_url();
     tracing::info!("🔐 FACEIT login: return_to={}", return_to);
@@ -137,7 +139,7 @@ async fn login_faceit(
 async fn link_faceit(
     State(state): State<AppState>,
     user: crate::api::auth_guard::SessionUserNoWallet,
-    headers: HeaderMap,
+    _headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
     let return_to = default_frontend_url();

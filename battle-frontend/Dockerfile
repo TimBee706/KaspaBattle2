@@ -8,11 +8,8 @@ FROM base AS deps
 # Copy package files
 COPY battle-frontend/package*.json ./
 
-# kaspa-wasm is a file: dependency – copy the local wasm package first
-COPY rusty-kaspa/wasm/web/kaspa /kaspa-wasm-local
-
-# Patch package.json to reference the copied wasm (in-container absolute path)
-RUN sed -i 's|file:../rusty-kaspa/wasm/web/kaspa|file:/kaspa-wasm-local|g' package.json
+# Copy the vendor directory which contains kaspa-wasm
+COPY battle-frontend/vendor ./vendor
 
 RUN npm install
 
@@ -20,10 +17,9 @@ RUN npm install
 FROM base AS dev
 WORKDIR /app
 
-COPY --from=deps /kaspa-wasm-local /kaspa-wasm-local
+COPY --from=deps /app/vendor ./vendor
 COPY --from=deps /app/node_modules ./node_modules
 COPY battle-frontend/ .
-# Keep the patched package.json
 COPY --from=deps /app/package.json ./package.json
 
 EXPOSE 5173

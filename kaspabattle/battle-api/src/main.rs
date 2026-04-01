@@ -125,8 +125,11 @@ async fn main() {
         Ok(_) => {
             tracing::info!("✅ DB migrations applied successfully");
         }
-        Err(e) if e.to_string().contains("VersionMismatch") || e.to_string().contains("checksum") || e.to_string().contains("Checksum") => {
-            tracing::warn!("⚠️ Migration checksum mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
+        Err(e) if e.to_string().contains("VersionMismatch") 
+            || e.to_string().contains("checksum") 
+            || e.to_string().contains("Checksum") 
+            || e.to_string().contains("previously applied but has been modified") => {
+            tracing::warn!("⚠️ Migration mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
             sqlx::query("DELETE FROM _sqlx_migrations")
                 .execute(&pool)
                 .await
@@ -172,7 +175,7 @@ async fn main() {
     tracing::info!("✅ EscrowWallet initialized (network: {})", kaspa_network);
 
     // Connect to Kaspa node via Resolver (or explicit URL if set)
-    let kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>> =
+    let kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaBackend>> =
         match battle_kaspa::rpc::RealKaspaClient::new_with_resolver(
             kaspa_node_url.as_deref(),
             &kaspa_network,

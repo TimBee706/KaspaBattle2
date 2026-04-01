@@ -1,8 +1,8 @@
-use super::{EpisodeTrait, PlayerRole};
+use super::EpisodeTrait;
 use crate::models::MatchStatus;
 use async_trait::async_trait;
 use battle_kaspa::escrow::EscrowService;
-use battle_kaspa::rpc::KaspaRpc;
+use battle_kaspa::rpc::KaspaBackend;
 use battle_kaspa::watcher::BlockchainWatcher;
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -28,8 +28,8 @@ pub struct MatchEpisode {
     pub tx: Sender<String>,
     /// BlockchainWatcher for per-player UTXO attribution.
     pub blockchain_watcher: Option<Arc<BlockchainWatcher>>,
-    /// KaspaRpc for DAA score queries.
-    pub kaspa_rpc: Option<Arc<dyn KaspaRpc>>,
+    /// KaspaBackend for DAA score queries.
+    pub kaspa_rpc: Option<Arc<dyn KaspaBackend>>,
 }
 
 #[async_trait]
@@ -40,7 +40,7 @@ impl EpisodeTrait for MatchEpisode {
         Option<Arc<EscrowService>>,
         Sender<String>,
         Option<Arc<BlockchainWatcher>>,
-        Option<Arc<dyn KaspaRpc>>,
+        Option<Arc<dyn KaspaBackend>>,
     );
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -121,8 +121,8 @@ impl EpisodeTrait for MatchEpisode {
                 }
 
                 let wager: i64 = row.try_get("wager_sompi")?;
-                let player_a_addr: Option<String> = row.try_get("player_a_addr").ok();
-                let player_b_addr: Option<String> = row.try_get("player_b_addr").ok();
+                let _player_a_addr: Option<String> = row.try_get("player_a_addr").ok();
+                let _player_b_addr: Option<String> = row.try_get("player_b_addr").ok();
                 let creator_id: Uuid = row.try_get("creator_user_id")?;
                 let opponent_id: Option<Uuid> = row.try_get("opponent_user_id")?;
 

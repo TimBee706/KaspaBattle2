@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::rpc::{FeeEstimate, KaspaError, KaspaRpc, NodeInfo, UtxoInfo};
+use crate::rpc::{FeeEstimate, KaspaBackend, KaspaError, NodeInfo, UtxoInfo};
 
 /// A mock implementation of KaspaRpc for development and testing.
 ///
@@ -84,7 +84,7 @@ impl Default for MockKaspaClient {
 }
 
 #[async_trait]
-impl KaspaRpc for MockKaspaClient {
+impl KaspaBackend for MockKaspaClient {
     async fn connect(&self) -> Result<(), KaspaError> {
         let mut c = self.connected.lock().expect("lock poisoned");
         *c = true;
@@ -123,15 +123,18 @@ impl KaspaRpc for MockKaspaClient {
         Ok(utxos.get(address).cloned().unwrap_or_default())
     }
 
-    /// Accept a real RpcTransaction, derive a mock TX ID, and record it.
-    async fn submit_rpc_transaction(
+    /// Accept a serialized TX payload, derive a mock TX ID, and record it.
+    async fn submit_transaction(
         &self,
-        tx: RpcTransaction,
+        tx_payload: &str,
     ) -> Result<String, KaspaError> {
         let synced = *self.synced.lock().expect("lock poisoned");
         if !synced {
             return Err(KaspaError::NodeNotSynced);
         }
+
+        let tx: RpcTransaction = serde_json::from_str(tx_payload)
+            .map_err(|e| KaspaError::TransactionFailed(format!("Failed to parse mock tx json: {}", e)))?;
 
         // Deterministic mock TX ID from inputs
         let mut hasher = Sha256::new();
@@ -254,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_mock_fallback_concept() {
-        let client: Arc<dyn KaspaRpc> = Arc::new(MockKaspaClient::new());
+        let client: Arc<dyn KaspaBackend> = Arc::new(MockKaspaClient::new());
         let _ = client;
     }
 }

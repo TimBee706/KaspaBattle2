@@ -7,3 +7,4 @@ pub mod models;
 pub mod oracle;
 pub mod types;
 pub mod workers;
+pub mod kaspa_backend;

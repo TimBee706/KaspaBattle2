@@ -6,10 +6,7 @@ pub mod multisig;
 use crate::api::{admin_guard::AdminApiKey, auth_guard::SessionUser};
 use crate::models::{Match, MatchMode, MatchStatus};
 use axum::{
-    extract::{
-        ws::{Message, WebSocketUpgrade},
-        Path, State,
-    },
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -38,6 +35,7 @@ pub struct DepositReq {
     pub player_role: String, // "A" oder "B"
 }
 
+#[allow(dead_code)]
 pub async fn simulate_deposit_test(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -46,7 +44,7 @@ pub async fn simulate_deposit_test(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let dummy_tx = "fake_tx_testmode_123".to_string();
+    let _dummy_tx = "fake_tx_testmode_123".to_string();
 
     let mut record = sqlx::query_as::<_, Match>(&format!("UPDATE matches SET status = 'LOCKED' WHERE id = $1 RETURNING {}", crate::models::MATCH_SELECT_COLS))
     .bind(id)
@@ -74,7 +72,7 @@ pub struct AppState {
     pub faceit_data_service: Option<Arc<FaceitDataService>>,
     pub escrow_wallet: Option<Arc<battle_kaspa::wallet::EscrowWallet>>,
     pub escrow_service: Option<Arc<battle_kaspa::escrow::EscrowService>>,
-    pub kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaRpc>>,
+    pub kaspa_rpc: Option<Arc<dyn battle_kaspa::rpc::KaspaBackend>>,
     pub payout_service: Option<Arc<battle_kaspa::payout::PayoutService>>,
     /// Watcher used by the payment-status endpoint and episode runner
     pub blockchain_watcher: Option<Arc<battle_kaspa::watcher::BlockchainWatcher>>,
@@ -975,7 +973,7 @@ pub async fn submit_deposit(
 
     // Step 3: Determine which player column to update based on player_role
     // player_role "A" = creator, "B" = opponent
-    let (tx_col, confirmed_col) = match payload.player_role.to_uppercase().as_str() {
+    let (tx_col, _confirmed_col) = match payload.player_role.to_uppercase().as_str() {
         "A" => ("player_a_deposit_tx_hash", "player_a_deposit_confirmed"),
         "B" => ("player_b_deposit_tx_hash", "player_b_deposit_confirmed"),
         _ => {
@@ -1033,8 +1031,8 @@ pub async fn submit_deposit(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let a_confirmed = updated.player_a_deposit_confirmed.unwrap_or(false);
-    let b_confirmed = updated.player_b_deposit_confirmed.unwrap_or(false);
+    let _a_confirmed = updated.player_a_deposit_confirmed.unwrap_or(false);
+    let _b_confirmed = updated.player_b_deposit_confirmed.unwrap_or(false);
 
     // We no longer transition to FUNDED here. The MatchEpisode (Blockchain Watcher)
     // is responsible for confirming the actual UTXO and setting the status.
@@ -1968,6 +1966,7 @@ pub struct SubmitFaceitMatchIdReq {
 
 /// Request body for submitting a winner signature.
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct SubmitSignatureReq {
     pub signature_hex: Option<String>,
     pub signed_tx_hex: Option<String>,
