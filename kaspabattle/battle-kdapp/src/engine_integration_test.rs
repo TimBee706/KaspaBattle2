@@ -29,6 +29,7 @@ mod tests {
             }
         }
 
+        #[allow(dead_code)]
         fn events(&self) -> Vec<String> {
             self.events.lock().unwrap().clone()
         }
@@ -203,7 +204,7 @@ mod tests {
         });
 
         let (sk_a, pk_a) = generate_keypair();
-        let (sk_b, pk_b) = generate_keypair();
+        let (_sk_b, pk_b) = generate_keypair();
         let episode_id: EpisodeId = 99;
 
         // 1. Create episode

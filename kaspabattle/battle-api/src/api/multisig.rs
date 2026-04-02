@@ -36,12 +36,14 @@ pub struct CheckDepositsReq {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ExecutePayoutReq {
     pub match_id: Uuid,
     pub winner_address: String,
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ExecuteRefundReq {
     pub match_id: Uuid,
     pub player_a_address: String,

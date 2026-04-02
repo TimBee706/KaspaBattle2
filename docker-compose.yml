@@ -13,7 +13,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       # Run init SQL on first start
       - ./kaspabattle/migrations/202602280000_init_pg.sql:/docker-entrypoint-initdb.d/01_init.sql
-      - ./kaspabattle/migrations/20260301_add_escrow_address.sql:/docker-entrypoint-initdb.d/02_escrow.sql
+      - ./kaspabattle/migrations/202603010000_add_escrow_address.sql:/docker-entrypoint-initdb.d/02_escrow.sql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres -d kaspabattle" ]
       interval: 10s
@@ -23,9 +23,7 @@ services:
 
   # ── Kaspa Node (Testnet-10) ─────────────────────────────────────────────────
   kaspa-node:
-    build:
-      context: ./rusty-kaspa
-      dockerfile: docker/Dockerfile.kaspad
+    image: kaspanet/rusty-kaspad:latest
     restart: unless-stopped
     user: "0:0"
     ports:
@@ -56,6 +54,7 @@ services:
       # Override to use Docker service names instead of localhost
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
       KASPA_NODE_URL: ws://kaspa-node:16111
+      KASPA_USE_EXPLICIT_NODE: "false"
     depends_on:
       postgres:
         condition: service_healthy

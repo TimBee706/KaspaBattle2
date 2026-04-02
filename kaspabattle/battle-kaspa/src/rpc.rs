@@ -7,131 +7,16 @@
 /// F-003: `submit_transaction` now calls the real Kaspa node RPC instead of
 /// always returning an error. `get_fee_estimate` was added to the trait.
 use async_trait::async_trait;
-
-use kaspa_rpc_core::model::tx::RpcTransaction;
-use serde::Serialize;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-
 use tokio::sync::RwLock;
 
-// === Data Types ===
+// ── Shared Types ─────────────────────────────────────────────────────────────
+pub use battle_core::kaspa_backend::{
+    FeeEstimate, KaspaBackend, KaspaError, NodeInfo, UtxoInfo,
+};
 
-/// Information about a single UTXO.
-#[derive(Debug, Clone, Serialize)]
-pub struct UtxoInfo {
-    pub tx_id: String,
-    pub output_index: u32,
-    pub amount: u64,
-    pub amount_kas: f64,
-    pub is_coinbase: bool,
-    pub block_daa_score: u64,
-    /// The raw script_public_key bytes (hex-encoded)
-    pub script_public_key: Option<String>,
-}
-
-/// Node status information.
-#[derive(Debug, Clone, Serialize)]
-pub struct NodeInfo {
-    pub server_version: String,
-    pub is_synced: bool,
-    pub is_utxo_indexed: bool,
-    pub network: String,
-}
-
-/// Fee estimate from the network (in sompi per mass unit).
-#[derive(Debug, Clone, Serialize)]
-pub struct FeeEstimate {
-    /// Recommended fee rate in sompi per gram of mass.
-    pub normal_bucket_feerate: f64,
-    /// Low-priority fee rate (slower inclusion).
-    pub low_bucket_feerate: f64,
-}
-
-/// Error type for RPC operations.
-#[derive(Debug, Clone, Serialize)]
-pub enum KaspaError {
-    ConnectionFailed(String),
-    NodeNotSynced,
-    UtxoIndexNotEnabled,
-    RpcError(String),
-    TransactionFailed(String),
-    /// F-003: Specific double-spend error variant for clear error handling.
-    DoubleSpend(String),
-    /// F-003: Mempool is full, retry later.
-    MempoolFull,
-    Timeout,
-}
-
-impl fmt::Display for KaspaError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            KaspaError::ConnectionFailed(e) => write!(f, "Connection failed: {}", e),
-            KaspaError::NodeNotSynced => write!(f, "Kaspa node is not synced"),
-            KaspaError::UtxoIndexNotEnabled => {
-                write!(f, "UTXO index not enabled (start node with --utxoindex)")
-            }
-            KaspaError::RpcError(e) => write!(f, "RPC error: {}", e),
-            KaspaError::TransactionFailed(e) => write!(f, "Transaction failed: {}", e),
-            KaspaError::DoubleSpend(e) => write!(f, "Double-spend detected: {}", e),
-            KaspaError::MempoolFull => write!(f, "Kaspa mempool is full — retry later"),
-            KaspaError::Timeout => write!(f, "RPC request timed out"),
-        }
-    }
-}
-
-impl std::error::Error for KaspaError {}
-
-// === KaspaRpc Trait ===
-
-/// Trait abstracting Kaspa RPC operations.
-///
-/// Implemented by `RealKaspaClient` for production and `MockKaspaClient`
-/// for testing. All escrow/payout logic uses `Arc<dyn KaspaRpc>`.
-#[async_trait]
-pub trait KaspaRpc: Send + Sync {
-    /// Establish connection to the Kaspa node.
-    async fn connect(&self) -> std::result::Result<(), KaspaError>;
-
-    /// Disconnect from the Kaspa node.
-    async fn disconnect(&self) -> std::result::Result<(), KaspaError>;
-
-    /// Check if the client is currently connected.
-    async fn is_connected(&self) -> bool;
-
-    /// Check if the connected node is fully synced.
-    async fn is_synced(&self) -> std::result::Result<bool, KaspaError>;
-
-    /// Get the balance of an address in sompi.
-    async fn get_balance(&self, address: &str) -> std::result::Result<u64, KaspaError>;
-
-    /// Get all UTXOs for an address.
-    async fn get_utxos(&self, address: &str) -> std::result::Result<Vec<UtxoInfo>, KaspaError>;
-
-    /// Submit a fully-built and signed Kaspa transaction.
-    /// F-003: Takes an RpcTransaction (already converted from consensus Transaction).
-    /// Returns the transaction ID on success.
-    async fn submit_rpc_transaction(
-        &self,
-        tx: RpcTransaction,
-    ) -> std::result::Result<String, KaspaError>;
-
-    /// Get node status information.
-    async fn get_node_info(&self) -> std::result::Result<NodeInfo, KaspaError>;
-
-    /// F-003: Get current fee estimate from the network.
-    /// Returns sompi-per-gram fee rates for normal and low-priority transactions.
-    async fn get_fee_estimate(&self) -> std::result::Result<FeeEstimate, KaspaError>;
-
-    /// Get the current virtual DAA score from the node.
-    /// Used to compute confirmation depth: current_daa - utxo.block_daa_score = confirmations.
-    async fn get_current_daa_score(&self) -> std::result::Result<u64, KaspaError>;
-
-    /// Block until the node is fully synced and has UTXO index enabled.
-    /// Used at startup to avoid querying an unready node.
-    async fn wait_for_sync(&self, timeout: Duration) -> std::result::Result<(), KaspaError>;
-}
+// Trait is now defined in battle_core::kaspa_backend
 
 // === Real Kaspa Client ===
 
@@ -317,7 +202,7 @@ impl RealKaspaClient {
 }
 
 #[async_trait]
-impl KaspaRpc for RealKaspaClient {
+impl KaspaBackend for RealKaspaClient {
     async fn connect(&self) -> std::result::Result<(), KaspaError> {
         self.connect_with_retry(3).await
     }
@@ -397,15 +282,12 @@ impl KaspaRpc for RealKaspaClient {
         Ok(utxos)
     }
 
-    /// F-003: Real transaction submission to the Kaspa node.
-    ///
-    /// Pre-flight check: ensures the node is synced before sending.
-    /// Classifies RPC errors into specific KaspaError variants for clear handling.
-    async fn submit_rpc_transaction(
-        &self,
-        tx: RpcTransaction,
-    ) -> std::result::Result<String, KaspaError> {
+    /// F-003: Real transaction submission to the Kaspa node using JSON deserialization.
+    async fn submit_transaction(&self, tx_payload: &str) -> std::result::Result<String, KaspaError> {
         use kaspa_rpc_core::api::rpc::RpcApi;
+        
+        let tx: kaspa_rpc_core::model::tx::RpcTransaction = serde_json::from_str(tx_payload)
+            .map_err(|e| KaspaError::TransactionFailed(format!("Invalid TX payload JSON: {}", e)))?;
 
         // Pre-flight: refuse to submit if node is not synced
         let synced = self.is_synced().await?;

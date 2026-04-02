@@ -146,6 +146,7 @@ mod opcodes {
     pub const OP_CHECKMULTISIG: u8 = 0xae;
     pub const OP_DATA_32: u8 = 0x20;
     pub const OP_2: u8 = 0x52;
+    #[allow(dead_code)]
     pub const OP_3: u8 = 0x53;
 }
 

@@ -138,20 +138,6 @@ export function WalletPage() {
                     {t('wallet.tx_history_empty')}
                 </div>
             </div>
-
-            <div className="card p-8 border border-red-900/20 bg-red-900/5">
-                <div className="flex items-center gap-3 mb-4">
-                    <span className="text-2xl">⚠️</span>
-                    <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">{t('wallet.backup_title')}</h3>
-                </div>
-
-                <p className="text-gray-400 text-sm leading-relaxed">
-                    {t('wallet.backup_text')}
-                </p>
-                <p className="text-red-300 text-xs font-semibold uppercase tracking-wider mt-4">
-                    Recovery phrases are not stored after import. Keep your backup offline.
-                </p>
-            </div>
         </div>
     );
 }

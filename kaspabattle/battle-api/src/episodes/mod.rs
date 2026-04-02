@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 /// Which player role is performing an action
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum PlayerRole {
     A,
     B,

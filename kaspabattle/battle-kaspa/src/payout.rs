@@ -6,7 +6,7 @@
 ///
 /// F-009: execute_payout() refuses to run if the match state blocks payouts.
 use crate::errors::PayoutError;
-use crate::rpc::KaspaRpc;
+use crate::rpc::KaspaBackend;
 use battle_core::models::match_::BattleMatch;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ const WINNER_PCT: u64 = 95;
 const ESTIMATED_TX_MASS_GRAMS: u64 = 2000;
 
 pub struct PayoutService {
-    rpc_client: Arc<dyn KaspaRpc>,
+    rpc_client: Arc<dyn KaspaBackend>,
     treasury_address: String,
     /// Map: escrow_address → 32-byte raw private key (Schnorr/secp256k1)
     escrow_private_keys: Arc<Mutex<HashMap<String, [u8; 32]>>>,
@@ -56,7 +56,7 @@ pub struct PayoutResult {
 
 impl PayoutService {
     pub fn new(
-        rpc_client: Arc<dyn KaspaRpc>,
+        rpc_client: Arc<dyn KaspaBackend>,
         treasury_address: String,
         escrow_private_keys: HashMap<String, [u8; 32]>,
     ) -> Self {
@@ -264,13 +264,14 @@ impl PayoutService {
             tx.inputs[i].signature_script = script;
         }
 
-        // Convert to RpcTransaction for submission
         let rpc_tx = transaction_to_rpc(tx);
         let _tx_id = rpc_tx.get_id();
+        let payload = serde_json::to_string(&rpc_tx)
+            .map_err(|e| PayoutError::TxBuildError(format!("Serialization failed: {}", e)))?;
 
         let submitted_id = self
             .rpc_client
-            .submit_rpc_transaction(rpc_tx)
+            .submit_transaction(&payload)
             .await
             .map_err(PayoutError::KaspaRpcError)?;
 
@@ -418,9 +419,12 @@ impl PayoutService {
         }
 
         let rpc_tx = transaction_to_rpc(tx);
+        let payload = serde_json::to_string(&rpc_tx)
+            .map_err(|e| PayoutError::TxBuildError(format!("Serialization failed: {}", e)))?;
+
         let refund_tx_id = self
             .rpc_client
-            .submit_rpc_transaction(rpc_tx)
+            .submit_transaction(&payload)
             .await
             .map_err(PayoutError::KaspaRpcError)?;
 
@@ -498,7 +502,7 @@ mod tests {
 
     fn make_service(mock: Arc<MockKaspaClient>) -> PayoutService {
         PayoutService::new(
-            mock as Arc<dyn KaspaRpc>,
+            mock as Arc<dyn KaspaBackend>,
             "kaspatest:qtreasury".to_string(),
             HashMap::new(),
         )

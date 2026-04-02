@@ -38,7 +38,7 @@ use anyhow::{anyhow, Result};
 use serde::Serialize;
 
 use crate::errors::EscrowError;
-use crate::rpc::KaspaRpc;
+use crate::rpc::KaspaBackend;
 use crate::wallet::EscrowWallet;
 use battle_core::types::SOMPI_PER_KAS;
 use kaspa_addresses::{Address, Version};
@@ -173,12 +173,12 @@ pub struct RefundResult {
 /// Manages the full lifecycle of escrows.
 pub struct EscrowService {
     wallet: Arc<EscrowWallet>,
-    rpc: Arc<dyn KaspaRpc>,
+    rpc: Arc<dyn KaspaBackend>,
 }
 
 impl EscrowService {
     /// Create a new EscrowService.
-    pub fn new(wallet: Arc<EscrowWallet>, rpc: Arc<dyn KaspaRpc>) -> Self {
+    pub fn new(wallet: Arc<EscrowWallet>, rpc: Arc<dyn KaspaBackend>) -> Self {
         Self { wallet, rpc }
     }
 
@@ -472,7 +472,7 @@ mod tests {
                 "testnet",
             ).unwrap()
         );
-        let rpc: Arc<dyn KaspaRpc> = Arc::new(MockKaspaClient::new());
+        let rpc: Arc<dyn KaspaBackend> = Arc::new(MockKaspaClient::new());
         EscrowService::new(wallet, rpc)
     }
 
@@ -484,7 +484,7 @@ mod tests {
             ).unwrap()
         );
         let mock = Arc::new(MockKaspaClient::new());
-        let rpc: Arc<dyn KaspaRpc> = mock.clone();
+        let rpc: Arc<dyn KaspaBackend> = mock.clone();
         (EscrowService::new(wallet, rpc), mock)
     }
 

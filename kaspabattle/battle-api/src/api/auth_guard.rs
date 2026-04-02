@@ -148,9 +148,10 @@ impl FromRequestParts<AppState> for SessionUserNoWallet {
 ///
 /// Only available inside `#[cfg(test)]` — never compiled into production builds.
 #[cfg(test)]
+#[allow(dead_code)]
 pub fn test_session_user() -> SessionUser {
     SessionUser(User {
-        id: "00000000-0000-0000-0000-000000000001".to_string(),
+        id: uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
         email: "test@example.com".to_string(),
         email_verified: true,
         password_hash: "".to_string(),

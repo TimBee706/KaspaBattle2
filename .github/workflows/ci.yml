@@ -1,0 +1,45 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend:
+    name: Rust Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: kaspabattle -> target
+      - name: Run Tests
+        working-directory: ./kaspabattle
+        run: cargo test --workspace --all-features
+      - name: Run Clippy
+        working-directory: ./kaspabattle
+        run: cargo clippy --workspace -- -D warnings
+
+  frontend:
+    name: Frontend Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: ./battle-frontend
+        run: npm ci
+      - name: Lint
+        working-directory: ./battle-frontend
+        run: npm run lint
+      - name: Test
+        working-directory: ./battle-frontend
+        run: npm run test

@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::rpc::{KaspaError, KaspaRpc, UtxoInfo};
+use crate::rpc::{KaspaError, KaspaBackend, UtxoInfo};
 
 /// Balance and UTXO summary for an escrow address.
 #[derive(Debug, Clone, Serialize)]
@@ -47,13 +47,13 @@ pub struct DepositEvaluation {
 
 /// Watches escrow addresses for incoming deposits.
 pub struct BlockchainWatcher {
-    kaspa: Arc<dyn KaspaRpc>,
+    kaspa: Arc<dyn KaspaBackend>,
     pub poll_interval: Duration,
 }
 
 impl BlockchainWatcher {
     /// Create a new watcher.
-    pub fn new(kaspa: Arc<dyn KaspaRpc>, poll_interval: Duration) -> Self {
+    pub fn new(kaspa: Arc<dyn KaspaBackend>, poll_interval: Duration) -> Self {
         Self {
             kaspa,
             poll_interval,
@@ -231,7 +231,7 @@ mod tests {
     fn make_watcher() -> (BlockchainWatcher, Arc<MockKaspaClient>) {
         let mock = Arc::new(MockKaspaClient::new());
         let watcher =
-            BlockchainWatcher::new(mock.clone() as Arc<dyn KaspaRpc>, Duration::from_secs(3));
+            BlockchainWatcher::new(mock.clone() as Arc<dyn KaspaBackend>, Duration::from_secs(3));
         (watcher, mock)
     }
 

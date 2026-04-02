@@ -127,6 +127,7 @@ impl Match {
     }
 
     /// Returns true if this match has both players' deposits confirmed
+    #[allow(dead_code)]
     pub fn both_deposits_confirmed(&self) -> bool {
         self.player_a_deposit_confirmed.unwrap_or(false)
             && self.player_b_deposit_confirmed.unwrap_or(false)

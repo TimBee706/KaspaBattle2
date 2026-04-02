@@ -3,11 +3,6 @@
 // E2E Backend Integration Test (A-Z Flow) for KaspaBattle Matches.
 // This test provides the architecture for the CI pipeline to run an end-to-end
 // match lifecycle using mocked external dependencies.
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
-use tower::ServiceExt; // for `oneshot`
 
 /// Pseudo-Test-Setup für den End-to-End Match Flow
 /// Dieses Setup simuliert den gesamten Match-Lebenszyklus von CREATE bis RESOLVED.
