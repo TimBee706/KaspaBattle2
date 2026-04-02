@@ -12,7 +12,11 @@ use crate::api::AppState;
 
 /// Maskiert eine FACEIT Player-ID für pseudonymisiertes Logging (zeigt nur erste 6 Zeichen).
 fn mask_faceit_id(id: &str) -> String {
-    if id.len() > 6 { format!("{}...", &id[..6]) } else { id.to_string() }
+    if id.len() > 6 {
+        format!("{}...", &id[..6])
+    } else {
+        id.to_string()
+    }
 }
 
 /// Cache TTL in Sekunden (5 Minuten).
@@ -39,11 +43,13 @@ fn default_frontend_url() -> String {
 #[allow(dead_code)]
 fn sanitize_return_to(candidate: &str) -> Option<String> {
     let trimmed = candidate.trim();
-    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        Some(trimmed.to_string())
-    } else {
-        None
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return None;
     }
+
+    let without_fragment = trimmed.split('#').next()?.trim_end_matches('/');
+
+    Some(without_fragment.to_string())
 }
 
 #[allow(dead_code)]
@@ -63,8 +69,12 @@ fn infer_return_to(headers: &HeaderMap) -> String {
     }
 
     if let (Some(proto), Some(host)) = (
-        headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()),
-        headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()),
+        headers
+            .get("x-forwarded-proto")
+            .and_then(|v| v.to_str().ok()),
+        headers
+            .get("x-forwarded-host")
+            .and_then(|v| v.to_str().ok()),
     ) {
         let forwarded = format!("{}://{}", proto, host);
         if let Some(url) = sanitize_return_to(&forwarded) {
@@ -74,8 +84,6 @@ fn infer_return_to(headers: &HeaderMap) -> String {
 
     default_frontend_url()
 }
-
-
 
 fn append_query_param(base: &str, key: &str, value: &str) -> String {
     let separator = if base.contains('?') { '&' } else { '?' };
@@ -91,8 +99,9 @@ struct AuthUrlResponse {
 
 async fn auth_url_faceit(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<AuthUrlResponse>, axum::http::StatusCode> {
-    let return_to = default_frontend_url();
+    let return_to = infer_return_to(&headers);
     tracing::info!("🔐 FACEIT auth-url: return_to={}", return_to);
 
     match state
@@ -111,12 +120,11 @@ async fn auth_url_faceit(
     }
 }
 
-
 async fn login_faceit(
     State(state): State<AppState>,
-    _headers: HeaderMap,
+    headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
-    let return_to = default_frontend_url();
+    let return_to = infer_return_to(&headers);
     tracing::info!("🔐 FACEIT login: return_to={}", return_to);
 
     match state
@@ -139,10 +147,10 @@ async fn login_faceit(
 async fn link_faceit(
     State(state): State<AppState>,
     user: crate::api::auth_guard::SessionUserNoWallet,
-    _headers: HeaderMap,
+    headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
-    let return_to = default_frontend_url();
+    let return_to = infer_return_to(&headers);
 
     match state
         .faceit_service
@@ -151,7 +159,10 @@ async fn link_faceit(
     {
         Ok((url, _)) => Ok(Redirect::temporary(&url)),
         Err(e) => {
-            tracing::error!("❌ FACEIT link URL generation failed for user {}", mask_faceit_id(&u.id.to_string()));
+            tracing::error!(
+                "❌ FACEIT link URL generation failed for user {}",
+                mask_faceit_id(&u.id.to_string())
+            );
             tracing::info!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -180,7 +191,10 @@ async fn faceit_callback(
             axum::http::StatusCode::BAD_REQUEST
         })?;
 
-    tracing::info!("✅ FACEIT callback: user {} linked", mask_faceit_id(&info.guid));
+    tracing::info!(
+        "✅ FACEIT callback: user {} linked",
+        mask_faceit_id(&info.guid)
+    );
 
     // 2. Auth Session Generieren / Faceit Link speichern
     let (uid, session_token) = state
@@ -188,7 +202,10 @@ async fn faceit_callback(
         .handle_faceit_sso(&info, existing_user_id.as_deref())
         .await
         .map_err(|e| {
-            tracing::error!("❌ Auth SSO Error for FACEIT user {}", mask_faceit_id(&info.guid));
+            tracing::error!(
+                "❌ Auth SSO Error for FACEIT user {}",
+                mask_faceit_id(&info.guid)
+            );
             tracing::info!("  Detail: {}", e);
             axum::http::StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -201,13 +218,17 @@ async fn faceit_callback(
     // 3. Zurück ins Frontend mit Session-Cookie
     let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    let cookie_str = super::build_auth_cookie(&session_token);
+    let cookie_str = super::build_auth_cookie_for_target(&session_token, &frontend_url);
     let redirect_url = append_query_param(&frontend_url, "linked", "1");
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::SEE_OTHER)
         .header(axum::http::header::LOCATION, redirect_url)
-        .header(axum::http::header::SET_COOKIE, HeaderValue::from_str(&cookie_str).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?)
+        .header(
+            axum::http::header::SET_COOKIE,
+            HeaderValue::from_str(&cookie_str)
+                .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?,
+        )
         .body(axum::body::Body::empty())
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -232,7 +253,11 @@ async fn faceit_status(
 ) -> Result<Json<FaceitStatusResponse>, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
-    match state.faceit_service.get_link_status(&u.id.to_string()).await {
+    match state
+        .faceit_service
+        .get_link_status(&u.id.to_string())
+        .await
+    {
         Ok(status) => Ok(Json(FaceitStatusResponse {
             connected: status.linked,
             faceit_nickname: status.faceit_nickname,
@@ -242,7 +267,10 @@ async fn faceit_status(
             linked_at: status.linked_at,
         })),
         Err(e) => {
-            tracing::error!("❌ FACEIT status check failed for user {}", mask_faceit_id(&u.id.to_string()));
+            tracing::error!(
+                "❌ FACEIT status check failed for user {}",
+                mask_faceit_id(&u.id.to_string())
+            );
             tracing::info!("  Detail: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
@@ -291,7 +319,8 @@ async fn faceit_profile(
     let cached_avatar: Option<String> = row.try_get("faceit_avatar_url").unwrap_or(None);
     let cached_elo: Option<i32> = row.try_get("faceit_elo").unwrap_or(None);
     let cached_level: Option<i32> = row.try_get("faceit_skill_level").unwrap_or(None);
-    let cache_updated_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("faceit_cache_updated_at").unwrap_or(None);
+    let cache_updated_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("faceit_cache_updated_at").unwrap_or(None);
 
     // TTL check: if cache is <5 min old, return cached data directly
     let cache_fresh = cache_updated_at
@@ -299,7 +328,10 @@ async fn faceit_profile(
         .unwrap_or(false);
 
     if cache_fresh && cached_elo.is_some() && cached_level.is_some() {
-        tracing::info!("📦 FACEIT profile [{}] served from cache", mask_faceit_id(&player_id));
+        tracing::info!(
+            "📦 FACEIT profile [{}] served from cache",
+            mask_faceit_id(&player_id)
+        );
         return Ok(Json(FaceitProfileApiResponse {
             faceit_player_id: player_id.clone(),
             nickname: cached_nick.clone(),
@@ -314,7 +346,10 @@ async fn faceit_profile(
     }
 
     // Cache stale or missing → fetch live from FACEIT Data API
-    tracing::info!("🌐 FACEIT profile [{}] fetching from API", mask_faceit_id(&player_id));
+    tracing::info!(
+        "🌐 FACEIT profile [{}] fetching from API",
+        mask_faceit_id(&player_id)
+    );
 
     match faceit_data_svc.get_player_by_id(&player_id).await {
         Ok(profile) => {
@@ -396,14 +431,13 @@ async fn faceit_stats(
     let game_id = query.game.as_deref().unwrap_or("cs2");
 
     // Get faceit_player_id from DB
-    let player_id: String = sqlx::query_scalar(
-        "SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid"
-    )
-    .bind(&u.id.to_string())
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+    let player_id: String =
+        sqlx::query_scalar("SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid")
+            .bind(&u.id.to_string())
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(axum::http::StatusCode::NOT_FOUND)?;
 
     match faceit_data_svc.get_player_stats(&player_id, game_id).await {
         Ok(stats) => {
@@ -442,5 +476,51 @@ async fn faceit_disconnect(
                 "message": "FACEIT-Verbindung wurde getrennt"
             })))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{infer_return_to, sanitize_return_to};
+    use axum::http::{HeaderMap, HeaderValue};
+
+    #[test]
+    fn sanitize_return_to_keeps_http_urls_and_removes_fragments() {
+        assert_eq!(
+            sanitize_return_to("https://example.com/lobby?foo=bar#frag").as_deref(),
+            Some("https://example.com/lobby?foo=bar")
+        );
+        assert_eq!(
+            sanitize_return_to("http://localhost:5173/").as_deref(),
+            Some("http://localhost:5173")
+        );
+        assert_eq!(sanitize_return_to("javascript:alert(1)"), None);
+    }
+
+    #[test]
+    fn infer_return_to_prefers_origin() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "origin",
+            HeaderValue::from_static("https://demo.ngrok-free.dev"),
+        );
+        headers.insert(
+            "referer",
+            HeaderValue::from_static("https://localhost:5173/lobby"),
+        );
+
+        assert_eq!(infer_return_to(&headers), "https://demo.ngrok-free.dev");
+    }
+
+    #[test]
+    fn infer_return_to_uses_forwarded_host_when_needed() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-proto", HeaderValue::from_static("https"));
+        headers.insert(
+            "x-forwarded-host",
+            HeaderValue::from_static("demo.ngrok-free.dev"),
+        );
+
+        assert_eq!(infer_return_to(&headers), "https://demo.ngrok-free.dev");
     }
 }

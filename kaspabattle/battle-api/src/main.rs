@@ -59,11 +59,32 @@ fn try_load_dotenv() -> Vec<std::path::PathBuf> {
     candidates
 }
 
+fn env_flag(name: &str) -> bool {
+    matches!(
+        std::env::var(name)
+            .ok()
+            .map(|v| v.trim().to_ascii_lowercase()),
+        Some(v) if matches!(v.as_str(), "1" | "true" | "yes" | "on")
+    )
+}
+
+fn explicit_kaspa_node_enabled() -> bool {
+    env_flag("KASPA_USE_EXPLICIT_NODE") || env_flag("KASPA_USE_NODE_URL")
+}
+
 fn normalized_kaspa_node_url() -> Option<String> {
     let url = std::env::var("KASPA_NODE_URL").ok()?;
     let trimmed = url.trim();
 
     if trimmed.is_empty() {
+        return None;
+    }
+
+    if !explicit_kaspa_node_enabled() {
+        tracing::info!(
+            "Ignoring configured KASPA_NODE_URL={} because explicit node usage is disabled; falling back to Kaspa Resolver",
+            trimmed
+        );
         return None;
     }
 
@@ -77,6 +98,32 @@ fn normalized_kaspa_node_url() -> Option<String> {
     }
 
     Some(trimmed.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{explicit_kaspa_node_enabled, normalized_kaspa_node_url};
+
+    #[test]
+    fn explicit_node_is_opt_in() {
+        std::env::remove_var("KASPA_USE_EXPLICIT_NODE");
+        std::env::remove_var("KASPA_USE_NODE_URL");
+        std::env::set_var("KASPA_NODE_URL", "ws://kaspa-node:16111");
+        assert_eq!(normalized_kaspa_node_url(), None);
+    }
+
+    #[test]
+    fn explicit_node_can_be_enabled() {
+        std::env::set_var("KASPA_USE_EXPLICIT_NODE", "true");
+        std::env::set_var("KASPA_NODE_URL", "ws://kaspa-node:16111");
+        assert!(explicit_kaspa_node_enabled());
+        assert_eq!(
+            normalized_kaspa_node_url(),
+            Some("ws://kaspa-node:16111".to_string())
+        );
+        std::env::remove_var("KASPA_USE_EXPLICIT_NODE");
+        std::env::remove_var("KASPA_NODE_URL");
+    }
 }
 
 #[tokio::main]

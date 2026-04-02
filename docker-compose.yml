@@ -54,6 +54,7 @@ services:
       # Override to use Docker service names instead of localhost
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
       KASPA_NODE_URL: ws://kaspa-node:16111
+      KASPA_USE_EXPLICIT_NODE: "false"
     depends_on:
       postgres:
         condition: service_healthy

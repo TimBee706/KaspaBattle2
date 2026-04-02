@@ -227,12 +227,28 @@ pub struct WalletVerifyReq {
     pub link_to_existing_user: bool,
 }
 
-pub fn build_auth_cookie(session_token: &str) -> String {
+fn auth_cookie_security_attrs(target_url: Option<&str>) -> (&'static str, &'static str) {
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let is_secure = frontend_url.starts_with("https");
+    let effective_url = target_url.unwrap_or(&frontend_url);
+    let is_secure = effective_url.starts_with("https://");
     let same_site = if is_secure { "None" } else { "Lax" };
     let secure_flag = if is_secure { "; Secure" } else { "" };
+
+    (same_site, secure_flag)
+}
+
+pub fn build_auth_cookie(session_token: &str) -> String {
+    let (same_site, secure_flag) = auth_cookie_security_attrs(None);
+
+    format!(
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
+        session_token, same_site, secure_flag
+    )
+}
+
+pub fn build_auth_cookie_for_target(session_token: &str, target_url: &str) -> String {
+    let (same_site, secure_flag) = auth_cookie_security_attrs(Some(target_url));
 
     format!(
         "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
@@ -241,11 +257,7 @@ pub fn build_auth_cookie(session_token: &str) -> String {
 }
 
 fn build_clear_auth_cookie() -> String {
-    let frontend_url =
-        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let is_secure = frontend_url.starts_with("https");
-    let same_site = if is_secure { "None" } else { "Lax" };
-    let secure_flag = if is_secure { "; Secure" } else { "" };
+    let (same_site, secure_flag) = auth_cookie_security_attrs(None);
 
     format!(
         "kaspabattle-auth=; HttpOnly; Path=/; SameSite={}{}; Max-Age=0",

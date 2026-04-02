@@ -101,10 +101,19 @@ impl FaceitOAuthService {
         &self,
         code: &str,
         state: &str,
-    ) -> Result<(FaceitUserInfo, FaceitTokenResponse, Option<String>, Option<String>)> {
+    ) -> Result<(
+        FaceitUserInfo,
+        FaceitTokenResponse,
+        Option<String>,
+        Option<String>,
+    )> {
         let pending_state = {
             let mut states = self.pending_states.lock().await;
-            tracing::debug!("🔍 FACEIT callback: state='{}', {} pending states in memory", state, states.len());
+            tracing::debug!(
+                "🔍 FACEIT callback: state='{}', {} pending states in memory",
+                state,
+                states.len()
+            );
             states
                 .remove(state)
                 .ok_or_else(|| {
@@ -118,7 +127,12 @@ impl FaceitOAuthService {
             .await?;
         let userinfo = self.get_userinfo(&tokens.access_token).await?;
 
-        Ok((userinfo, tokens, pending_state.user_id, pending_state.return_to))
+        Ok((
+            userinfo,
+            tokens,
+            pending_state.user_id,
+            pending_state.return_to,
+        ))
     }
 
     pub async fn exchange_code(
@@ -131,7 +145,7 @@ impl FaceitOAuthService {
             encode_basic_auth(&self.config.client_id, &self.config.client_secret)
         );
 
-        let params: [(& str, &str); 4] = [
+        let params: [(&str, &str); 4] = [
             ("grant_type", "authorization_code"),
             ("code", code),
             ("code_verifier", code_verifier),
@@ -204,13 +218,11 @@ impl FaceitOAuthService {
         let expires_at = Utc::now() + Duration::seconds(tokens.expires_in as i64);
         let mut tx = self.db.begin().await?;
 
-        sqlx::query(
-            "DELETE FROM faceit_links WHERE user_id = $1 AND faceit_player_id != $2"
-        )
-        .bind(&uid)
-        .bind(&info.guid)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("DELETE FROM faceit_links WHERE user_id = $1 AND faceit_player_id != $2")
+            .bind(&uid)
+            .bind(&info.guid)
+            .execute(&mut *tx)
+            .await?;
 
         let updated = sqlx::query(
             "UPDATE faceit_links
@@ -221,7 +233,7 @@ impl FaceitOAuthService {
                  refresh_token = $5,
                  token_expires_at = $6,
                  verified = $7
-             WHERE faceit_player_id = $8"
+             WHERE faceit_player_id = $8",
         )
         .bind(&uid)
         .bind(&info.nickname)
@@ -258,7 +270,7 @@ impl FaceitOAuthService {
              SET faceit_id = $1,
                  nickname = $2,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $3"
+             WHERE id = $3",
         )
         .bind(&info.guid)
         .bind(&info.nickname)
@@ -335,5 +347,48 @@ impl FaceitOAuthService {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::faceit::FaceitOAuthConfig;
+
+    fn test_config() -> FaceitOAuthConfig {
+        FaceitOAuthConfig {
+            client_id: "client".to_string(),
+            client_secret: "secret".to_string(),
+            redirect_uri: "https://example.com/api/v1/faceit/callback".to_string(),
+            auth_url: "https://accounts.faceit.com".to_string(),
+            token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
+            userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn generate_auth_url_uses_pkce_without_popup_redirect() {
+        let pool = PgPool::connect_lazy("postgres://postgres:postgres@localhost/test").unwrap();
+        let service = FaceitOAuthService::new(test_config(), pool);
+
+        let (url, pending_state) = service
+            .generate_auth_url(None, Some("https://frontend.example".to_string()))
+            .await
+            .unwrap();
+
+        let parsed = reqwest::Url::parse(&url).unwrap();
+        let params: HashMap<_, _> = parsed.query_pairs().into_owned().collect();
+
+        assert_eq!(params.get("client_id"), Some(&"client".to_string()));
+        assert_eq!(params.get("response_type"), Some(&"code".to_string()));
+        assert_eq!(
+            params.get("code_challenge_method"),
+            Some(&"S256".to_string())
+        );
+        assert_eq!(params.get("redirect_popup"), Some(&"true".to_string()));
+        assert_eq!(
+            pending_state.return_to.as_deref(),
+            Some("https://frontend.example")
+        );
     }
 }
