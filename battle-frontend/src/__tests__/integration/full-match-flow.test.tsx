@@ -16,12 +16,17 @@ vi.mock('../../api/client', () => ({
 // Mock the wallet module so we don't actually hit WASM/Network in this test
 vi.mock('../../kaspa/wallet', () => ({
     importWallet: vi.fn().mockResolvedValue({
-        wallet: {},
-        account: {
-            privateKeyHex: 'priv-key',
-            publicKey: 'pub-key',
+        connection: {
+            wallet: null,
+            account: {
+                receiveAddress: 'kaspatest:qmockaddress123',
+                escrowAddress: 'kaspatest:qescrow',
+                xpub: 'xpub-test',
+                publicKey: 'pub-key',
+            },
+            address: 'kaspatest:qmockaddress123',
         },
-        address: 'kaspatest:qmockaddress123',
+        ephemeralPrivateKeyHex: 'ephemeral-priv-key',
     }),
     getBalance: vi.fn().mockResolvedValue(50_000_000),
     getBalanceByAddress: vi.fn().mockResolvedValue(5_000_000),

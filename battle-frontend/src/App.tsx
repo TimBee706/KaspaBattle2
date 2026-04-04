@@ -45,8 +45,18 @@ export default function App() {
 
       window.location.href = callbackUrl;
     } else if (linked) {
-      fetchUser().catch(console.error);
-      window.history.replaceState({}, document.title, window.location.pathname);
+      console.log('🔗 [App] ?linked=1 detected, calling fetchUser...');
+      fetchUser()
+        .then(() => {
+          console.log('✅ [App] fetchUser succeeded after FaceIT login');
+          // Clean querystring and navigate to lobby without a full page reload.
+          // window.location.replace would lose the zustand in-memory state.
+          window.history.replaceState({}, document.title, '/lobby');
+        })
+        .catch((err) => {
+          console.error('❌ [App] fetchUser failed after FaceIT login:', err);
+          window.history.replaceState({}, document.title, '/');
+        });
     } else if (errorParam) {
       console.error("FACEIT Auth Fehler:", errorParam);
       alert(`Authentication Error: ${errorParam}`);

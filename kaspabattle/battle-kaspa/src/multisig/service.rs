@@ -1,4 +1,4 @@
-//! High-level multisig escrow lifecycle service.
+﻿//! High-level multisig escrow lifecycle service.
 //!
 //! Orchestrates the full escrow flow: address generation → deposit tracking →
 //! payout TX creation → signature collection → broadcast.
@@ -24,8 +24,7 @@ use crate::rpc::KaspaBackend;
 
 use battle_core::types::SOMPI_PER_KAS;
 
-/// Platform fee percentage (5% of total pot)
-const PLATFORM_FEE_PERCENT: u64 = 5;
+use battle_core::constants::PLATFORM_FEE_PERCENT;
 
 /// Estimated transaction mass in grams (for fee calculation)
 const ESTIMATED_TX_MASS_GRAMS: u64 = 3000;

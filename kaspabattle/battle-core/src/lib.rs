@@ -1,4 +1,5 @@
-pub mod auth;
+﻿pub mod auth;
+pub mod constants;
 pub mod errors;
 pub mod faceit_data;
 pub mod faceit_oauth;

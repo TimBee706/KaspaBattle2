@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 pub type MatchId = String;
 pub type KaspaAddress = String;

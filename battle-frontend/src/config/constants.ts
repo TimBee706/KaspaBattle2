@@ -1,11 +1,11 @@
 // Kaspa (Testnet Config)
 const rawKaspaNodeUrl = import.meta.env.VITE_KASPA_NODE_URL?.trim();
 
-export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-10';
+export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-12';
 export const KASPA_NODE_URL = rawKaspaNodeUrl && !rawKaspaNodeUrl.includes('photon-10.kaspa.red')
     ? rawKaspaNodeUrl
     : '';
-export const KASPA_EXPLORER_URL = 'https://explorer-tn10.kaspa.org'; // Testnet Explorer
+export const KASPA_EXPLORER_URL = 'https://explorer-tn12.kaspa.org'; // Testnet Explorer
 export const SOMPI_PER_KAS = 100_000_000; // 1 KAS = 10^8 Sompi
 
 // KaspaBattle API

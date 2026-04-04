@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 /// Repräsentiert einen Benutzer in der Datenbank.
 /// Das password_hash Feld wird NIEMALS in API-Responses zurückgegeben.

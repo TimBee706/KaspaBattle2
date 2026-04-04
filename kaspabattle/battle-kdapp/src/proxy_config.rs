@@ -14,7 +14,7 @@ pub const BATTLE_PATTERN: PatternType = [
 pub const BATTLE_PREFIX: PrefixType = 0x4B42_5432;
 
 /// Default network for development/testing.
-pub const DEFAULT_NETWORK: &str = "testnet-10";
+pub const DEFAULT_NETWORK: &str = "testnet-12";
 
 #[cfg(test)]
 mod tests {

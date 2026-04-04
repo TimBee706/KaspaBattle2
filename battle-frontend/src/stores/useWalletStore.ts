@@ -1,11 +1,10 @@
 import { create } from 'zustand';
-import type { Wallet } from 'kaspa-wasm';
+import type { SafeAccount } from '../kaspa/wallet';
 
 interface WalletState {
     isConnected: boolean;
     isConnecting: boolean;
-    wallet: Wallet | null;
-    account: any; // Account used here is a custom object from our wallet.ts logic
+    account: SafeAccount | null;
     address: string | null;
     walletType: 'mnemonic' | 'kasware' | null;
     balanceSompi: number;
@@ -13,7 +12,7 @@ interface WalletState {
     balanceError: string | null;
     error: string | null;
 
-    setWalletConnection: (wallet: Wallet | null, account: any, address: string, walletType: 'mnemonic' | 'kasware') => void;
+    setWalletConnection: (account: SafeAccount, address: string, walletType: 'mnemonic' | 'kasware') => void;
     setBalance: (balanceSompi: number) => void;
     setFetchingBalance: (isFetching: boolean) => void;
     setBalanceError: (error: string | null) => void;
@@ -25,7 +24,6 @@ interface WalletState {
 export const useWalletStore = create<WalletState>((set) => ({
     isConnected: false,
     isConnecting: false,
-    wallet: null,
     account: null,
     address: null,
     walletType: null,
@@ -34,8 +32,8 @@ export const useWalletStore = create<WalletState>((set) => ({
     balanceError: null,
     error: null,
 
-    setWalletConnection: (wallet, account, address, walletType) =>
-        set({ wallet, account, address, walletType, isConnected: true, isConnecting: false, error: null }),
+    setWalletConnection: (account, address, walletType) =>
+        set({ account, address, walletType, isConnected: true, isConnecting: false, error: null }),
 
     setBalance: (balanceSompi) => set({ balanceSompi, isFetchingBalance: false, balanceError: null }),
 
@@ -49,7 +47,6 @@ export const useWalletStore = create<WalletState>((set) => ({
 
     disconnect: () =>
         set({
-            wallet: null,
             account: null,
             address: null,
             walletType: null,

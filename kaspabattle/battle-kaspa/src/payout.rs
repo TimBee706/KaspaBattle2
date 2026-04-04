@@ -1,4 +1,4 @@
-/// Payout service — builds, signs, and submits real Kaspa transactions.
+﻿/// Payout service — builds, signs, and submits real Kaspa transactions.
 ///
 /// F-001: Replaces mock TX hashes with real transaction construction.
 /// Uses the escrow wallet's private key to sign UTXO inputs via Schnorr

@@ -41,7 +41,31 @@ pub struct User {
     pub nickname: Option<String>,
 }
 
-pub const MATCH_SELECT_COLS: &str = "id, onchain_match_id, escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, COALESCE(wager_amount_sompi, wager_sompi) AS wager_amount_sompi, player_a_deposit_tx_hash, player_b_deposit_tx_hash, player_a_deposit_confirmed, player_b_deposit_confirmed, player_a_faceid_hash, player_b_faceid_hash, player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, faceit_match_id_player_a, faceit_match_id_player_b, faceit_match_id_final, faceit_match_status, faceit_finished_at, faceit_winner_faction, faceit_score, winner_user_id, loser_user_id, payout_pskt_hex, payout_tx_hash, payout_status";
+/// Canonical column list for `SELECT` queries on the `matches` table.
+///
+/// - `COALESCE(escrow_address, '')` ensures non-null strings in Rust
+/// - `COALESCE(wager_amount_sompi, wager_sompi)` handles legacy rows
+///
+/// Single source of truth — used by `load_match_full()`, all lobby/history
+/// queries, and INSERT/UPDATE RETURNING clauses.
+pub const MATCH_COLUMNS: &str = concat!(
+    "id, onchain_match_id, COALESCE(escrow_address, '') AS escrow_address, ",
+    "creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, ",
+    "external_match_id, created_at, ",
+    "COALESCE(wager_amount_sompi, wager_sompi) AS wager_amount_sompi, ",
+    "player_a_deposit_tx_hash, player_b_deposit_tx_hash, ",
+    "player_a_deposit_confirmed, player_b_deposit_confirmed, ",
+    "player_a_faceid_hash, player_b_faceid_hash, ",
+    "player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, ",
+    "faceit_match_id_player_a, faceit_match_id_player_b, ",
+    "faceit_match_id_final, faceit_match_status, ",
+    "faceit_finished_at, faceit_winner_faction, faceit_score, ",
+    "winner_user_id, loser_user_id, ",
+    "payout_pskt_hex, payout_tx_hash, payout_status"
+);
+
+/// Backwards-compat alias (use `MATCH_COLUMNS` in new code).
+pub const MATCH_SELECT_COLS: &str = MATCH_COLUMNS;
 
 #[derive(Serialize, Deserialize, Debug, Clone, FromRow)]
 pub struct Match {

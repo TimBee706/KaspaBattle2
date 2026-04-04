@@ -1,4 +1,4 @@
-/// EscrowWallet — BIP44-based HD wallet for Kaspa escrow address derivation.
+﻿/// EscrowWallet — BIP44-based HD wallet for Kaspa escrow address derivation.
 ///
 /// Each challenge gets a unique derivation index, ensuring funds are isolated
 /// per-escrow. Private keys are held in memory behind Arc<Mutex<>> for signing

@@ -1,8 +1,9 @@
-use crate::models::faceit_data::{
+﻿use crate::models::faceit_data::{
     FaceitMatchDetails, FaceitMatchHistory, FaceitPlayerProfile, FaceitPlayerStats,
 };
 use anyhow::{anyhow, Result};
 use reqwest::Client;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct FaceitDataService {
@@ -14,7 +15,12 @@ pub struct FaceitDataService {
 impl FaceitDataService {
     pub fn new(api_key: String) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(15))
+                .connect_timeout(Duration::from_secs(5))
+                .pool_idle_timeout(Duration::from_secs(90))
+                .build()
+                .expect("Failed to build FACEIT HTTP client"),
             api_key,
             base_url: "https://open.faceit.com/data/v4".to_string(),
         }

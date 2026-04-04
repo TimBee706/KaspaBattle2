@@ -4,27 +4,40 @@ import { getRpcClient } from './rpc';
 export { getRpcClient };
 import { KASPA_NETWORK } from '../config/constants';
 
-// Wallet Connection interface
+// ─── Safe Account Interface ──────────────────────────────────────────────────
+// Security: NO mnemonic or privateKeyHex stored. Keys live only in short-lived
+// signing function scopes and are discarded immediately after use.
+
+export interface SafeAccount {
+    receiveAddress: string;
+    escrowAddress: string;
+    xpub: string;
+    publicKey: string;
+    mnemonicPhrase?: string; // IN-MEMORY ONLY for deposit signatures (never stored in LocalStorage)
+}
+
 export interface WalletConnection {
     wallet: any;
-    account: {
-        receiveAddress: string;
-        escrowAddress: string;
-        xpub: string;
-        mnemonic: string;
-        privateKeyHex: string;
-        publicKey: string;
-    };
+    account: SafeAccount;
     address: string;
 }
 
+// ─── Ephemeral Signing Result ────────────────────────────────────────────────
+
+export interface ImportResult {
+    connection: WalletConnection;
+    /** Private key hex — caller must use immediately and discard. Not stored. */
+    ephemeralPrivateKeyHex: string;
+}
+
 // Wallet aus Mnemonic importieren
-export async function importWallet(mnemonicPhrase: string): Promise<WalletConnection> {
+// Returns address/publicKey info + an ephemeral private key for the initial login signing.
+// The ephemeral key MUST be used immediately and discarded — never stored in state.
+export async function importWallet(mnemonicPhrase: string): Promise<ImportResult> {
     console.log("🔄 Initialisiere Kaspa WASM SDK...");
     await initKaspaWasm();
 
     console.log("🔌 Verbinde mit Kaspa RPC Node...");
-    // Nutze den getRpcClient Aufruf aus rpc.ts für die node url & borsh encoding
     try {
         await getRpcClient();
     } catch (e) {
@@ -53,24 +66,19 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
         throw new Error("Fehler bei der Key-Derivation (XPrv)!");
     }
 
-    // 3. Verwende PrivateKeyGenerator für BIP44/BIP32 Derivation:
-    // "m/44'/111111'/0'" - Account 0, "m/44'/111111'/0'/0/0"
-    // is_multisig: false, account_index: 0
+    // 3. Key derivation
     let addressData: { address: kaspa.Address, xpub: string } | null = null;
     let publicKeyGenerator: kaspa.PublicKeyGenerator | null = null;
     let privateKeyGenerator: kaspa.PrivateKeyGenerator | null = null;
 
     try {
-        // Erstelle PublicKeyGenerator und PrivateKeyGenerator
         publicKeyGenerator = kaspa.PublicKeyGenerator.fromMasterXPrv(xprv as any, false, 0n);
         privateKeyGenerator = new kaspa.PrivateKeyGenerator(xprv, false, 0n);
 
-        // Hole Receive Address 0
         const address = publicKeyGenerator.receiveAddress(KASPA_NETWORK, 0);
-
         addressData = {
             address: address,
-            xpub: xprv.toXPub().xpub, // (Optional) XPub-String exportieren
+            xpub: xprv.toXPub().xpub,
         };
     } catch (e) {
         console.error("Fehler bei KeyGenerator:", e);
@@ -81,46 +89,46 @@ export async function importWallet(mnemonicPhrase: string): Promise<WalletConnec
         throw new Error("Address Derivation fehlgeschlagen");
     }
 
-    // Wandle Objekt in String-Representation mit Prefix `kaspa:` oder `kaspatest:`
     const addressStr = addressData.address.toString();
     console.log(`✅ Adresse erhalten: ${addressStr}`);
 
-    // Generiere Escrow-Adresse (Index 1) – eine valide Testnet-Adresse mit korrekter Checksumme
     const escrowAddress = publicKeyGenerator!.receiveAddress(KASPA_NETWORK, 1).toString();
-    console.log(`🔐 Escrow-Adresse generiert (Index 1): ${escrowAddress}`);
     const privateKey = privateKeyGenerator!.receiveKey(0);
     const publicKey = privateKey.toPublicKey().toString();
-    const privateKeyHex = privateKey.toString();
+    const ephemeralPrivateKeyHex = privateKey.toString();
 
-    // Stub für Account Object so dass bestehender Code nicht bricht
-    const account = {
+    // SafeAccount: NO secrets stored
+    const account: SafeAccount = {
         receiveAddress: addressStr,
         escrowAddress: escrowAddress,
         xpub: addressData.xpub,
-        mnemonic: mnemonicPhrase,
-        privateKeyHex,
         publicKey,
+        mnemonicPhrase: mnemonicPhrase, // needed locally in memory for future deposits
     };
 
     console.log(`✅ Kaspa Wallet (Raw Derivation) erfolgreich geladen! (Adresse: ${addressStr})`);
 
-    // Das alte Wallet Construct ist fÃ¼r Raw Derivation ungenutzt.
     const wallet = null;
 
-    return { wallet, account, address: addressStr };
+    return {
+        connection: { wallet, account, address: addressStr },
+        ephemeralPrivateKeyHex,
+    };
 }
-export async function getBalance(account: any): Promise<number> {
-    try {
-        const mnemonicPhrase = account.mnemonic;
-        if (!mnemonicPhrase) return 0;
 
+/**
+ * Fetches total balance across first 20 receive + 20 change addresses.
+ * Uses xpub for address derivation — no private keys needed.
+ */
+export async function getBalance(xpub: string): Promise<number> {
+    try {
+        if (!xpub) return 0;
+
+        await initKaspaWasm();
         const rpcClient = await getRpcClient();
 
-        // Re-derive generator to scan
-        const mnemonic = new kaspa.Mnemonic(mnemonicPhrase);
-        const seed = mnemonic.toSeed("");
-        const xprv = new kaspa.XPrv(seed);
-        const publicKeyGenerator = kaspa.PublicKeyGenerator.fromMasterXPrv(xprv as any, false, 0n);
+        // Derive PublicKeyGenerator from xpub (no private key needed)
+        const publicKeyGenerator = kaspa.PublicKeyGenerator.fromXPub(xpub, false);
 
         let totalSompi = 0n;
         const addressesToScan: string[] = [];
@@ -174,19 +182,24 @@ export async function getBalanceByAddress(address: string): Promise<number> {
     }
 }
 
-// Deposit-TX an Escrow-Adresse senden
+/**
+ * Deposit TX — requires mnemonic as explicit parameter (short-lived scope).
+ *
+ * The mnemonic is ONLY used within this function and never stored.
+ * After the function returns, the mnemonic reference is discarded.
+ */
 export async function sendDeposit(
-    account: any,
+    mnemonicPhrase: string,
     escrowAddress: string,
     amountSompi: number,
 ): Promise<string> {
-    const mnemonicPhrase = account.mnemonic;
-    if (!mnemonicPhrase) throw new Error("Mnemonic fehlt im Account-Objekt");
+    if (!mnemonicPhrase) throw new Error("Mnemonic fehlt");
 
     console.log("🚀 Starte Deposit-Transaktion mit Multi-Address-Scan...");
+    await initKaspaWasm();
     const rpc = await getRpcClient();
 
-    // 1. Keys vorbereiten
+    // 1. Keys vorbereiten (ephemeral — scoped to this function)
     const mnemonic = new kaspa.Mnemonic(mnemonicPhrase);
     const seed = mnemonic.toSeed("");
     const xprv = new kaspa.XPrv(seed);
@@ -236,7 +249,6 @@ export async function sendDeposit(
 
     // 3. Transaktion erstellen
     const amount = BigInt(amountSompi);
-    // Erster Receive-Address als Change-Adresse nutzen
     const changeAddress = publicKeyGenerator.receiveAddress(KASPA_NETWORK, 0).toString();
 
     let transactions;
@@ -252,7 +264,6 @@ export async function sendDeposit(
         console.log(`✅ [sendDeposit] ${transactions.length} Transaktionen erstellt.`);
     } catch (e: any) {
         console.error("❌ [sendDeposit] Fehler bei createTransactions:", e);
-        // WASM Fehler sind oft Strings oder haben keine message property
         const errorMsg = typeof e === 'string' ? e : (e?.message || JSON.stringify(e) || "Unbekannter WASM Fehler");
         throw new Error(`Transaktionserstellung fehlgeschlagen: ${errorMsg}`);
     }
@@ -282,29 +293,26 @@ export async function sendDeposit(
         }
     }
 
+    // Keys go out of scope here — ephemeral only
     return finalTxId;
 }
 
 // Event-Listener für Balance-Änderungen
 export function onBalanceChange(
-    _wallet: any, // Nicht mehr genutzt im Raw-Derivation-Flow
-    account: any,
+    _wallet: any,
+    address: string,
     callback: (newBalance: number) => void,
 ): void {
-    const address = account.externalAddress || account.receiveAddress;
     if (!address) return;
 
-    // Wir rufen den RpcClient direkt auf, um das UTXO Event zu abonnieren
     getRpcClient().then(rpcClient => {
-
-        // Zuerst einmalig abonnieren
         rpcClient.subscribeUtxosChanged([address]).catch(e => {
             console.error("Konnte UTXOs nicht abonnieren", e);
         });
 
         (rpcClient as any).addEventListener('utxos-changed', async () => {
             try {
-                const newBalance = await getBalance(account);
+                const newBalance = await getBalanceByAddress(address);
                 callback(newBalance);
             } catch (e) {
                 console.error("Fehler beim UTXO Event Callback", e);

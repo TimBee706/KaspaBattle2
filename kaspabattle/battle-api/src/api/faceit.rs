@@ -28,6 +28,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth-url", get(auth_url_faceit))
         .route("/link", get(link_faceit))
         .route("/callback", get(faceit_callback))
+        .route("/session-bounce", get(session_bounce))
         .route("/status", get(faceit_status))
         .route("/profile", get(faceit_profile))
         .route("/stats", get(faceit_stats))
@@ -215,15 +216,48 @@ async fn faceit_callback(
         .save_faceit_link(&uid, &info, &tokens)
         .await;
 
-    // 3. Zurück ins Frontend mit Session-Cookie
+    // 3. Redirect through session-bounce to set the cookie on the SAME origin the
+    //    frontend uses for API requests.  When the frontend talks through the Vite
+    //    proxy (localhost:5173/api/v1/…) the cookie must be set on that origin — not
+    //    on localhost:8080 which the browser treats as a different origin.
     let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    let cookie_str = super::build_auth_cookie_for_target(&session_token, &frontend_url);
-    let redirect_url = append_query_param(&frontend_url, "linked", "1");
+    // Derive bounce base from the frontend URL so the browser navigates through
+    // the same origin (Vite proxy or production reverse-proxy).
+    let bounce_base = format!(
+        "{}/api/v1/faceit/session-bounce",
+        frontend_url.trim_end_matches('/')
+    );
+    let bounce_url = format!(
+        "{}?token={}&next={}",
+        bounce_base,
+        urlencoding::encode(&session_token),
+        urlencoding::encode(&append_query_param(&frontend_url, "linked", "1")),
+    );
+
+    Ok(Redirect::temporary(&bounce_url))
+}
+
+// ── /faceit/session-bounce ─────────────────────────────────────────────────
+// Sets the auth cookie on localhost domain, then redirects to the frontend.
+// This solves the cookie-domain mismatch when OAuth callback goes through ngrok.
+
+#[derive(Deserialize)]
+struct SessionBounceQuery {
+    token: String,
+    next: String,
+}
+
+async fn session_bounce(
+    Query(query): Query<SessionBounceQuery>,
+) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
+    // Use the shared cookie builder to ensure consistent SameSite/Secure attributes.
+    // The target URL determines whether Secure flag is needed.
+    let cookie_str = crate::api::build_auth_cookie_for_target(&query.token, &query.next);
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::SEE_OTHER)
-        .header(axum::http::header::LOCATION, redirect_url)
+        .header(axum::http::header::LOCATION, &query.next)
         .header(
             axum::http::header::SET_COOKIE,
             HeaderValue::from_str(&cookie_str)
@@ -232,6 +266,7 @@ async fn faceit_callback(
         .body(axum::body::Body::empty())
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    tracing::info!("🔐 Session bounce: cookie set, redirecting to {}", query.next);
     Ok(response)
 }
 

@@ -1,4 +1,4 @@
-/// Blockchain watcher — polls escrow addresses for deposits.
+﻿/// Blockchain watcher — polls escrow addresses for deposits.
 ///
 /// **⚠️ DEPRECATED (v0.7):** This polling-based watcher is superseded by the
 /// kdapp Proxy/Engine in `battle-kdapp`. New code should use:

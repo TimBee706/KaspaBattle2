@@ -1,4 +1,4 @@
-//! # FaceIT Watcher Service (F-010 / Phase 3)
+﻿//! # FaceIT Watcher Service (F-010 / Phase 3)
 //!
 //! Background Tokio task that polls all active `faceit_watcher_jobs` rows
 //! from the DB and calls the FaceIT Data API for each one.

@@ -77,18 +77,21 @@ export function useWallet() {
             useLobbyStore.getState().reset();
             useMatchStore.getState().clearMatch();
 
-            const connection = await importWallet(phrase);
+            // importWallet returns the connection (safe, no secrets) + an ephemeral private key
+            const { connection, ephemeralPrivateKeyHex } = await importWallet(phrase);
 
             try {
                 const challenge = await apiClient.post<WalletChallengeResponse>('/auth/wallet-challenge', {
                     kaspa_address: connection.address,
                 });
 
+                // Sign using the ephemeral key — used once and then discarded
                 const signature = await signMessage({
                     message: challenge.data.message,
-                    privateKey: connection.account.privateKeyHex,
+                    privateKey: ephemeralPrivateKeyHex,
                     noAuxRand: true,
                 });
+                // ephemeralPrivateKeyHex goes out of scope after this block
 
                 await apiClient.post('/auth/wallet-verify', {
                     challenge_id: challenge.data.challenge_id,
@@ -102,8 +105,8 @@ export function useWallet() {
                 throw new Error('Wallet authentication failed. Please try again.');
             }
 
-            // Wallet auth succeeded — set connection state first
-            setWalletConnection(null, connection.account, connection.address, 'mnemonic');
+            // Wallet auth succeeded — set connection state (NO secrets in store)
+            setWalletConnection(connection.account, connection.address, 'mnemonic');
             updateKasAddress(connection.address);
             setWalletConnected(true);
 

@@ -1,4 +1,4 @@
-//! Transaction building and signing for multisig escrows.
+﻿//! Transaction building and signing for multisig escrows.
 //!
 //! Handles unsigned TX creation, sighash computation, Schnorr signing,
 //! and final TX assembly with signature scripts.

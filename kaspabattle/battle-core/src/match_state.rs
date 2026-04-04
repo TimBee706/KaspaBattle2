@@ -1,4 +1,4 @@
-use crate::errors::MatchError;
+﻿use crate::errors::MatchError;
 use serde::{Deserialize, Serialize};
 
 /// Match states — reflects the full lifecycle including FaceIT integration and Dispute.

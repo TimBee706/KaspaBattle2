@@ -1,4 +1,4 @@
-/// RPC abstraction layer for Kaspa node communication.
+﻿/// RPC abstraction layer for Kaspa node communication.
 ///
 /// Defines `KaspaRpc` trait implemented by both `RealKaspaClient` (wRPC)
 /// and `MockKaspaClient` (testing). All blockchain-facing code consumes

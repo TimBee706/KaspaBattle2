@@ -23,12 +23,17 @@ vi.mock('../../api/client', () => ({
 
 vi.mock('../../kaspa/wallet', () => ({
     importWallet: vi.fn().mockResolvedValue({
-        wallet: null,
-        account: {
-            privateKeyHex: 'priv-key',
-            publicKey: 'pub-key',
+        connection: {
+            wallet: null,
+            account: {
+                receiveAddress: 'kaspatest:qnewwallet',
+                escrowAddress: 'kaspatest:qescrow',
+                xpub: 'xpub-test',
+                publicKey: 'pub-key',
+            },
+            address: 'kaspatest:qnewwallet',
         },
-        address: 'kaspatest:qnewwallet',
+        ephemeralPrivateKeyHex: 'ephemeral-priv-key',
     }),
     getBalanceByAddress: vi.fn().mockResolvedValue(1_500_000_000),
     getRpcClient: vi.fn().mockResolvedValue({

@@ -11,8 +11,8 @@ export function useBalance() {
 
         const fetchBalance = async () => {
             try {
-                // Fetch using the account directly
-                const balance = await getBalance(account);
+                // Fetch using the account xpub directly
+                const balance = await getBalance(account.xpub);
                 setBalance(balance);
             } catch {
                 // Silent fail – Event-Listener ist primär
