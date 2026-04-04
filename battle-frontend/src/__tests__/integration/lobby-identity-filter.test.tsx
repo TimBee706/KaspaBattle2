@@ -102,7 +102,7 @@ describe('LobbyPage identity-aware filtering', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Join' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'lobby.join' })).toBeInTheDocument();
         });
 
         const mySection = screen.getByText('lobby.my_lobbies').parentElement?.parentElement;
@@ -111,6 +111,6 @@ describe('LobbyPage identity-aware filtering', () => {
         expect(mySection).not.toBeNull();
         expect(availableSection).not.toBeNull();
         expect(within(mySection as HTMLElement).getByText('lobby.no_entries')).toBeInTheDocument();
-        expect(within(availableSection as HTMLElement).getByRole('button', { name: 'Join' })).toBeInTheDocument();
+        expect(within(availableSection as HTMLElement).getByRole('button', { name: 'lobby.join' })).toBeInTheDocument();
     });
 });
