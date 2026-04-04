@@ -6,6 +6,7 @@ import { useLobbyStore } from '../stores/useLobbyStore';
 import { useMatchStore } from '../stores/useMatchStore';
 import { importWallet, getBalanceByAddress, getRpcClient } from '../kaspa/wallet';
 import apiClient from '../api/client';
+import { getErrorMessage } from '../utils/errors';
 
 const LEGACY_WALLET_SESSION_KEY = 'kaspa_wallet_session';
 const LEGACY_WALLET_PHRASE_KEY = 'kaspa_encrypted_phrase';
@@ -15,6 +16,10 @@ interface WalletChallengeResponse {
     message: string;
     expires_at: string;
 }
+
+type RpcClientWithEvents = Awaited<ReturnType<typeof getRpcClient>> & {
+    addEventListener?: (event: 'utxos-changed', listener: () => void) => void;
+};
 
 export function useWallet() {
     const {
@@ -43,10 +48,10 @@ export function useWallet() {
         try {
             const sompi = await getBalanceByAddress(addr);
             setBalance(sompi);
-        } catch (e: any) {
-            setBalanceError(e.message || '--');
+        } catch (e) {
+            setBalanceError(getErrorMessage(e, '--'));
         }
-    }, [setBalance, setFetchingBalance, setBalanceError]);
+    }, [setBalance, setBalanceError, setFetchingBalance]);
 
     const subscribeToUpdates = useCallback(async (addr: string) => {
         if (subscriptionActive.current) return;
@@ -56,10 +61,10 @@ export function useWallet() {
 
             const handleUtxoChanged = () => {
                 console.log('[useWallet] UTXO changed, re-fetching balance...');
-                fetchBalance(addr);
+                void fetchBalance(addr);
             };
 
-            (rpc as any).addEventListener('utxos-changed', handleUtxoChanged);
+            (rpc as RpcClientWithEvents).addEventListener?.('utxos-changed', handleUtxoChanged);
             subscriptionActive.current = true;
         } catch (e) {
             console.error('[useWallet] Subscription failed:', e);
@@ -77,7 +82,6 @@ export function useWallet() {
             useLobbyStore.getState().reset();
             useMatchStore.getState().clearMatch();
 
-            // importWallet returns the connection (safe, no secrets) + an ephemeral private key
             const { connection, ephemeralPrivateKeyHex } = await importWallet(phrase);
 
             try {
@@ -85,13 +89,11 @@ export function useWallet() {
                     kaspa_address: connection.address,
                 });
 
-                // Sign using the ephemeral key — used once and then discarded
                 const signature = await signMessage({
                     message: challenge.data.message,
                     privateKey: ephemeralPrivateKeyHex,
                     noAuxRand: true,
                 });
-                // ephemeralPrivateKeyHex goes out of scope after this block
 
                 await apiClient.post('/auth/wallet-verify', {
                     challenge_id: challenge.data.challenge_id,
@@ -105,12 +107,10 @@ export function useWallet() {
                 throw new Error('Wallet authentication failed. Please try again.');
             }
 
-            // Wallet auth succeeded — set connection state (NO secrets in store)
             setWalletConnection(connection.account, connection.address, 'mnemonic');
             updateKasAddress(connection.address);
             setWalletConnected(true);
 
-            // Fetch user separately — don't fail wallet connect if this errors
             try {
                 await fetchUser();
             } catch (fetchErr) {
@@ -119,12 +119,12 @@ export function useWallet() {
 
             await fetchBalance(connection.address);
             await subscribeToUpdates(connection.address);
-        } catch (err: any) {
-            setError(err.message || 'Connection failed');
+        } catch (err) {
+            setError(getErrorMessage(err, 'Connection failed'));
         } finally {
             setConnecting(false);
         }
-    }, [setWalletConnection, updateKasAddress, setWalletConnected, fetchBalance, subscribeToUpdates, setError, setConnecting, fetchUser, isAuthenticated]);
+    }, [fetchBalance, fetchUser, isAuthenticated, setConnecting, setError, setWalletConnected, setWalletConnection, subscribeToUpdates, updateKasAddress]);
 
     const disconnect = useCallback(async () => {
         storeDisconnect();
@@ -138,20 +138,20 @@ export function useWallet() {
         try {
             await apiClient.post('/auth/me/wallet/disconnect');
             await fetchUser();
-        } catch (error) {
-            console.warn('[useWallet] Wallet disconnect sync failed', error);
+        } catch (syncError) {
+            console.warn('[useWallet] Wallet disconnect sync failed', syncError);
         }
-    }, [storeDisconnect, clearKasAddress, setWalletConnected, fetchUser]);
+    }, [clearKasAddress, fetchUser, setWalletConnected, storeDisconnect]);
 
     useEffect(() => {
-        restoreFullWalletState();
+        void restoreFullWalletState();
     }, [restoreFullWalletState]);
 
     useEffect(() => {
         if (isConnected && address) {
-            fetchBalance(address);
+            void fetchBalance(address);
         }
-    }, [isConnected, address, fetchBalance]);
+    }, [address, fetchBalance, isConnected]);
 
     const signAndSendDeposit = useCallback(async (matchId: string, amountKas: number) => {
         try {
@@ -165,7 +165,7 @@ export function useWallet() {
             });
 
             if (address) await fetchBalance(address);
-        } catch (e: any) {
+        } catch (e) {
             console.error('[useWallet] Deposit failed:', e);
             throw e;
         }

@@ -11,11 +11,15 @@
 //!
 //! ## Verwendung in `main.rs`
 //!
-//! ```rust
+//! ```no_run
 //! use battle_core::secret_provider::SecretProvider;
 //!
-//! let provider = SecretProvider::auto_detect();
-//! let api_key = provider.require("FACEIT_DATA_API_KEY")?;
+//! fn main() -> Result<(), battle_core::secret_provider::SecretError> {
+//!     let provider = SecretProvider::auto_detect();
+//!     let api_key = provider.require("FACEIT_DATA_API_KEY")?;
+//!     drop(api_key);
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ## Docker Compose Setup (Beispiel)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { BattleMatch } from '../api/types';
+import { type BattleMatch, getMatchMode, getMatchStakeSompi } from '../api/types';
 import { useAuthStore } from '../stores/useAuthStore';
 import apiClient from '../api/client';
 import { useNavigate } from 'react-router-dom';
@@ -37,13 +37,13 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                     >
                         <div className="flex flex-col">
                             <span className="font-black text-white tracking-tight group-hover:text-emerald-400 transition-colors uppercase">
-                                {m.game_id || 'CS2'} | {m.match_mode || (m as any).mode || 'BO1'}
+                                {m.game_id || 'CS2'} | {getMatchMode(m)}
                             </span>
                             <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">{t('lobby.status_label')} {m.status}</span>
                         </div>
                         <div className="flex items-center gap-6">
                             <span className="font-black text-xl text-emerald-400 tracking-tighter">
-                                {((m.wager_amount_sompi || (m as any).stake_kas || 0) / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS
+                                {(getMatchStakeSompi(m) / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS
                             </span>
                             {!isMyLobbies && m.status === 'OPEN' && !m.opponent_user_id && (
                                 <button

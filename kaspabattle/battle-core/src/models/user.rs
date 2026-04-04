@@ -68,7 +68,7 @@ impl User {
     /// Konvertiert User in die öffentliche Ansicht
     pub fn to_public(&self) -> UserPublic {
         UserPublic {
-            id: self.id.clone(),
+            id: self.id,
             display_name: self.display_name.clone(),
             kaspa_address: self.kaspa_address.clone(),
             created_at: self.created_at.clone(),

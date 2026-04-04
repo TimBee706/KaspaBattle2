@@ -5,6 +5,9 @@ import { validateWagerAmount } from '../../utils/validation';
 import { useWalletStore } from '../../stores/useWalletStore';
 import { useLobby } from '../../hooks/useLobby';
 import { useTranslation } from 'react-i18next';
+import type { GameId } from '../../config/constants';
+import type { MatchMode } from '../../api/types';
+import { getErrorMessage } from '../../utils/errors';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
@@ -30,15 +33,15 @@ export function CreateChallengeForm() {
         try {
             const result = await createChallenge({
                 stakeKas: wagerNumber,
-                mode: mode as any,
+                mode,
                 gameId,
             });
 
             if (result && result.id) {
                 navigate(`/escrow/${result.id}`);
             }
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err) {
+            setError(getErrorMessage(err, t('common.error', { message: '' })));
         }
     };
 
@@ -58,7 +61,7 @@ export function CreateChallengeForm() {
                             <button
                                 key={game.id}
                                 type="button"
-                                onClick={() => setGameId(game.id as any)}
+                                onClick={() => setGameId(game.id as GameId)}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${gameId === game.id
                                     ? 'border-kaspa-primary bg-kaspa-primary/10 text-white'
                                     : 'border-kaspa-border bg-kaspa-dark/50 text-gray-400 hover:border-gray-600'
@@ -81,7 +84,7 @@ export function CreateChallengeForm() {
                         <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.mode')}</label>
                         <select
                             value={mode}
-                            onChange={(e) => setMode(e.target.value as any)}
+                            onChange={(e) => setMode(e.target.value as MatchMode)}
                             className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-sm focus:border-kaspa-primary outline-none"
                         >
                             <option value="BO1">Best of 1</option>

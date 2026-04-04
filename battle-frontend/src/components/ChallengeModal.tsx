@@ -4,6 +4,7 @@ import { useLobby } from '../hooks/useLobby';
 import { useWallet } from '../hooks/useWallet';
 import { useTranslation } from 'react-i18next';
 import { FEATURE_FLAGS } from '../config/featureFlags';
+import type { MatchMode } from '../api/types';
 
 export const ChallengeModal: React.FC = () => {
     const [open, setOpen] = useState(false);
@@ -91,7 +92,7 @@ export const ChallengeModal: React.FC = () => {
                                 <button
                                     key={m}
                                     type="button"
-                                    onClick={() => setMode(m as any)}
+                                    onClick={() => setMode(m as MatchMode)}
                                     className={`py-3 rounded-xl font-black uppercase tracking-tighter transition-all border ${mode === m
                                         ? 'bg-kaspa-primary/10 border-kaspa-primary text-kaspa-primary'
                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'

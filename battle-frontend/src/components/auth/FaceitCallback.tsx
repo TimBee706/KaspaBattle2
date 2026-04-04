@@ -7,43 +7,43 @@ export function FaceitCallback() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { setAuth } = useAuthStore();
-    const [error, setError] = useState<string | null>(null);
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const errorParam = searchParams.get('error');
+    const [error, setError] = useState<string | null>(
+        errorParam
+            ? `FACEIT Login fehlgeschlagen: ${errorParam}`
+            : !code || !state
+                ? 'Ungueltiger Callback - fehlende Parameter'
+                : null,
+    );
 
     useEffect(() => {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const errorParam = searchParams.get('error');
-
-        if (errorParam) {
-            setError(`FACEIT Login fehlgeschlagen: ${errorParam}`);
-            return;
-        }
-
-        if (!code || !state) {
-            setError('Ungültiger Callback – fehlende Parameter');
+        if (errorParam || !code || !state) {
             return;
         }
 
         handleFaceitCallback(code, state)
             .then((response) => {
                 setAuth(response.user, response.tokens);
-                // Nach Login zur Lobby
                 navigate('/lobby', { replace: true });
             })
-            .catch((err) => setError(err.message));
-    }, [searchParams, navigate, setAuth]);
+            .catch((err) => {
+                setError(err instanceof Error ? err.message : 'FACEIT Login fehlgeschlagen');
+            });
+    }, [code, errorParam, navigate, setAuth, state]);
 
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center text-3xl mb-6">✕</div>
+                <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center text-3xl mb-6">x</div>
                 <h2 className="text-2xl font-bold mb-2">Authentifizierung fehlgeschlagen</h2>
                 <p className="text-gray-400 max-w-md mb-8">{error}</p>
                 <button
                     onClick={() => navigate('/')}
                     className="px-6 py-3 bg-kaspa-primary text-kaspa-dark font-bold rounded-xl hover:bg-kaspa-secondary transition-colors"
                 >
-                    Zurück zur Startseite
+                    Zurueck zur Startseite
                 </button>
             </div>
         );

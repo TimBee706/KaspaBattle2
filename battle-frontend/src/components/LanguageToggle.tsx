@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLanguage } from '../hooks/useLanguage';
+import { useLanguage, type Language } from '../hooks/useLanguage';
 import { useTranslation } from 'react-i18next';
 
 export const LanguageToggle: React.FC = () => {
@@ -9,7 +9,7 @@ export const LanguageToggle: React.FC = () => {
     return (
         <select
             value={currentLanguage}
-            onChange={(e) => setLanguage(e.target.value as any)}
+            onChange={(e) => setLanguage(e.target.value as Language)}
             className="bg-transparent text-gray-300 font-bold focus:outline-none cursor-pointer border-none hover:text-white transition-colors uppercase text-sm"
             aria-label={t('common.header.language', 'Language')}
         >

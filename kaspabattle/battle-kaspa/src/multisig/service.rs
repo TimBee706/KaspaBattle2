@@ -1,4 +1,4 @@
-﻿//! High-level multisig escrow lifecycle service.
+//! High-level multisig escrow lifecycle service.
 //!
 //! Orchestrates the full escrow flow: address generation → deposit tracking →
 //! payout TX creation → signature collection → broadcast.
@@ -612,6 +612,7 @@ impl MultisigEscrowService {
     /// ```sql
     /// SELECT * FROM multisig_escrows WHERE status != 'SETTLED'
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub async fn restore_escrow_from_row(
         &self,
         match_id: Uuid,

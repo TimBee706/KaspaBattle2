@@ -62,6 +62,7 @@ export interface BattleMatch {
     player_a_deposit_tx_hash: string | null;
     player_b_deposit_tx_hash: string | null;
     created_at: string;                    // ISO 8601
+    createdAt?: string;                    // Legacy frontend fallback
     locked_at: string | null;
     resolved_at: string | null;
     timeout_at: string;
@@ -71,6 +72,18 @@ export interface BattleMatch {
     player_b_avatar_url?: string | null;
     player_a_faceit_profile_url?: string | null;
     player_b_faceit_profile_url?: string | null;
+}
+
+export function getMatchStakeSompi(match: BattleMatch): number {
+    return match.wager_amount_sompi || match.stake_kas || 0;
+}
+
+export function getMatchMode(match: BattleMatch): string {
+    return match.match_mode || match.mode || 'BO1';
+}
+
+export function getMatchCreatedAt(match: BattleMatch): string {
+    return match.created_at || match.createdAt || '';
 }
 
 // ── Typed representation of a single match participant for MatchPlayersPanel ──

@@ -11,11 +11,16 @@
 //!
 //! ## Verwendung
 //!
-//! ```rust
+//! ```no_run
 //! use battle_core::faceit_client::FaceitClient;
 //!
-//! let client = FaceitClient::new("your_api_key".to_string());
-//! let profile = client.get_player_by_id("player-uuid-here").await?;
+//! #[tokio::main]
+//! async fn main() -> Result<(), battle_core::faceit_client::FaceitApiError> {
+//!     let client = FaceitClient::new("your_api_key".to_string());
+//!     let profile = client.get_player_by_id("player-uuid-here").await?;
+//!     drop(profile);
+//!     Ok(())
+//! }
 //! ```
 //!
 //! Der `FaceitDataService` delegiert seit F-07 alle HTTP-Calls an diesen Client.
