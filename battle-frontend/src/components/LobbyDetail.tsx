@@ -1,5 +1,5 @@
 import React from 'react';
-import type { BattleMatch } from '../api/types';
+import { type BattleMatch, getMatchCreatedAt, getMatchMode, getMatchStakeSompi } from '../api/types';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/useAuthStore';
 import { isAvailableChallenge } from '../domain/lobby';
@@ -16,7 +16,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
     const { user, testMode, isFaceitConnected } = useAuthStore();
     const canJoin = isAvailableChallenge(lobby, user?.id ?? null) && !!user && !!onJoin && (testMode || isFaceitConnected);
 
-    const wagerKas = (lobby.wager_amount_sompi || (lobby as any).stake_kas || 0) / 100_000_000;
+    const wagerKas = getMatchStakeSompi(lobby) / 100_000_000;
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -55,7 +55,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                     <div className="grid grid-cols-2 gap-8">
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.mode')}</label>
-                            <div className="text-white font-bold">{lobby.match_mode || (lobby as any).mode || 'BO1'}</div>
+                            <div className="text-white font-bold">{getMatchMode(lobby)}</div>
                         </div>
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{t('lobby.stake')}</label>
@@ -88,7 +88,7 @@ export const LobbyDetail: React.FC<LobbyDetailProps> = ({ lobby, onClose, onJoin
                             {lobby.status}
                         </span>
                         <span className="text-slate-500 text-[10px] uppercase font-bold tracking-widest italic font-mono">
-                            {new Date(lobby.created_at || (lobby as any).createdAt).toLocaleDateString()}
+                            {new Date(getMatchCreatedAt(lobby)).toLocaleDateString()}
                         </span>
                     </div>
                 </div>

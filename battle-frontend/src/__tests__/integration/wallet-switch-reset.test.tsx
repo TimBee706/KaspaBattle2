@@ -159,7 +159,7 @@ describe('useWallet player account linking', () => {
             paymentStatus: null,
         });
 
-        apiClient.post.mockImplementation(async (url: string, body?: any) => {
+        apiClient.post.mockImplementation(async (url: string, body?: { kaspa_address?: string; link_to_existing_user?: boolean }) => {
             if (url === '/auth/wallet-challenge') {
                 return {
                     data: {

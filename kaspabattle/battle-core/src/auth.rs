@@ -81,7 +81,7 @@ impl AuthService {
         let res = sqlx::query(
             "INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)",
         )
-        .bind(&user_id)
+        .bind(user_id)
         .bind(&email)
         .bind(&password_hash)
         .bind(&display_name)
@@ -100,8 +100,8 @@ impl AuthService {
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
-            .bind(&user_id)
-            .bind(&expires_at)
+            .bind(user_id)
+            .bind(expires_at)
             .execute(&self.db)
             .await?;
 
@@ -136,12 +136,12 @@ impl AuthService {
         }
 
         sqlx::query("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1")
-            .bind(&user_id)
+            .bind(user_id)
             .execute(&self.db)
             .await?;
 
         sqlx::query("DELETE FROM sessions WHERE user_id = $1")
-            .bind(&user_id)
+            .bind(user_id)
             .execute(&self.db)
             .await?;
 
@@ -150,8 +150,8 @@ impl AuthService {
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
-            .bind(&user_id)
-            .bind(&expires_at)
+            .bind(user_id)
+            .bind(expires_at)
             .execute(&self.db)
             .await?;
 
@@ -369,7 +369,7 @@ impl AuthService {
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
             .bind(user_id)
-            .bind(&expires_at)
+            .bind(expires_at)
             .execute(&self.db)
             .await?;
 
@@ -408,7 +408,7 @@ impl AuthService {
                 let dummy_pass = Self::hash_password(&Uuid::new_v4().to_string())?;
 
                 let res = sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
-                    .bind(&new_user_id)
+                    .bind(new_user_id)
                     .bind(&email)
                     .bind(&dummy_pass)
                     .bind(&display_name)
@@ -422,7 +422,7 @@ impl AuthService {
                         &Uuid::new_v4().to_string()[..6]
                     );
                     sqlx::query("INSERT INTO users (id, email, password_hash, display_name) VALUES ($1, $2, $3, $4)")
-                        .bind(&new_user_id)
+                        .bind(new_user_id)
                         .bind(&fallback_email)
                         .bind(&dummy_pass)
                         .bind(&display_name)

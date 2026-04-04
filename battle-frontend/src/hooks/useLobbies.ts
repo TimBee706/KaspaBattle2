@@ -7,14 +7,19 @@ export const useLobbies = () => {
 
     useEffect(() => {
         fetch(`${API_BASE_URL}/lobbies`)
-            .then(res => res.json())
-            .then(data => setLobbies(data || []))
+            .then((res) => res.json())
+            .then((data) => setLobbies(data || []))
             .catch(console.error);
 
         const ws = new WebSocket(`ws://${window.location.host}/ws`);
         ws.onmessage = (event) => {
-            try { addOrUpdateLobby(JSON.parse(event.data)); } catch (e) { }
+            try {
+                addOrUpdateLobby(JSON.parse(event.data));
+            } catch {
+                console.warn('[useLobbies] Ignoring invalid lobby websocket payload');
+            }
         };
+
         return () => ws.close();
-    }, [setLobbies, addOrUpdateLobby]);
+    }, [addOrUpdateLobby, setLobbies]);
 };

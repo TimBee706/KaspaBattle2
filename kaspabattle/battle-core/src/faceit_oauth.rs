@@ -219,7 +219,7 @@ impl FaceitOAuthService {
         let mut tx = self.db.begin().await?;
 
         sqlx::query("DELETE FROM faceit_links WHERE user_id = $1 AND faceit_player_id != $2")
-            .bind(&uid)
+            .bind(uid)
             .bind(&info.guid)
             .execute(&mut *tx)
             .await?;
@@ -235,12 +235,12 @@ impl FaceitOAuthService {
                  verified = $7
              WHERE faceit_player_id = $8",
         )
-        .bind(&uid)
+        .bind(uid)
         .bind(&info.nickname)
         .bind(&info.picture)
         .bind(&tokens.access_token)
         .bind(&tokens.refresh_token)
-        .bind(&expires_at)
+        .bind(expires_at)
         .bind(true)
         .bind(&info.guid)
         .execute(&mut *tx)
@@ -252,14 +252,14 @@ impl FaceitOAuthService {
                 "INSERT INTO faceit_links (id, user_id, faceit_player_id, faceit_nickname, faceit_avatar_url, access_token, refresh_token, token_expires_at, verified)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
             )
-            .bind(&link_id)
-            .bind(&uid)
+            .bind(link_id)
+            .bind(uid)
             .bind(&info.guid)
             .bind(&info.nickname)
             .bind(&info.picture)
             .bind(&tokens.access_token)
             .bind(&tokens.refresh_token)
-            .bind(&expires_at)
+            .bind(expires_at)
             .bind(true)
             .execute(&mut *tx)
             .await?;
@@ -274,7 +274,7 @@ impl FaceitOAuthService {
         )
         .bind(&info.guid)
         .bind(&info.nickname)
-        .bind(&uid)
+        .bind(uid)
         .execute(&mut *tx)
         .await?;
 

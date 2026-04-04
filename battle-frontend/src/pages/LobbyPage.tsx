@@ -32,7 +32,13 @@ export const LobbyPage: React.FC = () => {
 
         apiClient.get('/lobbies').then(res => setLobbies(res.data || [])).catch(console.error);
         const ws = new WebSocket(WS_BASE_URL);
-        ws.onmessage = e => { try { addOrUpdateLobby(JSON.parse(e.data)); } catch (err) { } };
+        ws.onmessage = (e) => {
+            try {
+                addOrUpdateLobby(JSON.parse(e.data));
+            } catch {
+                console.warn('[LobbyPage] Ignoring invalid lobby websocket payload');
+            }
+        };
         return () => ws.close();
     }, [setLobbies, addOrUpdateLobby, fetchUser, setTestMode]);
 

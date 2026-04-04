@@ -1,14 +1,14 @@
-﻿/// Platform-wide constants shared across crates.
-///
-/// Single source of truth — import from `battle_core::constants` in all crates.
+//! Platform-wide constants shared across crates.
+//!
+//! Single source of truth: import from `battle_core::constants` in all crates.
 
-// ── Financial constants ──────────────────────────────────────────────────────
+// Financial constants
 
 /// Platform fee deducted from the pot on payout (5 %).
 /// Used in `EscrowService` and `MultisigEscrowService`.
 pub const PLATFORM_FEE_PERCENT: u64 = 5;
 
-// ── Session constants ────────────────────────────────────────────────────────
+// Session constants
 
 /// Default session lifetime in days.
 ///
@@ -24,7 +24,7 @@ pub fn session_lifetime_days() -> i64 {
         .unwrap_or(SESSION_LIFETIME_DAYS_DEFAULT)
 }
 
-// ── WebSocket constants ──────────────────────────────────────────────────────
+// WebSocket constants
 
 /// Default broadcast channel capacity for the WebSocket event bus.
 ///

@@ -7,13 +7,13 @@ import type {
 } from './types';
 
 export async function createMatch(data: CreateMatchRequest): Promise<CreateMatchResponse> {
-    const res = await apiClient.post<any>('/challenges', {
+    const res = await apiClient.post<BattleMatch>('/challenges', {
         game_id: data.game_id,
         wager_sompi: data.wager_amount_sompi,
         mode: data.match_mode.toUpperCase()
     });
     return {
-        match: res.data as BattleMatch,
+        match: res.data,
         escrow_address: "mock" // Will be provided by escrow contract later
     };
 }
@@ -29,6 +29,7 @@ export async function getMatch(matchId: string): Promise<BattleMatch> {
 }
 
 export async function getOpenMatches(filters: LobbyFilters = {}): Promise<MatchListResponse> {
+    void filters;
     const res = await apiClient.get<BattleMatch[]>('/lobbies');
     const openMatches = res.data.filter(m => m.status === 'OPEN');
     return { matches: openMatches, total: openMatches.length, page: 1, per_page: 20 };

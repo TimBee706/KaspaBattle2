@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { BattleMatch } from '../../api/types';
+import { type BattleMatch, getMatchMode, getMatchStakeSompi } from '../../api/types';
 import { formatKas, explorerAddressUrl, explorerTxUrl } from '../../utils/format';
 import { SUPPORTED_GAMES } from '../../config/constants';
 import { MatchStatusBadge } from './MatchStatusBadge';
@@ -13,6 +13,7 @@ import { useMatchStore } from '../../stores/useMatchStore';
 import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../domain/lobby';
 import { validateFaceitMatchId } from '../../utils/validation';
 import { MatchPlayersPanel } from './MatchPlayersPanel';
+import { getApiErrorCode, getApiErrorMessage } from '../../utils/errors';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -27,8 +28,8 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const { t } = useTranslation();
     const game = SUPPORTED_GAMES.find(g => g.id === match.game_id);
 
-    const wagerSompi = match.wager_amount_sompi || (match as any).stake_kas || 0;
-    const matchMode = match.match_mode || (match as any).mode || 'BO1';
+    const wagerSompi = getMatchStakeSompi(match);
+    const matchMode = getMatchMode(match);
 
     const currentUserId = user?.id ?? null;
     const lobbyRole = getLobbyRole(match, currentUserId);
@@ -73,7 +74,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
         try {
             await acceptMatch({ match_id: match.id });
             navigate(`/escrow/${match.id}`);
-        } catch (err) {
+        } catch {
             alert(t('match.accept_error'));
         } finally {
             setIsAccepting(false);
@@ -108,9 +109,9 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     ? t('match.faceit_submit_confirmed')
                     : t('match.faceit_submit_waiting'),
             );
-        } catch (err: any) {
-            const apiErrorCode = err?.response?.data?.error;
-            const apiMessage = err?.response?.data?.message;
+        } catch (err) {
+            const apiErrorCode = getApiErrorCode(err);
+            const apiMessage = getApiErrorMessage(err);
 
             if (apiErrorCode === 'faceit_id_mismatch') {
                 setFaceitSubmitError(t('match.faceit_submit_mismatch'));

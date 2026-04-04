@@ -3,6 +3,7 @@ import { useLobbyStore } from '../stores/useLobbyStore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { explorerTxUrl } from '../utils/format';
+import { getMatchCreatedAt } from '../api/types';
 
 export const HistoryPage: React.FC = () => {
     const { history, setHistory } = useLobbyStore();
@@ -29,7 +30,7 @@ export const HistoryPage: React.FC = () => {
                                 {m.game_id} | {m.match_mode}
                             </span>
                             <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">
-                                {new Date(m.created_at || (m as any).createdAt).toLocaleDateString()}
+                                {new Date(getMatchCreatedAt(m)).toLocaleDateString()}
                             </span>
                         </div>
 
