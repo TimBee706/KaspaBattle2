@@ -1,0 +1,100 @@
+services:
+  # ── Caddy Reverse Proxy (HTTPS/Let's Encrypt) ──────────────────────────────
+  caddy:
+    image: caddy:2.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - kaspabattle_net
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    # In production, we load sensitive environment variables from .env.production
+    env_file:
+      - .env.production
+    # Remove ports mapping to not expose DB to the public internet
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./kaspabattle/migrations/202602280000_init_pg.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./kaspabattle/migrations/202603010000_add_escrow_address.sql:/docker-entrypoint-initdb.d/02_escrow.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ] # Changed to default db for healthcheck to avoid dependency on kaspabattle db existence right at startup
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - kaspabattle_net
+
+
+
+  # ── Rust Backend (battle-api) ────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./kaspabattle
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # 8080 is accessible internally over kaspabattle_net
+    env_file:
+      - .env.production
+    environment:
+      # Database access through docker network
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      KASPA_USE_EXPLICIT_NODE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:8080/api/v1/lobbies || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - kaspabattle_net
+
+  # ── Vite / React Frontend ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: battle-frontend/Dockerfile
+      target: prod  # Target the production build
+    restart: unless-stopped
+    # 5173 is accessible internally over kaspabattle_net
+    env_file:
+      - .env.production  # Uses VITE_ vars for build phase mapping
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - kaspabattle_net
+
+volumes:
+  pgdata:
+    name: kaspabattle_pgdata_prod
+  caddy_data:
+    name: kaspabattle_caddy_data
+  caddy_config:
+    name: kaspabattle_caddy_config
+
+networks:
+  kaspabattle_net:
+    name: kaspabattle_net_prod

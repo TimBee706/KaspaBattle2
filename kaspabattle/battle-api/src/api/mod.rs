@@ -773,6 +773,7 @@ pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match
 
     for m in &mut matches {
         m.calculate_wager();
+        enrich_match_with_profiles(&state.pool, m).await;
     }
 
     Ok(Json(matches))
@@ -795,6 +796,7 @@ pub async fn get_match(
     })?;
 
     m.calculate_wager();
+    enrich_match_with_profiles(&state.pool, &mut m).await;
     Ok(Json(m))
 }
 
@@ -814,6 +816,7 @@ pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match
 
     for m in &mut matches {
         m.calculate_wager();
+        enrich_match_with_profiles(&state.pool, m).await;
     }
     Ok(Json(matches))
 }
@@ -2281,4 +2284,70 @@ pub async fn load_match_full(
     .bind(match_id)
     .fetch_one(pool)
     .await
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: enrich_match_with_profiles
+// Fetches FACEIT profile data for both match participants from faceit_links
+// and populates the enrichment fields on the Match struct in-place.
+// Uses only cached DB data — no live FACEIT API calls.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Profile data fetched from faceit_links for a single user.
+struct FaceitLinkProfile {
+    faceit_player_id: String,
+    faceit_nickname: String,
+    faceit_avatar_url: Option<String>,
+}
+
+async fn fetch_faceit_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Option<FaceitLinkProfile> {
+    let row = sqlx::query(
+        "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url \
+         FROM faceit_links WHERE user_id = $1::uuid LIMIT 1"
+    )
+    .bind(user_id.to_string())
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+
+    use sqlx::Row;
+    let faceit_player_id: String = row.try_get("faceit_player_id").unwrap_or_default();
+    let faceit_nickname: String = row.try_get("faceit_nickname").unwrap_or_default();
+    let faceit_avatar_url: Option<String> = row.try_get("faceit_avatar_url").unwrap_or(None);
+
+    if faceit_player_id.is_empty() {
+        return None;
+    }
+
+    Some(FaceitLinkProfile {
+        faceit_player_id,
+        faceit_nickname,
+        faceit_avatar_url,
+    })
+}
+
+/// Enriches the given Match with FACEIT profile data (nickname, avatar, profile URL, ID)
+/// for both Player A (creator) and Player B (opponent, if present).
+/// Operates entirely on cached faceit_links data.
+pub async fn enrich_match_with_profiles(pool: &sqlx::PgPool, m: &mut crate::models::Match) {
+    // Player A (creator)
+    if let Some(profile) = fetch_faceit_profile(pool, m.creator_user_id).await {
+        let profile_url = format!("https://www.faceit.com/en/players/{}", profile.faceit_nickname);
+        m.player_a_faceit_nickname = Some(profile.faceit_nickname);
+        m.player_a_avatar_url = profile.faceit_avatar_url;
+        m.player_a_faceit_profile_url = Some(profile_url);
+        m.player_a_faceit_id = Some(profile.faceit_player_id);
+    }
+
+    // Player B (opponent — only present once the challenge has been accepted)
+    if let Some(opponent_id) = m.opponent_user_id {
+        if let Some(profile) = fetch_faceit_profile(pool, opponent_id).await {
+            let profile_url = format!("https://www.faceit.com/en/players/{}", profile.faceit_nickname);
+            m.player_b_faceit_nickname = Some(profile.faceit_nickname);
+            m.player_b_avatar_url = profile.faceit_avatar_url;
+            m.player_b_faceit_profile_url = Some(profile_url);
+            m.player_b_faceit_id = Some(profile.faceit_player_id);
+        }
+    }
 }

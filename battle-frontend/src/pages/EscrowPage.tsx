@@ -238,14 +238,14 @@ export const EscrowPage: React.FC = () => {
                                     — {t('match.status_actions')} —
                                 </p>
                                 <DepositCard
-                                    label={`${t('match.challenger')} (A)`}
+                                    label={currentMatch.player_a_faceit_nickname || t('match.challenger')}
                                     info={paymentStatus.playerA}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}
                                     isCurrentPlayer={playerRole === 'A'}
                                 />
                                 <DepositCard
-                                    label={`${t('match.opponent')} (B)`}
+                                    label={currentMatch.player_b_faceit_nickname || t('match.opponent')}
                                     info={paymentStatus.playerB}
                                     required={paymentStatus.required_per_player_sompi}
                                     minConf={paymentStatus.min_confirmations_required}

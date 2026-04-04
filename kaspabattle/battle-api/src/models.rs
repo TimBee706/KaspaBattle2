@@ -142,6 +142,34 @@ pub struct Match {
     /// Status of the payout process: "pending_winner_sig", "broadcast", "confirmed"
     #[sqlx(default)]
     pub payout_status: Option<String>,
+
+    // ── v1.1 FACEIT Profile Enrichment (not stored in matches table) ──
+    // These fields are populated in-memory after the DB load by joining faceit_links.
+    // They are NOT included in MATCH_COLUMNS or any sqlx query.
+    /// FACEIT nickname of the creator (Player A)
+    #[sqlx(skip)]
+    pub player_a_faceit_nickname: Option<String>,
+    /// FACEIT nickname of the opponent (Player B)
+    #[sqlx(skip)]
+    pub player_b_faceit_nickname: Option<String>,
+    /// Avatar URL of Player A (from faceit_links.faceit_avatar_url)
+    #[sqlx(skip)]
+    pub player_a_avatar_url: Option<String>,
+    /// Avatar URL of Player B (from faceit_links.faceit_avatar_url)
+    #[sqlx(skip)]
+    pub player_b_avatar_url: Option<String>,
+    /// FACEIT profile URL of Player A (https://www.faceit.com/en/players/{nickname})
+    #[sqlx(skip)]
+    pub player_a_faceit_profile_url: Option<String>,
+    /// FACEIT profile URL of Player B
+    #[sqlx(skip)]
+    pub player_b_faceit_profile_url: Option<String>,
+    /// FACEIT ID (player_id) of Player A
+    #[sqlx(skip)]
+    pub player_a_faceit_id: Option<String>,
+    /// FACEIT ID (player_id) of Player B
+    #[sqlx(skip)]
+    pub player_b_faceit_id: Option<String>,
 }
 
 impl Match {

@@ -276,7 +276,13 @@
         "info": "Match Info",
         "platform": "Platform",
         "network": "Network",
-        "fee": "Fee"
+        "fee": "Fee",
+        "players": "Players",
+        "player_you": "You",
+        "player_opponent": "Opponent",
+        "unknown_player": "Unknown Player",
+        "view_faceit_profile": "FaceIT Profile",
+        "no_faceit_link": "No FACEIT Link"
     },
     "deposit": {
         "status": {

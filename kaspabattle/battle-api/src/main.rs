@@ -194,12 +194,15 @@ async fn main() {
 
     let (tx, _) = broadcast::channel(battle_core::constants::ws_broadcast_capacity());
 
+    // ── SecretProvider (F-11): Auto-detects Docker Secrets vs ENV ────────────
+    let secrets = battle_core::secret_provider::SecretProvider::auto_detect();
+
     let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
 
     let faceit_config = battle_core::models::faceit::FaceitOAuthConfig {
-        client_id: std::env::var("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
-        client_secret: std::env::var("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
-        redirect_uri: std::env::var("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
+        client_id: secrets.require("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
+        client_secret: secrets.require("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
+        redirect_uri: secrets.require("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
         auth_url: "https://accounts.faceit.com".to_string(),
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
@@ -325,17 +328,53 @@ async fn main() {
         }
     });
 
-    // ── FACEIT Data API Service (for profile/stats endpoints) ──
-    let faceit_data_service = match std::env::var("FACEIT_DATA_API_KEY") {
-        Ok(api_key) if !api_key.is_empty() => {
-            tracing::info!("✅ FaceitDataService initialized (API key set)");
-            Some(Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key)))
-        }
-        _ => {
-            tracing::warn!("⚠️ FACEIT_DATA_API_KEY not set — /faceit/profile and /faceit/stats will be unavailable");
-            None
+    // ── FACEIT Data API Service (F-11/F-15) ──────────────────────────────────
+    // Key resolution order (F-15 — Multi-Environment):
+    //   1. FACEIT_DATA_API_KEY_{APP_ENV}  (z.B. FACEIT_DATA_API_KEY_PRODUCTION)
+    //   2. FACEIT_DATA_API_KEY            (generischer Fallback)
+    //
+    // SecretProvider (F-11) prüft zuerst Docker Secrets, dann ENV.
+    let app_env = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("RUST_ENV"))
+        .unwrap_or_else(|_| "development".to_string());
+    let app_env_upper = app_env.to_uppercase();
+
+    let faceit_data_api_key: Option<String> = {
+        // Env-spezifischer Key (z.B. FACEIT_DATA_API_KEY_PRODUCTION)
+        let env_specific_name = format!("FACEIT_DATA_API_KEY_{}", app_env_upper);
+        let env_key = secrets.get(&env_specific_name)
+            .unwrap_or(None)
+            .filter(|k| !k.is_empty());
+
+        if env_key.is_some() {
+            tracing::info!(
+                "✅ FACEIT Data API key loaded from env-specific secret '{}' (APP_ENV={})",
+                env_specific_name, app_env
+            );
+            env_key
+        } else {
+            // Generischer Fallback
+            let generic_key = secrets.get("FACEIT_DATA_API_KEY")
+                .unwrap_or(None)
+                .filter(|k| !k.is_empty());
+
+            if generic_key.is_some() {
+                tracing::info!("✅ FACEIT Data API key loaded from generic FACEIT_DATA_API_KEY");
+            } else {
+                tracing::warn!(
+                    "⚠️ No FACEIT Data API key found (tried '{}' and 'FACEIT_DATA_API_KEY') — \
+                     /faceit/profile, /faceit/stats and /faceit/matches will be unavailable",
+                    env_specific_name
+                );
+            }
+            generic_key
         }
     };
+
+    let faceit_data_service = faceit_data_api_key.map(|api_key| {
+        tracing::info!("✅ FaceitDataService initialized (API key set)");
+        Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key))
+    });
 
     // ── BlockchainWatcher (per-player UTXO attribution + confirmation tracking) ──
     let blockchain_watcher = kaspa_rpc.as_ref().map(|rpc| {

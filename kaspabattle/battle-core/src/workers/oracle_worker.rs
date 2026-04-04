@@ -1,4 +1,16 @@
-﻿use crate::errors::OracleError;
+//! # Oracle Worker (DEPRECATED — superseded by `faceit_watcher.rs`)
+//!
+//! This module is a legacy implementation of the Oracle polling loop.
+//! It has been superseded by `battle_core::workers::faceit_watcher` (F-010),
+//! which uses `faceit_watcher_jobs` rows and the `FaceitDataService` for match polling.
+//!
+//! **Status**: Disabled — `run_oracle_worker` is not spawned in `main.rs`.
+//! Kept for reference. Candidate for deletion in future cleanup sprint.
+//!
+//! TODO(cleanup): Delete this file once confirmed the `faceit_watcher` covers all use-cases.
+#![allow(dead_code, unused_imports, unused_variables)]
+
+use crate::errors::OracleError;
 use crate::models::match_::{BattleMatch, MatchStatus};
 use crate::oracle::faceit::FaceitOracleService;
 use async_trait::async_trait;

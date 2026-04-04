@@ -65,7 +65,30 @@ export interface BattleMatch {
     locked_at: string | null;
     resolved_at: string | null;
     timeout_at: string;
+
+    // ── v1.1 FACEIT Profile Enrichment (backend-enriched from faceit_links) ──
+    player_a_avatar_url?: string | null;
+    player_b_avatar_url?: string | null;
+    player_a_faceit_profile_url?: string | null;
+    player_b_faceit_profile_url?: string | null;
 }
+
+// ── Typed representation of a single match participant for MatchPlayersPanel ──
+export interface MatchPlayerInfo {
+    /** Internal user ID */
+    userId: string;
+    /** FACEIT Player ID */
+    faceitId: string | null;
+    /** FACEIT Nickname (real) */
+    nickname: string;
+    /** URL to the player's FACEIT avatar image */
+    avatarUrl: string | null;
+    /** Link to the public FACEIT profile page */
+    faceitProfileUrl: string | null;
+    /** Whether this player has deposited their stake */
+    hasDeposited: boolean;
+}
+
 
 // ── Request Types ──
 export interface CreateMatchRequest {
