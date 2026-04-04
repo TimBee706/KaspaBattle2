@@ -31,7 +31,6 @@ pub async fn run_payout_worker(
         .unwrap_or(15);
 
     info!("💳 Payout Worker started (poll_interval={}s)", poll_secs);
-    tracing::info!("💳 Payout Worker started (interval={}s)", poll_secs);
 
     loop {
         if let Err(e) = poll_finished_matches(&pool, &multisig_service).await {
@@ -66,7 +65,6 @@ async fn poll_finished_matches(
 
     if !rows.is_empty() {
         info!(count = rows.len(), "Payout Worker: processing FINISHED_FACEIT matches");
-        tracing::info!("💳 Payout Worker: {} match(es) ready for PSKT creation", rows.len());
     }
 
     for row in rows {
@@ -139,10 +137,9 @@ async fn poll_finished_matches(
                 match_id = %match_id,
                 "Payout Worker: no multisig_escrows row found — using legacy EscrowService path"
             );
-            // Fallback: use the match's escrow_address directly via execute_payout
-            // This handles legacy matches that used the simple EscrowWallet (not 2-of-3).
-            if let Err(e) = create_pskt_legacy(pool, match_id, &winner_address).await {
-                error!(match_id = %match_id, error = %e, "Payout Worker: legacy PSKT fallback failed");
+            // Legacy matches without multisig escrow → escalate to DISPUTED
+            if let Err(e) = escalate_legacy_to_disputed(pool, match_id).await {
+                error!(match_id = %match_id, error = %e, "Payout Worker: legacy escalation to DISPUTED failed");
             }
             continue;
         }
@@ -155,9 +152,6 @@ async fn poll_finished_matches(
                     winner_address = %winner_address,
                     winner_amount_sompi = pskt.winner_amount_sompi,
                     "✅ Payout Worker: PSKT created"
-                );
-                tracing::info!("✅ Payout Worker: PSKT created for match {} (winner={}, amount={})",
-                    match_id, winner_address, pskt.winner_amount_sompi
                 );
 
                 // Persist PSKT and transition to READY_FOR_PAYOUT (atomic)
@@ -176,7 +170,6 @@ async fn poll_finished_matches(
 
                 if rows_affected > 0 {
                     info!(match_id = %match_id, "✅ Payout Worker: match → READY_FOR_PAYOUT");
-                    tracing::info!("✅ Payout Worker: match {} → READY_FOR_PAYOUT", match_id);
                 } else {
                     warn!(
                         match_id = %match_id,
@@ -199,34 +192,23 @@ async fn poll_finished_matches(
     Ok(())
 }
 
-/// Legacy fallback for matches that don't use 2-of-3 multisig.
-/// Marks the match as READY_FOR_PAYOUT with a placeholder PSKT.
-async fn create_pskt_legacy(
+/// Legacy escalation: moves non-multisig matches to DISPUTED instead of
+/// creating fake PSKTs. These matches need manual admin resolution.
+async fn escalate_legacy_to_disputed(
     pool: &PgPool,
     match_id: Uuid,
-    winner_address: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let placeholder = format!(
-        "legacy-custodial:match={},winner={}",
-        match_id, winner_address
-    );
-    let pskt_hex = hex::encode(placeholder.as_bytes());
-
     sqlx::query(
-        "UPDATE matches \
-         SET payout_pskt_hex = $1, \
-             payout_status = 'pending_winner_sig', \
-             status = 'READY_FOR_PAYOUT' \
-         WHERE id = $2 AND status = 'FINISHED_FACEIT'",
+        "UPDATE matches SET status = 'DISPUTED', payout_status = 'legacy_unsupported' \
+         WHERE id = $1 AND status = 'FINISHED_FACEIT'",
     )
-    .bind(&pskt_hex)
     .bind(match_id)
     .execute(pool)
     .await?;
 
     warn!(
         match_id = %match_id,
-        "Payout Worker: legacy PSKT placeholder stored — no real multisig escrow for this match"
+        "Payout Worker: legacy match without multisig escrow → DISPUTED (requires admin resolution)"
     );
     Ok(())
 }

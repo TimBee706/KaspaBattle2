@@ -1,4 +1,4 @@
-//! Script construction for multisig escrows.
+﻿//! Script construction for multisig escrows.
 //!
 //! Builds P2SH redeem scripts and derives escrow addresses using
 //! `kaspa-txscript` primitives.

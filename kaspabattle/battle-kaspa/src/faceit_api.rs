@@ -1,4 +1,4 @@
-use crate::models::faceit_data::FaceitMatchDetails;
+﻿use crate::models::faceit_data::FaceitMatchDetails;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use std::time::Duration;

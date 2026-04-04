@@ -1,4 +1,4 @@
-/// Mock Kaspa client for testing without a live Kaspa node.
+﻿/// Mock Kaspa client for testing without a live Kaspa node.
 ///
 /// Implements `KaspaRpc` with in-memory balances, UTXOs, and TX tracking.
 /// Updated signature: `submit_transaction` now accepts `Transaction` object.

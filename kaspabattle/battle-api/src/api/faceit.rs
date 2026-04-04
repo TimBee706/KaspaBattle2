@@ -22,15 +22,39 @@ fn mask_faceit_id(id: &str) -> String {
 /// Cache TTL in Sekunden (5 Minuten).
 const FACEIT_CACHE_TTL_SECS: i64 = 300;
 
+/// Erlaubte game_id-Werte für FACEIT Data API Calls (Whitelist, verhindert Path-Injection).
+const ALLOWED_GAME_IDS: &[&str] = &["cs2", "csgo", "dota2", "valorant", "lol", "rocket_league"];
+
+/// Prüft ob eine game_id erlaubt ist. Gibt bereinigten String zurück oder Fehler.
+fn validate_game_id(game_id: &str) -> Result<&str, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    if ALLOWED_GAME_IDS.contains(&game_id) {
+        Ok(game_id)
+    } else {
+        Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "error": "invalid_game_id",
+                "message": format!(
+                    "'{}' is not a supported game_id. Allowed: {}",
+                    game_id,
+                    ALLOWED_GAME_IDS.join(", ")
+                )
+            })),
+        ))
+    }
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/login", get(login_faceit))
         .route("/auth-url", get(auth_url_faceit))
         .route("/link", get(link_faceit))
         .route("/callback", get(faceit_callback))
+        .route("/session-bounce", get(session_bounce))
         .route("/status", get(faceit_status))
         .route("/profile", get(faceit_profile))
         .route("/stats", get(faceit_stats))
+        .route("/matches", get(faceit_matches))
         .route("/disconnect", post(faceit_disconnect))
 }
 
@@ -215,15 +239,48 @@ async fn faceit_callback(
         .save_faceit_link(&uid, &info, &tokens)
         .await;
 
-    // 3. Zurück ins Frontend mit Session-Cookie
+    // 3. Redirect through session-bounce to set the cookie on the SAME origin the
+    //    frontend uses for API requests.  When the frontend talks through the Vite
+    //    proxy (localhost:5173/api/v1/…) the cookie must be set on that origin — not
+    //    on localhost:8080 which the browser treats as a different origin.
     let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    let cookie_str = super::build_auth_cookie_for_target(&session_token, &frontend_url);
-    let redirect_url = append_query_param(&frontend_url, "linked", "1");
+    // Derive bounce base from the frontend URL so the browser navigates through
+    // the same origin (Vite proxy or production reverse-proxy).
+    let bounce_base = format!(
+        "{}/api/v1/faceit/session-bounce",
+        frontend_url.trim_end_matches('/')
+    );
+    let bounce_url = format!(
+        "{}?token={}&next={}",
+        bounce_base,
+        urlencoding::encode(&session_token),
+        urlencoding::encode(&append_query_param(&frontend_url, "linked", "1")),
+    );
+
+    Ok(Redirect::temporary(&bounce_url))
+}
+
+// ── /faceit/session-bounce ─────────────────────────────────────────────────
+// Sets the auth cookie on localhost domain, then redirects to the frontend.
+// This solves the cookie-domain mismatch when OAuth callback goes through ngrok.
+
+#[derive(Deserialize)]
+struct SessionBounceQuery {
+    token: String,
+    next: String,
+}
+
+async fn session_bounce(
+    Query(query): Query<SessionBounceQuery>,
+) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
+    // Use the shared cookie builder to ensure consistent SameSite/Secure attributes.
+    // The target URL determines whether Secure flag is needed.
+    let cookie_str = crate::api::build_auth_cookie_for_target(&query.token, &query.next);
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::SEE_OTHER)
-        .header(axum::http::header::LOCATION, redirect_url)
+        .header(axum::http::header::LOCATION, &query.next)
         .header(
             axum::http::header::SET_COOKIE,
             HeaderValue::from_str(&cookie_str)
@@ -232,6 +289,7 @@ async fn faceit_callback(
         .body(axum::body::Body::empty())
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    tracing::info!("🔐 Session bounce: cookie set, redirecting to {}", query.next);
     Ok(response)
 }
 
@@ -295,12 +353,18 @@ struct FaceitProfileApiResponse {
 async fn faceit_profile(
     State(state): State<AppState>,
     user: crate::api::auth_guard::SessionUserNoWallet,
-) -> Result<Json<FaceitProfileApiResponse>, axum::http::StatusCode> {
+) -> Result<Json<FaceitProfileApiResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
     let faceit_data_svc = state.faceit_data_service.as_ref().ok_or_else(|| {
         tracing::error!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
-        axum::http::StatusCode::SERVICE_UNAVAILABLE
+        (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "faceit_data_unavailable",
+                "message": "FACEIT Data API is not configured on this server. Please contact the administrator."
+            })),
+        )
     })?;
 
     // Get faceit_player_id + cached data from DB (including cache timestamp)
@@ -310,9 +374,21 @@ async fn faceit_profile(
     .bind(&u.id.to_string())
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_| (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error": "db_error",
+            "message": "Failed to retrieve FACEIT link from database."
+        })),
+    ))?;
 
-    let row = row.ok_or(axum::http::StatusCode::NOT_FOUND)?;
+    let row = row.ok_or_else(|| (
+        axum::http::StatusCode::NOT_FOUND,
+        Json(serde_json::json!({
+            "error": "faceit_not_linked",
+            "message": "No FACEIT account linked to this user."
+        })),
+    ))?;
 
     let player_id: String = row.try_get("faceit_player_id").unwrap_or_default();
     let cached_nick: String = row.try_get("faceit_nickname").unwrap_or_default();
@@ -385,8 +461,12 @@ async fn faceit_profile(
             }))
         }
         Err(e) => {
-            tracing::error!("⚠️ FACEIT Data API Error, using cached data: {}", e);
-            // Fallback to cached data
+            tracing::warn!(
+                "⚠️ FACEIT Data API Error for player [{}], falling back to cached data: {}",
+                mask_faceit_id(&player_id),
+                e
+            );
+            // Graceful degradation: return cached data with is_cached=true
             Ok(Json(FaceitProfileApiResponse {
                 faceit_player_id: player_id,
                 nickname: cached_nick.clone(),
@@ -420,28 +500,94 @@ async fn faceit_stats(
     State(state): State<AppState>,
     user: crate::api::auth_guard::SessionUserNoWallet,
     Query(query): Query<FaceitStatsQuery>,
-) -> Result<Json<FaceitStatsApiResponse>, axum::http::StatusCode> {
+) -> Result<Json<FaceitStatsApiResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
     let faceit_data_svc = state.faceit_data_service.as_ref().ok_or_else(|| {
         tracing::error!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
-        axum::http::StatusCode::SERVICE_UNAVAILABLE
+        (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "faceit_data_unavailable",
+                "message": "FACEIT Data API is not configured on this server. Please contact the administrator."
+            })),
+        )
     })?;
 
-    let game_id = query.game.as_deref().unwrap_or("cs2");
+    let game_id_raw = query.game.as_deref().unwrap_or("cs2");
+    let game_id = validate_game_id(game_id_raw)?;
 
-    // Get faceit_player_id from DB
-    let player_id: String =
-        sqlx::query_scalar("SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid")
-            .bind(&u.id.to_string())
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?
-            .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+    // Load player_id + existing stats cache from DB
+    let row = sqlx::query(
+        "SELECT faceit_player_id, stats_cache_json, stats_cache_game_id, stats_cache_updated_at \
+         FROM faceit_links WHERE user_id = $1::uuid"
+    )
+    .bind(&u.id.to_string())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error": "db_error",
+            "message": "Failed to retrieve FACEIT link from database."
+        })),
+    ))?
+    .ok_or_else(|| (
+        axum::http::StatusCode::NOT_FOUND,
+        Json(serde_json::json!({
+            "error": "faceit_not_linked",
+            "message": "No FACEIT account linked to this user."
+        })),
+    ))?;
+
+    let player_id: String = row.try_get("faceit_player_id").unwrap_or_default();
+    let cached_stats: Option<serde_json::Value> = row.try_get("stats_cache_json").unwrap_or(None);
+    let cached_game_id: Option<String> = row.try_get("stats_cache_game_id").unwrap_or(None);
+    let cache_updated_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("stats_cache_updated_at").unwrap_or(None);
+
+    // TTL check: if cache for this game_id is < 5 min old, return cached data
+    let cache_hit = cached_stats.is_some()
+        && cached_game_id.as_deref() == Some(game_id)
+        && cache_updated_at
+            .map(|ts| (chrono::Utc::now() - ts).num_seconds() < FACEIT_CACHE_TTL_SECS)
+            .unwrap_or(false);
+
+    if cache_hit {
+        tracing::info!(
+            "📦 FACEIT stats [{}] game={} served from cache",
+            mask_faceit_id(&player_id),
+            game_id
+        );
+        return Ok(Json(FaceitStatsApiResponse {
+            game_id: game_id.to_string(),
+            lifetime: cached_stats.unwrap(),
+            is_cached: true,
+        }));
+    }
+
+    tracing::info!(
+        "🌐 FACEIT stats [{}] game={} fetching from API",
+        mask_faceit_id(&player_id),
+        game_id
+    );
 
     match faceit_data_svc.get_player_stats(&player_id, game_id).await {
         Ok(stats) => {
             let lifetime = serde_json::to_value(&stats).unwrap_or(serde_json::json!({}));
+
+            // Persist stats cache (non-fatal if it fails)
+            let _ = sqlx::query(
+                "UPDATE faceit_links \
+                 SET stats_cache_json = $1, stats_cache_game_id = $2, stats_cache_updated_at = NOW() \
+                 WHERE user_id = $3::uuid"
+            )
+            .bind(&lifetime)
+            .bind(game_id)
+            .bind(&u.id.to_string())
+            .execute(&state.pool)
+            .await;
+
             Ok(Json(FaceitStatsApiResponse {
                 game_id: game_id.to_string(),
                 lifetime,
@@ -449,8 +595,137 @@ async fn faceit_stats(
             }))
         }
         Err(e) => {
-            tracing::error!("⚠️ FACEIT Stats API Error: {}", e);
-            Err(axum::http::StatusCode::BAD_GATEWAY)
+            tracing::warn!(
+                "⚠️ FACEIT Stats API Error for player [{}] game={}: {}",
+                mask_faceit_id(&player_id),
+                game_id,
+                e
+            );
+
+            // Graceful degradation: return cached stats if available, even if expired
+            if let Some(cached) = cached_stats {
+                tracing::info!(
+                    "📦 FACEIT stats [{}] game={} serving stale cache after upstream error",
+                    mask_faceit_id(&player_id),
+                    game_id
+                );
+                return Ok(Json(FaceitStatsApiResponse {
+                    game_id: game_id.to_string(),
+                    lifetime: cached,
+                    is_cached: true,
+                }));
+            }
+
+            Err((
+                axum::http::StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({
+                    "error": "faceit_upstream_error",
+                    "message": format!("FACEIT Data API request failed: {}", e)
+                })),
+            ))
+        }
+    }
+}
+
+// ── /faceit/matches ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct FaceitMatchesQuery {
+    game: Option<String>,
+    offset: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Serialize)]
+struct FaceitMatchesApiResponse {
+    game_id: String,
+    items: Vec<serde_json::Value>,
+    start: i32,
+    end: i32,
+    is_cached: bool,
+}
+
+async fn faceit_matches(
+    State(state): State<AppState>,
+    user: crate::api::auth_guard::SessionUserNoWallet,
+    Query(query): Query<FaceitMatchesQuery>,
+) -> Result<Json<FaceitMatchesApiResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let crate::api::auth_guard::SessionUserNoWallet(u) = user;
+
+    let faceit_data_svc = state.faceit_data_service.as_ref().ok_or_else(|| {
+        tracing::error!("❌ FaceitDataService not available (missing FACEIT_DATA_API_KEY)");
+        (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "faceit_data_unavailable",
+                "message": "FACEIT Data API is not configured on this server."
+            })),
+        )
+    })?;
+
+    let game_id_raw = query.game.as_deref().unwrap_or("cs2");
+    let game_id = validate_game_id(game_id_raw)?;
+    let offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(20).min(100); // max 100 per request
+
+    // Get faceit_player_id from DB
+    let player_id: String =
+        sqlx::query_scalar("SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid")
+            .bind(&u.id.to_string())
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "db_error",
+                    "message": "Failed to retrieve FACEIT link from database."
+                })),
+            ))?
+            .ok_or_else(|| (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "faceit_not_linked",
+                    "message": "No FACEIT account linked to this user."
+                })),
+            ))?;
+
+    tracing::info!(
+        "🌐 FACEIT matches [{}] game={} offset={} limit={}",
+        mask_faceit_id(&player_id),
+        game_id,
+        offset,
+        limit
+    );
+
+    match faceit_data_svc.get_player_history(&player_id, game_id, offset, limit).await {
+        Ok(history) => {
+            let items = history
+                .items
+                .iter()
+                .map(|item| serde_json::to_value(item).unwrap_or(serde_json::json!({})))
+                .collect();
+            Ok(Json(FaceitMatchesApiResponse {
+                game_id: game_id.to_string(),
+                items,
+                start: history.start,
+                end: history.end,
+                is_cached: false,
+            }))
+        }
+        Err(e) => {
+            tracing::error!(
+                "⚠️ FACEIT History API Error for player [{}] game={}: {}",
+                mask_faceit_id(&player_id),
+                game_id,
+                e
+            );
+            Err((
+                axum::http::StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({
+                    "error": "faceit_upstream_error",
+                    "message": format!("FACEIT Data API request failed: {}", e)
+                })),
+            ))
         }
     }
 }

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatchStore } from '../../stores/useMatchStore';
 import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../domain/lobby';
 import { validateFaceitMatchId } from '../../utils/validation';
+import { MatchPlayersPanel } from './MatchPlayersPanel';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -157,32 +158,8 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
-                    {/* Players Area */}
-                    <div className="card flex items-center justify-between p-8 bg-gradient-to-r from-kaspa-dark to-kaspa-card">
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-kaspa-border rounded-full mx-auto mb-3 flex items-center justify-center border-2 border-kaspa-primary/30">👤</div>
-                            <span className="font-bold block">{match.player_a_faceit_nickname}</span>
-                            <span className="text-[9px] text-kaspa-primary uppercase font-black">{t('match.challenger')}</span>
-                            <div className={`mt-2 h-1 w-full rounded-full ${match.player_a_deposit_tx_hash ? 'bg-kaspa-primary' : 'bg-gray-700'}`} />
-                        </div>
-
-                        <div className="text-center px-4">
-                            <span className="text-4xl font-black italic opacity-20">VS</span>
-                        </div>
-
-                        <div className="text-center">
-                            {match.player_b_faceit_nickname ? (
-                                <>
-                                    <div className="w-16 h-16 bg-kaspa-border rounded-full mx-auto mb-3 flex items-center justify-center border-2 border-kaspa-primary/30">👤</div>
-                                    <span className="font-bold block">{match.player_b_faceit_nickname}</span>
-                                    <span className="text-[9px] text-blue-400 uppercase font-black">{t('match.opponent')}</span>
-                                    <div className={`mt-2 h-1 w-full rounded-full ${match.player_b_deposit_tx_hash ? 'bg-kaspa-primary' : 'bg-gray-700'}`} />
-                                </>
-                            ) : (
-                                <div className="w-16 h-16 bg-kaspa-dark border-2 border-dashed border-kaspa-border rounded-full mx-auto mb-3 flex items-center justify-center text-gray-600 italic text-xl">?</div>
-                            )}
-                        </div>
-                    </div>
+                    {/* Players Panel – echte FACEIT-Profile */}
+                    <MatchPlayersPanel match={match} />
 
                     {/* Escrow Details */}
                     <div className="card space-y-4">

@@ -38,6 +38,7 @@ interface AuthState {
     user: UserProfile | null;
     playerAccount: PlayerAccount;
     isAuthenticated: boolean;
+    isAuthLoading: boolean;
     walletConnected: boolean;
     testMode: boolean;
     isFaceitConnected: boolean;
@@ -81,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             playerAccount: emptyPlayerAccount,
             isAuthenticated: false,
+            isAuthLoading: true,
             walletConnected: false,
             testMode: false,
             isFaceitConnected: false,
@@ -93,15 +95,19 @@ export const useAuthStore = create<AuthState>()(
             },
 
             fetchUser: async () => {
-                const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
-                const user = res.data;
-                if (import.meta.env.DEV) {
-                    const prev = get().user;
-                    if (prev?.faceit_connected && !user.faceit_connected) {
-                        console.warn('[AuthStore] fetchUser would lose FACEIT data!', { prev, next: user });
+                try {
+                    const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
+                    const user = res.data;
+                    if (import.meta.env.DEV) {
+                        const prev = get().user;
+                        if (prev?.faceit_connected && !user.faceit_connected) {
+                            console.warn('[AuthStore] fetchUser would lose FACEIT data!', { prev, next: user });
+                        }
                     }
+                    applyUserState(set, user);
+                } finally {
+                    set({ isAuthLoading: false });
                 }
-                applyUserState(set, user);
             },
 
             logout: async () => {

@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::models::faceit::FaceitLink;
 use crate::models::user::{AuthResponse, LoginRequest, RegisterRequest, User};
+use crate::constants::session_lifetime_days;
 
 pub struct AuthService {
     db: PgPool,
@@ -25,14 +26,14 @@ impl AuthService {
     pub fn validate_email(email: &str) -> Result<String> {
         let re = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")?;
         if !re.is_match(email) {
-            return Err(anyhow!("Ungültiges E-Mail-Format"));
+            return Err(anyhow!("Invalid email format"));
         }
         Ok(email.to_lowercase().trim().to_string())
     }
 
     pub fn validate_password(password: &str) -> Result<()> {
         if password.len() < 8 {
-            return Err(anyhow!("Passwort muss mindestens 8 Zeichen lang sein"));
+            return Err(anyhow!("Password must be at least 8 characters"));
         }
         Ok(())
     }
@@ -40,7 +41,7 @@ impl AuthService {
     pub fn validate_display_name(name: &str) -> Result<String> {
         let re = Regex::new(r"^[a-zA-Z0-9_-]{3,30}$")?;
         if !re.is_match(name) {
-            return Err(anyhow!("Display-Name muss 3-30 Zeichen lang sein und darf nur alphanumerische Zeichen, Unterstriche und Bindestriche enthalten"));
+            return Err(anyhow!("Display name must be 3-30 characters and contain only alphanumeric characters, underscores, or hyphens"));
         }
         Ok(name.trim().to_string())
     }
@@ -50,14 +51,14 @@ impl AuthService {
         let argon2 = Argon2::default();
         let password_hash = argon2
             .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| anyhow!("Fehler beim Hashing: {}", e))?
+            .map_err(|e| anyhow!("Password hashing failed: {}", e))?
             .to_string();
         Ok(password_hash)
     }
 
     pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
         let parsed_hash =
-            PasswordHash::new(hash).map_err(|e| anyhow!("Fehler beim Parsen des Hashes: {}", e))?;
+            PasswordHash::new(hash).map_err(|e| anyhow!("Hash parse failed: {}", e))?;
         let is_valid = Argon2::default()
             .verify_password(password.as_bytes(), &parsed_hash)
             .is_ok();
@@ -89,13 +90,13 @@ impl AuthService {
 
         if let Err(e) = res {
             if e.to_string().contains("unique constraint") {
-                return Err(anyhow!("Ein Account mit dieser E-Mail existiert bereits"));
+                return Err(anyhow!("An account with this email already exists"));
             }
             return Err(e.into());
         }
 
         let session_token = Self::generate_session_token();
-        let expires_at = Utc::now() + Duration::days(7);
+        let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
@@ -127,11 +128,11 @@ impl AuthService {
                 r.try_get("password_hash")?,
             )
         } else {
-            return Err(anyhow!("Ungültige Anmeldedaten"));
+            return Err(anyhow!("Invalid credentials"));
         };
 
         if !Self::verify_password(&req.password, &password_hash)? {
-            return Err(anyhow!("Ungültige Anmeldedaten"));
+            return Err(anyhow!("Invalid credentials"));
         }
 
         sqlx::query("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1")
@@ -145,7 +146,7 @@ impl AuthService {
             .await?;
 
         let session_token = Self::generate_session_token();
-        let expires_at = Utc::now() + Duration::days(7);
+        let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)
@@ -191,7 +192,7 @@ impl AuthService {
                 last_login_at: last_login_at.map(|dt| dt.to_rfc3339()),
             })
         } else {
-            Err(anyhow!("Session ungültig oder abgelaufen"))
+            Err(anyhow!("Session invalid or expired"))
         }
     }
 
@@ -205,7 +206,7 @@ impl AuthService {
 
     pub async fn set_kaspa_address(&self, user_id: &str, address: &str) -> Result<()> {
         if !address.starts_with("kaspa:") && !address.starts_with("kaspatest:") {
-            return Err(anyhow!("Ungültige Kaspa-Adresse"));
+            return Err(anyhow!("Invalid Kaspa address"));
         }
 
         let uid = Uuid::parse_str(user_id)?;
@@ -220,7 +221,7 @@ impl AuthService {
         .rows_affected();
 
         if affected == 0 {
-            Err(anyhow!("User nicht gefunden"))
+            Err(anyhow!("User not found"))
         } else {
             Ok(())
         }
@@ -255,7 +256,7 @@ impl AuthService {
                 last_login_at: last_login_at.map(|dt| dt.to_rfc3339()),
             })
         } else {
-            Err(anyhow!("User nicht gefunden"))
+            Err(anyhow!("User not found"))
         }
     }
 
@@ -363,7 +364,7 @@ impl AuthService {
 
     pub async fn issue_session_for_user(&self, user_id: &Uuid) -> Result<String> {
         let session_token = Self::generate_session_token();
-        let expires_at = Utc::now() + Duration::days(7);
+        let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
             .bind(&session_token)

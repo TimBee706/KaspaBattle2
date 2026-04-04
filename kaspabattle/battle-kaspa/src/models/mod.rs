@@ -1,1 +1,1 @@
-pub mod faceit_data;
+﻿pub mod faceit_data;

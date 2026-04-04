@@ -7,7 +7,10 @@ const apiClient: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
     timeout: 15_000,
     withCredentials: true,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true'
+    },
 });
 
 apiClient.interceptors.response.use(

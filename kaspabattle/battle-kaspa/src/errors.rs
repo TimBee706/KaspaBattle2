@@ -1,4 +1,4 @@
-use thiserror::Error;
+﻿use thiserror::Error;
 
 /// Errors for payout and refund operations.
 /// F-003/F-001: Extended with new RPC-level error variants for precise error handling.

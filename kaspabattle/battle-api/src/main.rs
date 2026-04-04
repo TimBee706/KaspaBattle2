@@ -1,7 +1,7 @@
 use axum::{
     http::{
         header::{AUTHORIZATION, CONTENT_TYPE},
-        HeaderValue, Method,
+        Method,
     },
     routing::get,
     Router,
@@ -172,9 +172,9 @@ async fn main() {
         Ok(_) => {
             tracing::info!("✅ DB migrations applied successfully");
         }
-        Err(e) if e.to_string().contains("VersionMismatch") 
-            || e.to_string().contains("checksum") 
-            || e.to_string().contains("Checksum") 
+        Err(e) if e.to_string().contains("VersionMismatch")
+            || e.to_string().contains("checksum")
+            || e.to_string().contains("Checksum")
             || e.to_string().contains("previously applied but has been modified") => {
             tracing::warn!("⚠️ Migration mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
             sqlx::query("DELETE FROM _sqlx_migrations")
@@ -192,14 +192,17 @@ async fn main() {
         }
     }
 
-    let (tx, _) = broadcast::channel(100);
+    let (tx, _) = broadcast::channel(battle_core::constants::ws_broadcast_capacity());
+
+    // ── SecretProvider (F-11): Auto-detects Docker Secrets vs ENV ────────────
+    let secrets = battle_core::secret_provider::SecretProvider::auto_detect();
 
     let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
 
     let faceit_config = battle_core::models::faceit::FaceitOAuthConfig {
-        client_id: std::env::var("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
-        client_secret: std::env::var("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
-        redirect_uri: std::env::var("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
+        client_id: secrets.require("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
+        client_secret: secrets.require("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
+        redirect_uri: secrets.require("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
         auth_url: "https://accounts.faceit.com".to_string(),
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
@@ -212,7 +215,7 @@ async fn main() {
     // ── battle-kaspa: Initialize Kaspa escrow infrastructure ──
     // If KASPA_NODE_URL is set, use it directly. Otherwise, Resolver auto-discovers the best node.
     let kaspa_node_url = normalized_kaspa_node_url();
-    let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-10".to_string());
+    let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-12".to_string());
     let kaspa_mnemonic = std::env::var("KASPA_MNEMONIC").ok();
 
     let escrow_wallet = Arc::new(
@@ -228,7 +231,7 @@ async fn main() {
             &kaspa_network,
         ).await {
             Ok(client) => {
-                tracing::info!("✅ Connected to Kaspa node{}", 
+                tracing::info!("✅ Connected to Kaspa node{}",
                     kaspa_node_url.as_ref()
                         .map(|u| format!(": {}", u))
                         .unwrap_or_else(|| " (via Resolver)".to_string())
@@ -257,11 +260,7 @@ async fn main() {
     // Initialize PayoutService (real TX signing + submission)
     // Derive treasury address from TREASURY_MNEMONIC (or use TREASURY_ADDRESS directly)
     let treasury_mnemonic_result = std::env::var("TREASURY_MNEMONIC");
-    tracing::debug!("🔍 TREASURY_MNEMONIC: {:?}",
-        treasury_mnemonic_result
-            .as_ref()
-            .map(|s| format!("{}...", &s[..20.min(s.len())]))
-    );
+    tracing::debug!("TREASURY_MNEMONIC: present={}", treasury_mnemonic_result.is_ok());
     let treasury_address = if let Ok(treasury_mnemonic) = treasury_mnemonic_result {
         let treasury_wallet =
             battle_kaspa::wallet::EscrowWallet::new(Some(treasury_mnemonic), &kaspa_network)
@@ -299,17 +298,9 @@ async fn main() {
             kaspa_addresses::Prefix::Testnet
         };
 
-        // Derive oracle private key from ORACLE_PRIVATE_KEY env or deterministic fallback
-        // Derive oracle private key from ORACLE_PRIVATE_KEY env or deterministic fallback for dev
+        // Derive oracle private key from ORACLE_PRIVATE_KEY env — hard-fail if missing
         let oracle_sk_hex = std::env::var("ORACLE_PRIVATE_KEY").unwrap_or_else(|_| {
-            if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
-                panic!("CRITICAL: ORACLE_PRIVATE_KEY is missing in production environment");
-            }
-            // Deterministic fallback: SHA256("kaspabattle-oracle-v1")
-            use sha2::{Digest, Sha256};
-            let mut hasher = Sha256::new();
-            hasher.update(b"kaspabattle-oracle-v1");
-            hex::encode(hasher.finalize())
+            panic!("CRITICAL: ORACLE_PRIVATE_KEY must be set in all environments. Generate with: openssl rand -hex 32");
         });
 
         let oracle_sk_bytes: [u8; 32] = match hex::decode(&oracle_sk_hex) {
@@ -337,17 +328,53 @@ async fn main() {
         }
     });
 
-    // ── FACEIT Data API Service (for profile/stats endpoints) ──
-    let faceit_data_service = match std::env::var("FACEIT_DATA_API_KEY") {
-        Ok(api_key) if !api_key.is_empty() => {
-            tracing::info!("✅ FaceitDataService initialized (API key set)");
-            Some(Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key)))
-        }
-        _ => {
-            tracing::warn!("⚠️ FACEIT_DATA_API_KEY not set — /faceit/profile and /faceit/stats will be unavailable");
-            None
+    // ── FACEIT Data API Service (F-11/F-15) ──────────────────────────────────
+    // Key resolution order (F-15 — Multi-Environment):
+    //   1. FACEIT_DATA_API_KEY_{APP_ENV}  (z.B. FACEIT_DATA_API_KEY_PRODUCTION)
+    //   2. FACEIT_DATA_API_KEY            (generischer Fallback)
+    //
+    // SecretProvider (F-11) prüft zuerst Docker Secrets, dann ENV.
+    let app_env = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("RUST_ENV"))
+        .unwrap_or_else(|_| "development".to_string());
+    let app_env_upper = app_env.to_uppercase();
+
+    let faceit_data_api_key: Option<String> = {
+        // Env-spezifischer Key (z.B. FACEIT_DATA_API_KEY_PRODUCTION)
+        let env_specific_name = format!("FACEIT_DATA_API_KEY_{}", app_env_upper);
+        let env_key = secrets.get(&env_specific_name)
+            .unwrap_or(None)
+            .filter(|k| !k.is_empty());
+
+        if env_key.is_some() {
+            tracing::info!(
+                "✅ FACEIT Data API key loaded from env-specific secret '{}' (APP_ENV={})",
+                env_specific_name, app_env
+            );
+            env_key
+        } else {
+            // Generischer Fallback
+            let generic_key = secrets.get("FACEIT_DATA_API_KEY")
+                .unwrap_or(None)
+                .filter(|k| !k.is_empty());
+
+            if generic_key.is_some() {
+                tracing::info!("✅ FACEIT Data API key loaded from generic FACEIT_DATA_API_KEY");
+            } else {
+                tracing::warn!(
+                    "⚠️ No FACEIT Data API key found (tried '{}' and 'FACEIT_DATA_API_KEY') — \
+                     /faceit/profile, /faceit/stats and /faceit/matches will be unavailable",
+                    env_specific_name
+                );
+            }
+            generic_key
         }
     };
+
+    let faceit_data_service = faceit_data_api_key.map(|api_key| {
+        tracing::info!("✅ FaceitDataService initialized (API key set)");
+        Arc::new(battle_core::faceit_data::FaceitDataService::new(api_key))
+    });
 
     // ── BlockchainWatcher (per-player UTXO attribution + confirmation tracking) ──
     let blockchain_watcher = kaspa_rpc.as_ref().map(|rpc| {
@@ -373,24 +400,56 @@ async fn main() {
         multisig_service,
     };
 
-    let frontend_url_str =
+    // ── CORS: Multi-Origin Support (SEC-02) ───────────────────────────────────
+    // CORS_ALLOWED_ORIGINS: comma-separated allowed origins.
+    // Fallback: FRONTEND_URL for backwards compatibility.
+    let _frontend_url_str =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let frontend_url = frontend_url_str.parse::<HeaderValue>().unwrap_or_else(|_| {
-        tracing::warn!("⚠️ Invalid FRONTEND_URL: {}", frontend_url_str);
-        "http://localhost:5173".parse::<HeaderValue>().unwrap()
-    });
 
-    let cors = CorsLayer::new()
-        .allow_origin(frontend_url)
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-        .allow_credentials(true);
+    let allowed_origins: Vec<String> = std::env::var("CORS_ALLOWED_ORIGINS")
+        .map(|s| {
+            s.split(',')
+                .map(|o| o.trim().to_string())
+                .filter(|o| !o.is_empty())
+                .collect()
+        })
+        .unwrap_or_else(|_| vec![_frontend_url_str.clone()]);
+
+    tracing::info!("CORS allowed origins: {:?}", allowed_origins);
+
+    let cors = {
+        use tower_http::cors::AllowOrigin;
+        let origins_for_cors = allowed_origins.clone();
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(move |origin, _| {
+                origin
+                    .to_str()
+                    .map(|o| origins_for_cors.iter().any(|allowed| allowed == o))
+                    .unwrap_or(false)
+            }))
+            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
+            .allow_headers([
+                AUTHORIZATION, 
+                CONTENT_TYPE, 
+                axum::http::header::HeaderName::from_static("ngrok-skip-browser-warning")
+            ])
+            .allow_credentials(true)
+    };
+
+    // CSRF: allow all configured origins
+    let csrf_allowed_origins = allowed_origins.clone();
 
     let app = Router::new()
         .nest("/api/v1", api::router())
         .route("/health", get(api::health))
         .route("/ws", get(api::ws_handler))
         .layer(cors)
+        .layer(axum::middleware::from_fn(move |req, next| {
+            let extra_origins = csrf_allowed_origins.clone();
+            async move {
+                api::csrf_guard::csrf_protection_layer_multi(extra_origins, req, next).await
+            }
+        }))
         .with_state(state.clone());
 
     tracing::info!("🚀 KaspaBattle API running on 0.0.0.0:8080");
@@ -504,7 +563,7 @@ async fn main() {
                     3 => 40,
                     _ => 60,
                 };
-                
+
                 tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
             }
         }
@@ -549,7 +608,7 @@ async fn main() {
     // Uses battle-kdapp's convenience function to hide Engine/Proxy internals.
     {
         let kdapp_network = std::env::var("KASPA_NETWORK")
-            .unwrap_or_else(|_| "testnet-10".to_string());
+            .unwrap_or_else(|_| "testnet-12".to_string());
         let kdapp_rpc_url = normalized_kaspa_node_url();
 
         match battle_kdapp::startup::spawn_kdapp_services(
@@ -567,5 +626,10 @@ async fn main() {
         }
     }
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

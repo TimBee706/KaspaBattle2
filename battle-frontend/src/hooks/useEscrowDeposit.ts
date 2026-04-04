@@ -43,9 +43,7 @@ export function useEscrowDeposit() {
             }
 
             // 2. TX an Escrow-Adresse über WASM SDK senden
-            const txHash = await sendDeposit(
-                account,
-                currentMatch.escrow_address,
+            const txHash = await sendDeposit(account.mnemonicPhrase as string, currentMatch.escrow_address,
                 wagerSompi,
             );
 
@@ -86,3 +84,4 @@ export function useEscrowDeposit() {
         depositTxHash: useMatchStore((s) => s.localDeposit?.txHash ?? null),
     };
 }
+

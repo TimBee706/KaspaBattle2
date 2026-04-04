@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 /// Konfiguration für FACEIT OAuth2
 #[derive(Debug, Clone)]

@@ -1,4 +1,4 @@
-pub mod errors;
+﻿pub mod errors;
 pub mod escrow;
 pub mod faceit_api;
 pub mod mock;

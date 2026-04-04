@@ -43,3 +43,39 @@ jobs:
       - name: Test
         working-directory: ./battle-frontend
         run: npm run test
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust dependency audit ──
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Cargo Audit
+        working-directory: ./kaspabattle
+        run: cargo audit
+        continue-on-error: true  # Advisory-only for now; promote to hard-fail for Beta
+
+      # ── Node dependency audit ──
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install frontend deps
+        working-directory: ./battle-frontend
+        run: npm ci
+      - name: NPM Audit
+        working-directory: ./battle-frontend
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+      # ── Secret Scan ──
+      - name: Secret Scan (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+        continue-on-error: true

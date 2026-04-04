@@ -10,9 +10,37 @@ export interface FaceitStatusResponse {
     linked_at: string | null;
 }
 
+/**
+ * Lifetime-Stats aus GET /faceit/stats?game=cs2
+ * Spiegelt FaceitLifetimeStats (battle-core/models/faceit_data.rs).
+ *
+ * F-12: Alle FACEIT-Felder sind typisiert. Optionale Felder können fehlen
+ * wenn ein Spieler noch keine Daten für ein Feld hat.
+ */
+export interface FaceitLifetimeStats {
+    // Kern-Felder (immer vorhanden)
+    Matches: string;
+    'Win Rate %': string;
+    'Recent Results': string[];
+    Wins: string;
+    'Average K/D Ratio': string;
+    'Average Headshots %': string;
+
+    // Erweiterte Felder (F-12, optional)
+    'Current Win Streak'?: string;
+    'Longest Win Streak'?: string;
+    'Total Headshots %'?: string;
+    'Average K/R Ratio'?: string;
+    Leaves?: string;
+    'Average Kills'?: string;
+    'Average Deaths'?: string;
+    'Average Assists'?: string;
+    'Maps Played'?: string;
+}
+
 export interface FaceitStatsResponse {
     game_id: string;
-    lifetime: Record<string, any>;
+    lifetime: FaceitLifetimeStats;
     is_cached: boolean;
 }
 

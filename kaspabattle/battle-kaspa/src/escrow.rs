@@ -85,8 +85,7 @@ pub fn derive_escrow_address(
     Ok(address.to_string())
 }
 
-/// Platform fee percentage (5% of total pot)
-const PLATFORM_FEE_PERCENT: u64 = 5;
+use battle_core::constants::PLATFORM_FEE_PERCENT;
 
 /// Estimated network fee in sompi (~0.01 KAS)
 const ESTIMATED_NETWORK_FEE: u64 = 1_000;
@@ -274,6 +273,16 @@ impl EscrowService {
     /// Builds a transaction sending winner_amount to the winner and
     /// platform_fee to the platform wallet, signs with the escrow key,
     /// and submits to the network.
+    ///
+    /// # Deprecated
+    ///
+    /// This is the legacy BIP-44 escrow payout path. It generates **stub TX IDs** and
+    /// does NOT broadcast real transactions.
+    /// Use [`battle_kaspa::multisig::service::MultisigEscrowService`] for real payouts.
+    #[deprecated(
+        since = "1.0.0",
+        note = "Legacy stub path. Use MultisigEscrowService for real on-chain payouts."
+    )]
     pub async fn payout_winner(
         &self,
         challenge_id: &str,
@@ -339,6 +348,16 @@ impl EscrowService {
     ///
     /// Returns each player's deposit minus a small TX fee.
     /// If escrow has no balance, returns zero-amount refund info.
+    ///
+    /// # Deprecated
+    ///
+    /// This is the legacy BIP-44 escrow refund path. It generates **stub TX IDs** and
+    /// does NOT broadcast real transactions.
+    /// Use [`battle_kaspa::multisig::service::MultisigEscrowService`] for real refunds.
+    #[deprecated(
+        since = "1.0.0",
+        note = "Legacy stub path. Use MultisigEscrowService for real on-chain refunds."
+    )]
     pub async fn refund(
         &self,
         challenge_id: &str,
@@ -581,6 +600,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(deprecated)] // intentionally tests the legacy stub payout path
     async fn test_escrow_lifecycle() {
         let (service, mock) = make_service_with_mock();
 
@@ -648,6 +668,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(deprecated)] // intentionally tests the legacy stub payout path
     async fn test_double_payout_prevention() {
         let (service, mock) = make_service_with_mock();
         let info = service.create_escrow("double-pay-test", 5_000_000).unwrap();

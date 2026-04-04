@@ -1,4 +1,4 @@
-//! Core data types for the multisig escrow system.
+﻿//! Core data types for the multisig escrow system.
 
 use std::collections::HashMap;
 
