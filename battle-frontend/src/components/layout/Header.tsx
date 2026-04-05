@@ -14,7 +14,7 @@ export function Header() {
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-8">
                     <Link to="/" className="text-xl font-bold text-kaspa-primary tracking-tighter flex items-center gap-2">
-                        <img src="/kaspa-battle_logo.svg" alt="Kaspa Battle Logo" className="h-8 w-auto" />
+                        <img src="/kaspa-battle_logo.png" alt="Kaspa Battle Logo" className="h-8 w-auto" />
                         KASPABATTLE
                     </Link>
 

@@ -11,7 +11,7 @@ export const HistoryPage: React.FC = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetch('/api/history').then(r => r.json()).then(data => setHistory(data || [])).catch(console.error);
+        fetch('/api/v1/history').then(r => r.json()).then(data => setHistory(data || [])).catch(console.error);
     }, [setHistory]);
 
     return (

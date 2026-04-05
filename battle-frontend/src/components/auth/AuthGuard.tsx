@@ -1,9 +1,10 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useWalletStore } from '../../stores/useWalletStore';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-    const { isAuthenticated, isAuthLoading, testMode } = useAuthStore();
-    const location = useLocation();
+    const { isAuthenticated, isAuthLoading, testMode, isFaceitConnected } = useAuthStore();
+    const { isConnected: isWalletConnected } = useWalletStore();
 
     // Wait for initial auth check to complete before deciding
     if (isAuthLoading && !testMode) {
@@ -14,9 +15,55 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    if (!testMode && !isAuthenticated) {
-        return <Navigate to="/" state={{ from: location }} replace />;
+    const needsFaceit = !testMode && !isFaceitConnected;
+    const needsWallet = !isWalletConnected;
+    const showBanner = !testMode && (needsFaceit || needsWallet);
+
+    return (
+        <>
+            {showBanner && <AuthBanner needsFaceit={needsFaceit} needsWallet={needsWallet} />}
+            {children}
+        </>
+    );
+}
+
+function AuthBanner({ needsFaceit, needsWallet }: { needsFaceit: boolean; needsWallet: boolean }) {
+    let message: string;
+
+    if (needsFaceit && needsWallet) {
+        message = 'Um an Matches teilzunehmen, musst du zuerst dein FaceIT-Konto und dein Kaspa Wallet verbinden.';
+    } else if (needsWallet) {
+        message = 'Um an Matches teilzunehmen, verbinde bitte noch dein Kaspa Wallet.';
+    } else {
+        message = 'Um an Matches teilzunehmen, verbinde bitte noch dein FaceIT-Konto.';
     }
 
-    return <>{children}</>;
+    return (
+        <div className="mb-6 p-4 bg-kaspa-card border border-amber-500/40 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-2xl shrink-0">⚠️</span>
+                    <p className="text-sm text-gray-200 font-medium">{message}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                    {needsFaceit && (
+                        <Link
+                            to="/profile"
+                            className="px-4 py-2 bg-kaspa-primary/10 border border-kaspa-primary/30 hover:bg-kaspa-primary/20 text-kaspa-primary rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap"
+                        >
+                            FaceIT verbinden
+                        </Link>
+                    )}
+                    {needsWallet && (
+                        <Link
+                            to="/wallet/import"
+                            className="px-4 py-2 bg-kaspa-primary/10 border border-kaspa-primary/30 hover:bg-kaspa-primary/20 text-kaspa-primary rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap"
+                        >
+                            Wallet verbinden
+                        </Link>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }
