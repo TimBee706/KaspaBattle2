@@ -50,8 +50,6 @@ services:
     env_file:
       - .env.production
     environment:
-      # Database access through docker network
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       KASPA_USE_EXPLICIT_NODE: "false"
     depends_on:
       postgres:

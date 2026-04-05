@@ -203,7 +203,7 @@ export function LandingPage() {
                 {/* Kaspa Battle Logo */}
                 <div className="mb-4 flex justify-center relative">
                     <span className="relative z-10 flex items-center justify-center">
-                        <img src="/kaspa-battle_logo.png" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
+                        <img src="/Kaspa-Battle.svg" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
                     </span>
                 </div>
 
@@ -218,10 +218,10 @@ export function LandingPage() {
                     ) : (
                         <>
                             <Link to="/wallet/import" className="btn-primary w-full px-10 py-5 text-lg bg-kaspa-primary hover:bg-kaspa-primary/80 flex items-center gap-3 text-kaspa-dark font-black">
-                                🔌 {t('wallet.connect')}
+                                {t('wallet.connect')}
                             </Link>
                             <button onClick={() => (isAuthenticated ? startFaceitLink() : startFaceitLogin())} className="btn-primary w-full bg-orange-600 hover:bg-orange-500 px-10 py-5 text-lg flex items-center gap-3 text-white font-black">
-                                🎮 {t('navigation.faceit_login')}
+                                {t('navigation.faceit_login')}
                             </button>
                         </>
                     )}

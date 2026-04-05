@@ -133,7 +133,7 @@ impl EpisodeTrait for MatchEpisode {
                 // Fetch current DAA score for confirmation calculation
                 let current_daa = if let Some(ref rpc) = self.kaspa_rpc {
                     match rpc.get_current_daa_score().await {
-                        Ok(daa) if daa == 0 => {
+                        Ok(0) => {
                             tracing::warn!(
                                 match_id = %self.match_id,
                                 "⚠️ DAA score is 0 — node may not be synced yet"

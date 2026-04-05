@@ -537,7 +537,7 @@ async fn main() {
                 // on the next call inside MatchEpisode::execute().
                 if let Some(ref rpc) = ep_rpc {
                     match rpc.get_current_daa_score().await {
-                        Ok(daa) if daa == 0 => {
+                        Ok(0) => {
                             tracing::warn!("⚠️ Episode runner: DAA=0, node may not be ready — deposits won't be confirmed until node is synced");
                         }
                         Err(e) => {

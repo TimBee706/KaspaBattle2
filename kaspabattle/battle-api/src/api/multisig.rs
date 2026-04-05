@@ -133,9 +133,7 @@ async fn get_escrow(
     State(state): State<AppState>,
     Path(match_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
-        StatusCode::SERVICE_UNAVAILABLE
-    })?;
+    let multisig_svc = state.multisig_service.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     match multisig_svc.get_escrow(&match_id).await {
         Some(escrow) => Ok(Json(serde_json::json!({
