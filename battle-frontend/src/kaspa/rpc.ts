@@ -12,103 +12,66 @@ type RpcClientCtor = new (config: {
 }) => kaspa.RpcClient;
 
 /**
- * Known public Testnet-10 wRPC/Borsh endpoints (fallback list).
- * These are tried in order when the Resolver is unavailable.
- */
-const FALLBACK_NODES: readonly string[] = [
-    'wss://photon-10.kaspa.red/kaspa/testnet-10/wrpc/borsh',
-];
-
-/**
- * Try to resolve a working node URL via the Kaspa Resolver.
- * Uses the Vite proxy (`/kaspa-resolver`) to bypass browser CORS restrictions
- * on the Resolver's HTTP discovery endpoint.
+ * Get or create a connected RPC client.
  *
- * Returns a WSS URL string on success, or null if the resolver is down.
+ * Connection strategy (in order):
+ *   1. Direct URL from VITE_KASPA_NODE_URL (if set)
+ *   2. WASM SDK built-in Resolver (works in browser for WebSocket — no CORS issue)
+ *   3. Error with clear message
+ *
+ * The WASM Resolver (`new kaspa.Resolver()`) handles node discovery internally
+ * via WebSocket, which is NOT subject to browser CORS restrictions.
+ * The old HTTP-based resolver proxy (/kaspa-resolver) has been removed —
+ * it only worked with the Vite dev server and paul/alex.kaspa.red are unreliable.
  */
-async function resolveNodeUrl(): Promise<string | null> {
-    const discoveryPath = `/kaspa-resolver/v2/kaspa/${KASPA_NETWORK}/any/wrpc/borsh`;
-    try {
-        const res = await fetch(discoveryPath, { signal: AbortSignal.timeout(5_000) });
-        if (res.ok) {
-            // The resolver may return a redirect (followed by fetch) or a URL in the body.
-            // The final URL after redirects IS the node endpoint — convert https → wss.
-            const finalUrl = res.url;
-            if (finalUrl.startsWith('http')) {
-                return finalUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
-            }
-            // Or the body itself might be a URL
-            const body = await res.text();
-            const trimmed = body.trim();
-            if (trimmed.startsWith('wss://') || trimmed.startsWith('ws://')) {
-                return trimmed;
-            }
-        }
-    } catch (e) {
-        console.warn('[kaspa] Resolver discovery failed (network/timeout):', e);
-    }
-    return null;
-}
-
-/**
- * Try connecting an RpcClient to a specific URL.
- * Returns the connected client, or null on failure.
- */
-async function tryConnect(url: string): Promise<kaspa.RpcClient | null> {
-    try {
-        console.log(`[kaspa] Trying node: ${url}`);
-        const RpcClientClass = kaspa.RpcClient as unknown as RpcClientCtor;
-        const client = new RpcClientClass({
-            url,
-            encoding: kaspa.Encoding.Borsh,
-            networkId: KASPA_NETWORK,
-        });
-        await client.connect({});
-        console.log(`[kaspa] ✅ Connected to ${url}`);
-        return client;
-    } catch (e) {
-        console.warn(`[kaspa] ❌ Failed to connect to ${url}:`, e);
-        return null;
-    }
-}
-
 export async function getRpcClient(): Promise<kaspa.RpcClient> {
     try {
         await initKaspaWasm();
 
         if (rpcClient) return rpcClient;
 
-        // 1. If a direct URL is configured via env, use it
+        const RpcClientClass = kaspa.RpcClient as unknown as RpcClientCtor;
+
+        // 1. Direct URL from environment
         if (KASPA_NODE_URL) {
-            const client = await tryConnect(KASPA_NODE_URL);
-            if (client) {
+            console.log(`[kaspa] Connecting to configured node: ${KASPA_NODE_URL}`);
+            try {
+                const client = new RpcClientClass({
+                    url: KASPA_NODE_URL,
+                    encoding: kaspa.Encoding.Borsh,
+                    networkId: KASPA_NETWORK,
+                });
+                await client.connect({});
+                console.log(`[kaspa] ✅ Connected to ${KASPA_NODE_URL}`);
                 rpcClient = client;
                 return client;
-            }
-            console.warn(`[kaspa] Configured node ${KASPA_NODE_URL} unreachable, trying resolver...`);
-        }
-
-        // 2. Try the Resolver via Vite proxy (bypasses CORS)
-        const resolvedUrl = await resolveNodeUrl();
-        if (resolvedUrl) {
-            const client = await tryConnect(resolvedUrl);
-            if (client) {
-                rpcClient = client;
-                return client;
-            }
-        }
-
-        // 3. Try fallback nodes
-        for (const fallbackUrl of FALLBACK_NODES) {
-            if (fallbackUrl === KASPA_NODE_URL) continue; // already tried
-            const client = await tryConnect(fallbackUrl);
-            if (client) {
-                rpcClient = client;
-                return client;
+            } catch (e) {
+                console.warn(`[kaspa] ❌ Configured node unreachable: ${KASPA_NODE_URL}`, e);
+                // Fall through to Resolver
             }
         }
 
-        throw new Error('Keine Kaspa Testnet-10 Node erreichbar. Bitte spaeter erneut versuchen.');
+        // 2. WASM SDK built-in Resolver — discovers nodes automatically
+        console.log(`[kaspa] Using WASM Resolver for network: ${KASPA_NETWORK}`);
+        try {
+            const resolver = new kaspa.Resolver();
+            const client = new RpcClientClass({
+                resolver,
+                encoding: kaspa.Encoding.Borsh,
+                networkId: KASPA_NETWORK,
+            });
+            await client.connect({});
+            console.log(`[kaspa] ✅ Connected via Resolver`);
+            rpcClient = client;
+            return client;
+        } catch (resolverError) {
+            console.error(`[kaspa] ❌ Resolver failed for ${KASPA_NETWORK}:`, resolverError);
+            throw new Error(
+                `Keine ${KASPA_NETWORK} Node erreichbar. ` +
+                `Der Kaspa Resolver konnte keine verfügbare Node finden. ` +
+                `Bitte später erneut versuchen oder eine direkte Node-URL konfigurieren.`
+            );
+        }
     } catch (error) {
         console.error('[kaspa] RPC initialization failed:', error);
         rpcClient = null;

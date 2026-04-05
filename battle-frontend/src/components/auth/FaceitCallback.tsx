@@ -1,54 +1,46 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { handleFaceitCallback } from '../../api/auth';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+/**
+ * FACEIT OAuth Callback Handler
+ *
+ * FACEIT redirects to this frontend route after login:
+ *   https://kaspabattle.com/auth/faceit/callback?code=...&state=...
+ *
+ * We simply forward code + state to the backend GET endpoint:
+ *   /api/v1/faceit/callback?code=...&state=...
+ *
+ * The backend handles the full token exchange, creates the session,
+ * sets the auth cookie via session-bounce, and redirects to /lobby.
+ */
 export function FaceitCallback() {
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
-    const { setAuth } = useAuthStore();
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const errorParam = searchParams.get('error');
-    const [error, setError] = useState<string | null>(
-        errorParam
-            ? `FACEIT Login fehlgeschlagen: ${errorParam}`
-            : !code || !state
-                ? 'Ungueltiger Callback - fehlende Parameter'
-                : null,
-    );
 
     useEffect(() => {
-        if (errorParam || !code || !state) {
+        const code = searchParams.get('code');
+        const state = searchParams.get('state');
+        const errorParam = searchParams.get('error');
+
+        if (errorParam) {
+            console.error('❌ FACEIT OAuth error:', errorParam);
+            window.location.replace(`/?error=${encodeURIComponent(errorParam)}`);
             return;
         }
 
-        handleFaceitCallback(code, state)
-            .then((response) => {
-                setAuth(response.user, response.tokens);
-                navigate('/lobby', { replace: true });
-            })
-            .catch((err) => {
-                setError(err instanceof Error ? err.message : 'FACEIT Login fehlgeschlagen');
-            });
-    }, [code, errorParam, navigate, setAuth, state]);
+        if (!code || !state) {
+            console.error('❌ FACEIT callback: missing code or state');
+            window.location.replace('/');
+            return;
+        }
 
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center text-3xl mb-6">x</div>
-                <h2 className="text-2xl font-bold mb-2">Authentifizierung fehlgeschlagen</h2>
-                <p className="text-gray-400 max-w-md mb-8">{error}</p>
-                <button
-                    onClick={() => navigate('/')}
-                    className="px-6 py-3 bg-kaspa-primary text-kaspa-dark font-bold rounded-xl hover:bg-kaspa-secondary transition-colors"
-                >
-                    Zurueck zur Startseite
-                </button>
-            </div>
-        );
-    }
+        // Forward to backend — backend handles token exchange + session-bounce
+        const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        const backendCallback = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+        console.log('🔄 FACEIT callback: forwarding to backend...', backendCallback);
+        window.location.replace(backendCallback);
+    }, [searchParams]);
 
+    // Show a loading spinner while the redirect happens (should be near-instant)
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
             <div className="relative">

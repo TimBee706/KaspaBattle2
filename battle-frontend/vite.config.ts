@@ -32,13 +32,6 @@ export default defineConfig({
         target: 'ws://localhost:8080',
         ws: true,
       },
-      // Kaspa Resolver HTTP Discovery — bypass CORS für Browser
-      '/kaspa-resolver': {
-        target: 'https://paul.kaspa.red',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path: string) => path.replace(/^\/kaspa-resolver/, ''),
-      },
     }
   }
 });
