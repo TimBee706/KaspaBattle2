@@ -39,7 +39,7 @@ export function useWallet() {
         disconnect: storeDisconnect,
     } = useWalletStore();
 
-    const { updateKasAddress, clearKasAddress, setWalletConnected, fetchUser, isAuthenticated } = useAuthStore();
+    const { updateKasAddress, clearKasAddress, setWalletConnected, fetchUser } = useAuthStore();
     const subscriptionActive = useRef(false);
 
     const fetchBalance = useCallback(async (addr: string) => {
@@ -153,7 +153,7 @@ export function useWallet() {
         } finally {
             setConnecting(false);
         }
-    }, [fetchBalance, fetchUser, isAuthenticated, setConnecting, setError, setWalletConnected, setWalletConnection, subscribeToUpdates, updateKasAddress]);
+    }, [fetchBalance, fetchUser, setConnecting, setError, setWalletConnected, setWalletConnection, subscribeToUpdates, updateKasAddress]);
 
     const disconnect = useCallback(async () => {
         storeDisconnect();

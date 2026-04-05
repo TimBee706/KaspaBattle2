@@ -3,7 +3,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useWalletStore } from '../../stores/useWalletStore';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-    const { isAuthenticated, isAuthLoading, testMode, isFaceitConnected } = useAuthStore();
+    const { isAuthLoading, testMode, isFaceitConnected } = useAuthStore();
     const { isConnected: isWalletConnected } = useWalletStore();
 
     // Wait for initial auth check to complete before deciding

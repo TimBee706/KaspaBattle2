@@ -35,8 +35,8 @@ impl FromRequestParts<AppState> for SessionUser {
             .and_then(|v| v.to_str().ok());
 
         let token_opt = if let Some(header) = auth_header {
-            if header.starts_with("Bearer ") {
-                Some(header["Bearer ".len()..].to_string())
+            if let Some(stripped) = header.strip_prefix("Bearer ") {
+                Some(stripped.to_string())
             } else {
                 None
             }
@@ -104,8 +104,8 @@ impl FromRequestParts<AppState> for SessionUserNoWallet {
             .and_then(|v| v.to_str().ok());
 
         let token_opt = if let Some(header) = auth_header {
-            if header.starts_with("Bearer ") {
-                Some(header["Bearer ".len()..].to_string())
+            if let Some(stripped) = header.strip_prefix("Bearer ") {
+                Some(stripped.to_string())
             } else {
                 None
             }

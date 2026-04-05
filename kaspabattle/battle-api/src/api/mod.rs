@@ -180,7 +180,7 @@ pub async fn get_me(
             let faceit_row = sqlx::query(
                 "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url, faceit_elo, faceit_skill_level FROM faceit_links WHERE user_id = $1::uuid"
             )
-            .bind(&user.id)
+            .bind(user.id)
             .fetch_optional(&state.pool)
             .await
             .ok()
@@ -298,8 +298,8 @@ fn build_clear_auth_cookie() -> String {
 fn extract_session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
     let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
     if let Some(header) = auth_header {
-        if header.starts_with("Bearer ") {
-            return Some(header["Bearer ".len()..].to_string());
+        if let Some(stripped) = header.strip_prefix("Bearer ") {
+            return Some(stripped.to_string());
         }
     }
 
@@ -522,9 +522,8 @@ pub async fn verify_wallet_login(
         &payload.public_key,
         &challenge_message,
         &payload.signature,
-    ).map_err(|status| {
+    ).inspect_err(|&status| {
         tracing::error!("[wallet-verify] ❌ Signature verification failed (status={})", status);
-        status
     })?;
     tracing::info!("[wallet-verify] ✅ Signature valid for {}", payload.kaspa_address);
 
@@ -559,7 +558,7 @@ pub async fn verify_wallet_login(
                 "SELECT id FROM users WHERE kaspa_address = $1 AND id != $2::uuid"
             )
             .bind(&payload.kaspa_address)
-            .bind(&existing_user.id)
+            .bind(existing_user.id)
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| {
@@ -573,7 +572,7 @@ pub async fn verify_wallet_login(
                     "UPDATE users SET kaspa_address = NULL WHERE kaspa_address = $1 AND id != $2::uuid"
                 )
                 .bind(&payload.kaspa_address)
-                .bind(&existing_user.id)
+                .bind(existing_user.id)
                 .execute(&state.pool)
                 .await
                 .map_err(|e| {
@@ -585,7 +584,7 @@ pub async fn verify_wallet_login(
             // Jetzt sicher: kaspa_address am bestehenden User setzen
             sqlx::query("UPDATE users SET kaspa_address = $1 WHERE id = $2::uuid")
                 .bind(&payload.kaspa_address)
-                .bind(&existing_user.id)
+                .bind(existing_user.id)
                 .execute(&state.pool)
                 .await
                 .map_err(|e| {
@@ -654,7 +653,7 @@ pub async fn verify_wallet_login(
     let session_token = battle_core::auth::AuthService::generate_session_token();
     let expires_at = chrono::Utc::now() + chrono::Duration::days(battle_core::constants::session_lifetime_days());
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-        .bind(&session_token).bind(&user_id).bind(expires_at)
+        .bind(&session_token).bind(user_id).bind(expires_at)
         .execute(&state.pool).await.map_err(|e| {
             tracing::error!("[wallet-verify] DB session insert failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -1151,6 +1150,7 @@ pub async fn get_payment_status(
     const MIN_CONF: i32 = 10;
 
     // Aggregate from payments table
+    #[allow(clippy::type_complexity)]
     let payment_rows: Vec<(String, Option<i64>, Option<i32>, Option<i64>)> = sqlx::query_as(
         "SELECT player_role, \
          SUM(amount_sompi)::BIGINT AS total_sompi, \
@@ -1522,7 +1522,7 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState) {
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            if sender.send(axum::extract::ws::Message::Text(msg.into())).await.is_err() {
+            if sender.send(axum::extract::ws::Message::Text(msg)).await.is_err() {
                 break;
             }
         }

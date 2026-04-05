@@ -371,7 +371,7 @@ async fn faceit_profile(
     let row = sqlx::query(
         "SELECT faceit_player_id, faceit_nickname, faceit_avatar_url, faceit_elo, faceit_skill_level, faceit_cache_updated_at FROM faceit_links WHERE user_id = $1::uuid"
     )
-    .bind(&u.id.to_string())
+    .bind(u.id.to_string())
     .fetch_optional(&state.pool)
     .await
     .map_err(|_| (
@@ -442,7 +442,7 @@ async fn faceit_profile(
             )
             .bind(elo)
             .bind(skill_level)
-            .bind(&u.id.to_string())
+            .bind(u.id.to_string())
             .execute(&state.pool)
             .await;
 
@@ -522,7 +522,7 @@ async fn faceit_stats(
         "SELECT faceit_player_id, stats_cache_json, stats_cache_game_id, stats_cache_updated_at \
          FROM faceit_links WHERE user_id = $1::uuid"
     )
-    .bind(&u.id.to_string())
+    .bind(u.id.to_string())
     .fetch_optional(&state.pool)
     .await
     .map_err(|_| (
@@ -584,7 +584,7 @@ async fn faceit_stats(
             )
             .bind(&lifetime)
             .bind(game_id)
-            .bind(&u.id.to_string())
+            .bind(u.id.to_string())
             .execute(&state.pool)
             .await;
 
@@ -671,7 +671,7 @@ async fn faceit_matches(
     // Get faceit_player_id from DB
     let player_id: String =
         sqlx::query_scalar("SELECT faceit_player_id FROM faceit_links WHERE user_id = $1::uuid")
-            .bind(&u.id.to_string())
+            .bind(u.id.to_string())
             .fetch_optional(&state.pool)
             .await
             .map_err(|_| (
