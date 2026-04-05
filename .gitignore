@@ -31,6 +31,7 @@ kaspabattle.db
 .env.local
 .env.*.local
 .env.docker
+.env.production
 *.pem
 *.key
 
