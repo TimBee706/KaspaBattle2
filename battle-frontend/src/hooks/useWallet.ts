@@ -85,9 +85,36 @@ export function useWallet() {
             const { connection, ephemeralPrivateKeyHex } = await importWallet(phrase);
 
             try {
-                const challenge = await apiClient.post<WalletChallengeResponse>('/auth/wallet-challenge', {
-                    kaspa_address: connection.address,
-                });
+                let challenge;
+                try {
+                    challenge = await apiClient.post<WalletChallengeResponse>('/auth/wallet-challenge', {
+                        kaspa_address: connection.address,
+                    });
+                } catch (challengeError: unknown) {
+                    const status = (challengeError as { response?: { status?: number } })?.response?.status;
+                    if (status === 429) {
+                        throw new Error('Zu viele Versuche. Bitte warte eine Minute und versuche es erneut.');
+                    }
+                    // 403/401 = stale session token in localStorage but no valid cookie on backend (e.g. after restart)
+                    // Clear the phantom auth state and retry as unauthenticated user
+                    if (status === 403 || status === 401) {
+                        console.warn('[useWallet] Stale session detected (403/401 on wallet-challenge), clearing auth state and retrying...');
+                        useAuthStore.getState().clearAuthState();
+                        try {
+                            challenge = await apiClient.post<WalletChallengeResponse>('/auth/wallet-challenge', {
+                                kaspa_address: connection.address,
+                            });
+                        } catch (retryError: unknown) {
+                            const retryStatus = (retryError as { response?: { status?: number } })?.response?.status;
+                            if (retryStatus === 429) {
+                                throw new Error('Zu viele Versuche. Bitte warte eine Minute und versuche es erneut.');
+                            }
+                            throw retryError;
+                        }
+                    } else {
+                        throw challengeError;
+                    }
+                }
 
                 const signature = await signMessage({
                     message: challenge.data.message,
@@ -95,16 +122,18 @@ export function useWallet() {
                     noAuxRand: true,
                 });
 
+                // isAuthenticated may have changed after clearing stale state above
+                const currentlyAuthenticated = useAuthStore.getState().isAuthenticated;
                 await apiClient.post('/auth/wallet-verify', {
                     challenge_id: challenge.data.challenge_id,
                     kaspa_address: connection.address,
                     public_key: connection.account.publicKey,
                     signature,
-                    link_to_existing_user: isAuthenticated,
+                    link_to_existing_user: currentlyAuthenticated,
                 });
             } catch (apiError) {
                 console.error('[useWallet] Wallet authentication failed', apiError);
-                throw new Error('Wallet authentication failed. Please try again.');
+                throw apiError instanceof Error ? apiError : new Error('Wallet authentication failed. Please try again.');
             }
 
             setWalletConnection(connection.account, connection.address, 'mnemonic');

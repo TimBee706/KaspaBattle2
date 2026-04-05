@@ -203,7 +203,7 @@ export function LandingPage() {
                 {/* Kaspa Battle Logo */}
                 <div className="mb-4 flex justify-center relative">
                     <span className="relative z-10 flex items-center justify-center">
-                        <img src="/kaspa-battle_logo.svg" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
+                        <img src="/kaspa-battle_logo.png" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
                     </span>
                 </div>
 

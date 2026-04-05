@@ -39,22 +39,22 @@ export default function App() {
     if (code && state) {
       // FaceIT redirected with ?code=&state= to the frontend instead of the backend callback.
       // Forward these params to the backend callback endpoint which exchanges the code and sets the session cookie.
-      console.log('🔄 FaceIT OAuth code received, forwarding to backend...');
+      console.log('\u{1F504} FaceIT OAuth code received, forwarding to backend...');
       const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
       const callbackUrl = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
 
       window.location.href = callbackUrl;
     } else if (linked) {
-      console.log('🔗 [App] ?linked=1 detected, calling fetchUser...');
+      console.log('\u{1F517} [App] ?linked=1 detected, calling fetchUser...');
       fetchUser()
         .then(() => {
-          console.log('✅ [App] fetchUser succeeded after FaceIT login');
+          console.log('\u2705 [App] fetchUser succeeded after FaceIT login');
           // Clean querystring and navigate to lobby without a full page reload.
           // window.location.replace would lose the zustand in-memory state.
           window.history.replaceState({}, document.title, '/lobby');
         })
         .catch((err) => {
-          console.error('❌ [App] fetchUser failed after FaceIT login:', err);
+          console.error('\u274C [App] fetchUser failed after FaceIT login:', err);
           window.history.replaceState({}, document.title, '/');
         });
     } else if (errorParam) {
@@ -74,7 +74,7 @@ export default function App() {
       <div className="flex items-center justify-center min-h-screen bg-kaspa-dark text-red-500 p-8 text-center">
 
         <div>
-          <div className="text-5xl mb-6">⚠️</div>
+          <div className="text-5xl mb-6">{'\u26A0\uFE0F'}</div>
           <h1 className="text-2xl font-bold mb-2">{t('common.error_title')}</h1>
           <p className="font-mono text-sm opacity-70">WASM SDK: {wasmError}</p>
           <button
@@ -110,14 +110,15 @@ export default function App() {
             <Route index element={<LandingPage />} />
             <Route path="auth/faceit/callback" element={<FaceitCallback />} />
 
-            {/* Geschützte Routen */}
-            <Route path="lobby" element={<AuthGuard><LobbyPage /></AuthGuard>} />
-            <Route path="lobby/create" element={<AuthGuard><CreateMatchPage /></AuthGuard>} />
+            {/* Oeffentliche Routen - sichtbar fuer alle */}
+            <Route path="lobby" element={<LobbyPage />} />
+            <Route path="lobby/create" element={<CreateMatchPage />} />
+            <Route path="lobby/:lobbyId" element={<LobbyPage />} />
+            <Route path="history" element={<HistoryPage />} />
 
-            <Route path="lobby/:lobbyId" element={<AuthGuard><LobbyPage /></AuthGuard>} />
+            {/* Geschuetzte Routen - AuthGuard zeigt Banner */}
             <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />
             <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
-            <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
             <Route path="profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
             <Route path="wallet/import" element={<WalletPage />} />
 

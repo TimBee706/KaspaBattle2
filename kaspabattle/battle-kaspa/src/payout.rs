@@ -1,8 +1,8 @@
-﻿/// Payout service — builds, signs, and submits real Kaspa transactions.
+/// Payout service — builds, signs, and submits real Kaspa transactions.
 ///
 /// F-001: Replaces mock TX hashes with real transaction construction.
 /// Uses the escrow wallet's private key to sign UTXO inputs via Schnorr
-/// and submits as RpcTransaction. Two outputs: 95% winner, 5% treasury.
+/// and submits as RpcTransaction. Two outputs: 99% winner, 1% treasury.
 ///
 /// F-009: execute_payout() refuses to run if the match state blocks payouts.
 use crate::errors::PayoutError;
@@ -33,8 +33,8 @@ use kaspa_rpc_core::model::tx::{
 };
 
 /// Fee percentage constants — must sum to 100.
-const WINNER_PCT: u64 = 95;
-// Treasury receives 5% total (3% protocol + 2% oracle reserve, consolidated until Phase 2)
+const WINNER_PCT: u64 = 99;
+// Treasury receives 1% total (protocol fee, consolidated until Phase 2)
 
 /// Minimum transaction mass estimate in grams (used when fee estimate unavailable).
 const ESTIMATED_TX_MASS_GRAMS: u64 = 2000;
@@ -95,8 +95,8 @@ impl PayoutService {
     /// F-001: Execute a real payout to the match winner.
     ///
     /// Builds a transaction with two outputs:
-    ///   - 95% of total_pot → winner_address
-    ///   - 5%  of total_pot → treasury_address
+    ///   - 99% of total_pot → winner_address
+    ///   -  1%  of total_pot → treasury_address
     ///
     /// Transaction inputs are the escrow UTXOs. Each input is signed with
     /// Schnorr using the escrow's private key.
@@ -530,14 +530,14 @@ mod tests {
     }
 
     #[test]
-    fn test_payout_split_95_5() {
+    fn test_payout_split_99_1() {
         let total_pot = 10_000_000u64;
         let fee = 2_000u64;
         let net_pot = total_pot.saturating_sub(fee);
         let winner_amount = net_pot * WINNER_PCT / 100;
         let treasury_amount = net_pot.saturating_sub(winner_amount);
 
-        assert!(winner_amount > treasury_amount * 15);
+        assert!(winner_amount > treasury_amount * 90);
         assert_eq!(winner_amount + treasury_amount, net_pot);
     }
 
