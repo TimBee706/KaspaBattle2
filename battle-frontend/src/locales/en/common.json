@@ -38,8 +38,8 @@
                 "1": {
                     "title": "Connect Faceit & Wallet",
                     "text": "Link your Faceit account with our platform and connect your Kaspa Wallet. This is required to track the match result and pay out your winnings.",
-                    "btn_wallet": "🔌 Connect your Wallet",
-                    "btn_faceit": "🎮 Connect your Faceit"
+                    "btn_wallet": "Connect your Wallet",
+                    "btn_faceit": "Connect your Faceit"
                 },
                 "2": {
                     "title": "Join or create a Lobby",
@@ -52,8 +52,8 @@
                 "4": {
                     "title": "Start Faceit 1vs1",
                     "text": "Now both of you switch to Faceit in our <1>KaspaBattle CS2 Club</1>. Join the <3>\"1 vs 1\"</3> club queue, start the match there and play against each other on the same server.",
-                    "btn_club": "🏰 Join Club (Invite)",
-                    "btn_queue": "⚔️ Open 1vs1 Queue"
+                    "btn_club": "Join Club (Invite)",
+                    "btn_queue": "Open 1vs1 Queue"
                 },
                 "5": {
                     "title": "Enter Match ID",
