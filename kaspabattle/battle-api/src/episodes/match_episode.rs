@@ -62,6 +62,7 @@ impl EpisodeTrait for MatchEpisode {
             "SELECT m.status, m.creator_user_id, m.opponent_user_id, \
              m.escrow_address, m.wager_sompi, m.created_at, m.faceit_finished_at, \
              m.player_a_deposit_tx_hash, m.player_b_deposit_tx_hash, \
+             m.awaiting_funding_since, m.game_id_input_since, \
              u_a.kaspa_address AS player_a_addr, \
              u_b.kaspa_address AS player_b_addr \
              FROM matches m \
@@ -80,13 +81,15 @@ impl EpisodeTrait for MatchEpisode {
             // OPEN = match created but opponent not yet joined. Still valid to
             // detect and record UTXOs so we're ready when the opponent joins.
             MatchStatus::Open | MatchStatus::AwaitingFunding => {
-                let created_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("created_at")?;
+                // Timeout: cancel match if AWAITING_FUNDING for >60 min.
+                // Uses the dedicated `awaiting_funding_since` column (set at transition time).
+                // Falls back to created_at for rows that pre-date the Phase 0 migration.
+                let awaiting_since: Option<chrono::DateTime<chrono::Utc>> =
+                    row.try_get("awaiting_funding_since").ok().flatten()
+                    .or_else(|| row.try_get("created_at").ok().flatten());
 
-                // Timeout: cancel match if waiting >60 min (based on created_at)
-                // NOTE: ideally we'd use an `awaiting_funding_since` field,
-                // but created_at is a reasonable approximation for now.
-                if let Some(created) = created_at {
-                    let age = chrono::Utc::now() - created;
+                if let Some(since) = awaiting_since {
+                    let age = chrono::Utc::now() - since;
                     if age > chrono::Duration::minutes(60) {
                         tracing::warn!(
                             match_id = %self.match_id,
@@ -346,7 +349,8 @@ impl EpisodeTrait for MatchEpisode {
                                      player_a_deposit_confirmed = true, \
                                      player_b_deposit_confirmed = true, \
                                      player_a_deposit_amount_sompi = $2, \
-                                     player_b_deposit_amount_sompi = $3 \
+                                     player_b_deposit_amount_sompi = $3, \
+                                     awaiting_funding_since = COALESCE(awaiting_funding_since, NOW()) \
                                      WHERE id = $1",
                                 )
                                 .bind(self.match_id)
@@ -436,10 +440,13 @@ impl EpisodeTrait for MatchEpisode {
             // ─── Funded: auto-transition to GAME_ID_INPUT immediately (F-010) ───
             // Both deposits are confirmed on-chain. The match is now ready for
             // players to submit their FaceIT match IDs.
-            // No FaceIT match creation here — players link an existing FaceIT match.
+            // Sets game_id_input_since for accurate GAME_ID_INPUT timeout tracking.
             MatchStatus::Funded => {
                 sqlx::query(
-                    "UPDATE matches SET status = 'GAME_ID_INPUT' WHERE id = $1 AND status = 'FUNDED'",
+                    "UPDATE matches \
+                     SET status = 'GAME_ID_INPUT', \
+                         game_id_input_since = NOW() \
+                     WHERE id = $1 AND status = 'FUNDED'",
                 )
                 .bind(self.match_id)
                 .execute(&mut *db_tx)
@@ -454,23 +461,21 @@ impl EpisodeTrait for MatchEpisode {
                 );
             }
 
-            // ─── GameIdInput: check for timeout (F-010) ─────────────────────────
-            // If players don't submit matching FaceIT IDs within 15 minutes, cancel.
+            // ─── GameIdInput: check for timeout using precise transition timestamp ─
+            // Uses `game_id_input_since` column set at FUNDED→GAME_ID_INPUT transition.
+            // Falls back to created_at for legacy rows that pre-date the Phase 0 migration.
             MatchStatus::GameIdInput => {
-                // We use created_at as a proxy here; a dedicated `game_id_input_since` column
-                // would be more precise but adds migration complexity.
-                // NOTE: The match row doesn't carry the transition timestamp yet, so we
-                // approximate: if the match entered GAME_ID_INPUT recently enough, allow it.
-                // This is a best-effort timeout check; the watcher in Phase 3 will be the
-                // authoritative timeout mechanism.
-                let created_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("created_at").ok().flatten();
-                if let Some(created) = created_at {
-                    let age = chrono::Utc::now() - created;
-                    if age > chrono::Duration::minutes(120) {
+                let since: Option<chrono::DateTime<chrono::Utc>> =
+                    row.try_get("game_id_input_since").ok().flatten()
+                    .or_else(|| row.try_get("created_at").ok().flatten());
+
+                if let Some(since) = since {
+                    let age = chrono::Utc::now() - since;
+                    if age > chrono::Duration::minutes(30) {
                         tracing::warn!(
                             match_id = %self.match_id,
                             age_min = age.num_minutes(),
-                            "⏰ GAME_ID_INPUT timeout — cancelling match (players did not submit FaceIT IDs within 120 min of creation)"
+                            "⏰ GAME_ID_INPUT timeout — cancelling match (no FaceIT IDs submitted in 30 min)"
                         );
                         sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
                             .bind(self.match_id)

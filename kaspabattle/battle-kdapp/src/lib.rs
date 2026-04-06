@@ -30,5 +30,10 @@ pub mod handler;
 pub mod proxy_config;
 pub mod startup;
 
+// ── Tournament modules (Phase 1) ─────────────────────────────────────────
+pub mod tournament_commands;
+pub mod tournament_episode;
+
+
 #[cfg(test)]
 mod engine_integration_test;

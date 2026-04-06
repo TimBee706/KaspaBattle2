@@ -4,6 +4,8 @@ pub mod csrf_guard;
 pub mod rate_limit;
 pub mod faceit;
 pub mod multisig;
+pub mod tournament;
+pub mod admin_tournament;
 /// Handler sub-modules (CQ-01: Phase 1 — types extracted; full handler migration: post-beta).
 /// See `src/api/handlers/` for the target module structure.
 pub mod handlers;
@@ -131,6 +133,8 @@ pub fn router() -> Router<AppState> {
         .route("/ws", get(ws_handler))
         .nest("/faceit", faceit::router())
         .nest("/multisig", multisig::router())
+        .nest("/tournaments", tournament::router())
+        .nest("/admin", admin_tournament::router())
         // Merge in rate-limited sub-routers
         .merge(auth_router)
         .merge(match_create_router)
