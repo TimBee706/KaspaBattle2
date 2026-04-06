@@ -212,9 +212,14 @@ export function LandingPage() {
                 {/* Vertikal gestackte Buttons (Stacked) */}
                 <div className="flex flex-col items-center justify-center gap-4 max-w-sm mx-auto">
                     {(isAuthenticated && isFullyConnected) ? (
-                        <Link to="/lobby" className="btn-primary w-full px-12 py-5 text-xl shadow-[0_0_30px_rgba(112,199,186,0.3)] hover:shadow-[0_0_50px_rgba(112,199,186,0.5)] transition-shadow text-kaspa-dark font-black flex items-center justify-center">
-                            {t('navigation.back_to_lobby')}
-                        </Link>
+                        <>
+                            <Link to="/lobby" className="btn-primary w-full px-12 py-5 text-xl shadow-[0_0_30px_rgba(112,199,186,0.3)] hover:shadow-[0_0_50px_rgba(112,199,186,0.5)] transition-shadow text-kaspa-dark font-black flex items-center justify-center">
+                                {t('navigation.back_to_lobby')}
+                            </Link>
+                            <Link to="/tournaments" className="w-full px-12 py-4 text-lg border-2 border-[#49EACB]/50 hover:border-[#49EACB] text-[#49EACB] font-black rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-[#49EACB]/5">
+                                🏆 Browse Tournaments
+                            </Link>
+                        </>
                     ) : (
                         <>
                             <Link to="/wallet/import" className="btn-primary w-full px-10 py-5 text-lg bg-kaspa-primary hover:bg-kaspa-primary/80 flex items-center gap-3 text-kaspa-dark font-black">
@@ -223,10 +228,55 @@ export function LandingPage() {
                             <button onClick={() => (isAuthenticated ? startFaceitLink() : startFaceitLogin())} className="btn-primary w-full bg-orange-600 hover:bg-orange-500 px-10 py-5 text-lg flex items-center gap-3 text-white font-black">
                                 {t('navigation.faceit_login')}
                             </button>
+                            <Link to="/tournaments" className="w-full px-12 py-4 text-base border border-[#49EACB]/30 hover:border-[#49EACB]/60 text-[#49EACB] font-semibold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-[#49EACB]/5">
+                                🏆 View Tournaments
+                            </Link>
                         </>
                     )}
+                </div>
+            </section>
+
+            {/* Tournament Mode Feature Callout */}
+            <section className="py-16 border-t border-kaspa-border">
+                <div className="max-w-4xl mx-auto px-4">
+                    <div className="relative rounded-3xl overflow-hidden border border-[#49EACB]/20 bg-gradient-to-br from-[#0d2a1a] to-[#0a0f14] p-8 md:p-12 shadow-[0_0_80px_rgba(73,234,203,0.08)]">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#49EACB]/5 blur-3xl rounded-full -z-0" />
+                        <div className="relative z-10">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#49EACB]/10 border border-[#49EACB]/20 rounded-full text-[#49EACB] text-xs font-bold tracking-widest uppercase mb-6">
+                                🏆 New — Tournament Mode
+                            </div>
+                            <h2 className="text-3xl md:text-4xl font-black text-white mb-4 leading-tight">
+                                Compete in full <span className="text-[#49EACB]">Kaspa Tournaments</span>
+                            </h2>
+                            <p className="text-gray-400 text-lg mb-8 max-w-xl">
+                                Join or create multi-team brackets with automated KAS prize distribution.
+                                Every buy-in goes into an on-chain escrow. The winner takes the pot — automatically.
+                            </p>
+                            <div className="grid sm:grid-cols-3 gap-4 mb-8">
+                                {[
+                                    { icon: '🗂️', title: 'Bracket Format', text: 'Single-elimination, auto-seeded' },
+                                    { icon: '💸', title: 'On-Chain Payouts', text: 'Automatic multi-output TX after finals' },
+                                    { icon: '⚖️', title: 'Dispute System', text: 'File disputes, admin resolves on-chain' },
+                                ].map((f, i) => (
+                                    <div key={i} className="bg-black/20 border border-white/5 rounded-xl p-4">
+                                        <div className="text-2xl mb-2">{f.icon}</div>
+                                        <div className="font-bold text-white text-sm mb-1">{f.title}</div>
+                                        <div className="text-gray-500 text-xs">{f.text}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <Link
+                                to="/tournaments"
+                                id="landing-tournaments-cta"
+                                className="inline-flex items-center gap-2 px-8 py-4 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#0a0f14] font-black rounded-xl transition-all shadow-[0_0_24px_rgba(73,234,203,0.3)] hover:shadow-[0_0_40px_rgba(73,234,203,0.5)]"
+                            >
+                                Browse Tournaments →
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>
     );
 }
+

@@ -19,6 +19,7 @@ mod models;
 mod services;
 mod payout_worker;
 mod refund_worker;
+mod tournament_payout_worker;
 
 fn try_load_dotenv() -> Vec<std::path::PathBuf> {
     let mut candidates = Vec::new();
@@ -643,6 +644,17 @@ async fn main() {
     } else {
         tracing::info!("ℹ️ Refund Worker disabled (MultisigEscrowService not available)");
     }
+
+    // ── Tournament Workers (Phase 2) ──────────────────────────────────────────
+    // Deposit watcher: scans tournament escrow UTXOs every 30s.
+    // Payout executor: runs every 60s for COMPLETED tournaments.
+    crate::tournament_payout_worker::spawn_tournament_workers(
+        Arc::new(state.pool.clone()),
+        state.escrow_service.clone(),
+        state.blockchain_watcher.clone(),
+        state.payout_service.clone(),
+    );
+    tracing::info!("✅ Tournament workers spawned");
 
     // ── kdapp Engine + Proxy (v0.7 — on-chain Episode processing) ─────────
     // Runs parallel to the legacy episode-runner above.

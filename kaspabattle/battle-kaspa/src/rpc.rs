@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 
 // ── Shared Types ─────────────────────────────────────────────────────────────
 pub use battle_core::kaspa_backend::{
-    FeeEstimate, KaspaBackend, KaspaError, NodeInfo, UtxoInfo,
+    FeeEstimate, KaspaBackend, KaspaError, NodeInfo, TxInputInfo, UtxoInfo,
 };
 
 // Trait is now defined in battle_core::kaspa_backend
@@ -377,6 +377,31 @@ impl KaspaBackend for RealKaspaClient {
             .map_err(|e| KaspaError::RpcError(format!("get_server_info failed: {}", e)))?;
 
         Ok(info.virtual_daa_score)
+    }
+
+    /// Fetch transaction inputs with resolved sender addresses.
+    ///
+    /// **Note (kaspa-rpc-core v0.15.0 limitation):** The Kaspa wRPC API does not yet
+    /// expose a dedicated `get_transaction_by_id` endpoint in this version. As a result,
+    /// this implementation always returns `Ok(None)`, meaning sender attribution must
+    /// fall back to the heuristic deposit accumulator in `BlockchainWatcher`.
+    ///
+    /// This trait method is defined for forward compatibility. When the Kaspa node adds
+    /// a tx-index RPC query, this implementation should be updated to use it.
+    ///
+    /// Workaround alternatives (not implemented here):
+    /// - `get_mempool_entries_by_addresses()` — works for unconfirmed TXs only
+    /// - Block-scan via `get_block()` — expensive, requires block hash
+    /// - Dedicated tx-index via `--txindex` flag (kaspad v0.16+)
+    async fn get_transaction(
+        &self,
+        tx_id: &str,
+    ) -> std::result::Result<Option<Vec<TxInputInfo>>, KaspaError> {
+        tracing::debug!(
+            tx_id = %tx_id,
+            "get_transaction: not available in kaspa-rpc-core v0.15.0, returning None"
+        );
+        Ok(None)
     }
 
     /// Block until the node reports is_synced=true and has_utxo_index=true.

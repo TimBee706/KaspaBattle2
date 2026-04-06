@@ -1,14 +1,10 @@
-﻿/// Mock Kaspa client for testing without a live Kaspa node.
-///
-/// Implements `KaspaRpc` with in-memory balances, UTXOs, and TX tracking.
-/// Updated signature: `submit_transaction` now accepts `Transaction` object.
 use async_trait::async_trait;
 use kaspa_rpc_core::model::tx::RpcTransaction;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::rpc::{FeeEstimate, KaspaBackend, KaspaError, NodeInfo, UtxoInfo};
+use crate::rpc::{FeeEstimate, KaspaBackend, KaspaError, NodeInfo, TxInputInfo, UtxoInfo};
 
 /// A mock implementation of KaspaRpc for development and testing.
 ///
@@ -23,6 +19,9 @@ pub struct MockKaspaClient {
     synced: Arc<Mutex<bool>>,
     /// Controls `get_current_daa_score()` response (default: 1000).
     current_daa_score: Arc<Mutex<u64>>,
+    /// Registered fake transactions for `get_transaction()` responses.
+    /// Key: tx_id string, Value: list of TxInputInfo.
+    registered_transactions: Arc<Mutex<HashMap<String, Vec<TxInputInfo>>>>,
 }
 
 impl MockKaspaClient {
@@ -35,6 +34,7 @@ impl MockKaspaClient {
             connected: Arc::new(Mutex::new(true)),
             synced: Arc::new(Mutex::new(true)),
             current_daa_score: Arc::new(Mutex::new(1000)),
+            registered_transactions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -74,6 +74,25 @@ impl MockKaspaClient {
     pub fn set_connected(&self, connected: bool) {
         let mut c = self.connected.lock().expect("lock poisoned");
         *c = connected;
+    }
+
+    /// Register a fake transaction for `get_transaction()` test responses.
+    ///
+    /// # Example
+    /// ```
+    /// mock.register_transaction(
+    ///     "abc123",
+    ///     vec![TxInputInfo {
+    ///         previous_tx_id: "prev_tx".into(),
+    ///         previous_output_index: 0,
+    ///         sender_address: Some("kaspatest:qalice".into()),
+    ///         amount_sompi: 10_000_000_000,
+    ///     }],
+    /// );
+    /// ```
+    pub fn register_transaction(&self, tx_id: &str, inputs: Vec<TxInputInfo>) {
+        let mut txs = self.registered_transactions.lock().expect("lock poisoned");
+        txs.insert(tx_id.to_string(), inputs);
     }
 }
 
@@ -179,6 +198,14 @@ impl KaspaBackend for MockKaspaClient {
     async fn wait_for_sync(&self, _timeout: std::time::Duration) -> Result<(), KaspaError> {
         // Mock is always ready
         Ok(())
+    }
+
+    async fn get_transaction(
+        &self,
+        tx_id: &str,
+    ) -> Result<Option<Vec<TxInputInfo>>, KaspaError> {
+        let txs = self.registered_transactions.lock().expect("lock poisoned");
+        Ok(txs.get(tx_id).cloned())
     }
 }
 

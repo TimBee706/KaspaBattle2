@@ -25,6 +25,7 @@ export function Header() {
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6">
                         <Link to="/lobby" className="text-gray-300 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
+                        <Link to="/tournaments" className="text-gray-300 hover:text-[#49EACB] transition-colors font-semibold">🏆 Tournaments</Link>
                         <Link to="/lobby/create" className="text-gray-300 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
                         <Link to="/history" className="text-gray-300 hover:text-white transition-colors">{t('navigation.history')}</Link>
                     </nav>

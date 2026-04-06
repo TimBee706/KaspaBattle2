@@ -1,4 +1,4 @@
-﻿//! # FaceIT Watcher Service (F-010 / Phase 3)
+//! # FaceIT Watcher Service (F-010 / Phase 3)
 //!
 //! Background Tokio task that polls all active `faceit_watcher_jobs` rows
 //! from the DB and calls the FaceIT Data API for each one.
@@ -39,6 +39,9 @@ pub struct WatcherJob {
     pub faceit_match_id: String,
     pub retry_count: i32,
     pub max_retries: i32,
+    /// Phase 4: if set, this job tracks a tournament bracket slot (not a 1v1 match).
+    pub tournament_bracket_slot_id: Option<Uuid>,
+    pub tournament_id: Option<Uuid>,
 }
 
 /// Configuration for the watcher service.
@@ -124,7 +127,8 @@ pub async fn run_faceit_watcher(
 /// Loads all ACTIVE watcher jobs whose `next_poll_at` is in the past.
 async fn fetch_active_jobs(pool: &PgPool) -> Result<Vec<WatcherJob>, sqlx::Error> {
     let rows = sqlx::query(
-        "SELECT id, match_id, faceit_match_id, retry_count, max_retries \
+        "SELECT id, match_id, faceit_match_id, retry_count, max_retries, \
+                tournament_bracket_slot_id, tournament_id \
          FROM faceit_watcher_jobs \
          WHERE status = 'ACTIVE' AND next_poll_at <= NOW() \
          ORDER BY next_poll_at ASC \
@@ -141,6 +145,8 @@ async fn fetch_active_jobs(pool: &PgPool) -> Result<Vec<WatcherJob>, sqlx::Error
             faceit_match_id: row.try_get("faceit_match_id")?,
             retry_count: row.try_get("retry_count")?,
             max_retries: row.try_get("max_retries")?,
+            tournament_bracket_slot_id: row.try_get("tournament_bracket_slot_id").unwrap_or(None),
+            tournament_id: row.try_get("tournament_id").unwrap_or(None),
         });
     }
     Ok(jobs)
@@ -276,9 +282,14 @@ async fn process_job(
     );
 
     match faceit_status {
-        // ── Match finished — extract winner, update DB ───────────────────────
+        // ── Match finished: route to correct handler ─────────────────────────
         "finished" => {
-            handle_match_finished(pool, job, &details).await?;
+            // Phase 4: if this is a tournament bracket job, use the bracket oracle
+            if let (Some(slot_id), Some(tournament_id)) = (job.tournament_bracket_slot_id, job.tournament_id) {
+                handle_bracket_finished(pool, job, &details, slot_id, tournament_id).await?;
+            } else {
+                handle_match_finished(pool, job, &details).await?;
+            }
         }
 
         // ── Match cancelled/aborted — cancel KaspaBattle match ──────────────
@@ -518,6 +529,95 @@ async fn handle_match_finished(
 
     // Mark job as COMPLETED regardless (prevents re-polling)
     mark_job_terminal(pool, job.id, "COMPLETED", None).await?;
+
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4: Tournament bracket result handler
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Called when a FaceIT match tied to a `tournament_bracket_slot_id` finishes.
+///
+/// Extracts the winner faction + score from FaceIT match details, then calls the
+/// tournament oracle to advance the bracket and detect finals/completion.
+async fn handle_bracket_finished(
+    pool: &PgPool,
+    job: &WatcherJob,
+    details: &crate::models::faceit_data::FaceitMatchDetails,
+    bracket_slot_id: Uuid,
+    tournament_id: Uuid,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    info!(
+        tournament_id = %tournament_id,
+        bracket_slot_id = %bracket_slot_id,
+        faceit_match_id = %job.faceit_match_id,
+        "FaceIT Watcher: bracket match finished"
+    );
+
+    // Extract winner faction
+    let winner_faction = match &details.results {
+        Some(r) if !r.winner.is_empty() => r.winner.clone(),
+        _ => {
+            error!(
+                bracket_slot_id = %bracket_slot_id,
+                "FaceIT Watcher: bracket match finished but results.winner is missing — marking DISPUTED"
+            );
+            // Mark the slot as disputed
+            let _ = sqlx::query(
+                "UPDATE tournament_bracket \
+                 SET disputed = TRUE, dispute_reason = 'FaceIT results.winner field missing', \
+                     dispute_filed_at = NOW(), updated_at = NOW() \
+                 WHERE id = $1",
+            )
+            .bind(bracket_slot_id)
+            .execute(pool)
+            .await;
+            mark_job_terminal(pool, job.id, "FAILED", Some("Bracket: results.winner missing")).await?;
+            return Ok(());
+        }
+    };
+
+    // Build score string
+    let score_str = details.results.as_ref().map(|r| {
+        let s1 = r.score.get("faction1").copied().unwrap_or(0);
+        let s2 = r.score.get("faction2").copied().unwrap_or(0);
+        format!("{}:{}", s1, s2)
+    }).unwrap_or_else(|| "?:?".to_string());
+
+    // Create a dummy broadcast sender (oracle only uses it for WebSocket events;
+    // the main WS channel is not accessible here — Phase 5 will wire this properly).
+    let (ws_tx, _) = tokio::sync::broadcast::channel::<String>(16);
+
+    match crate::oracle::tournament_oracle::process_bracket_result(
+        pool,
+        bracket_slot_id,
+        tournament_id,
+        &winner_faction,
+        &score_str,
+        &ws_tx,
+    )
+    .await
+    {
+        Ok(()) => {
+            info!(
+                bracket_slot_id = %bracket_slot_id,
+                winner_faction = %winner_faction,
+                score = %score_str,
+                "✅ Bracket result processed"
+            );
+            mark_job_terminal(pool, job.id, "COMPLETED", None).await?;
+        }
+        Err(e) => {
+            error!(
+                bracket_slot_id = %bracket_slot_id,
+                error = %e,
+                "❌ Bracket oracle failed — slot may need admin review"
+            );
+            // Mark job FAILED but don't dispute the slot — admin can review
+            mark_job_terminal(pool, job.id, "FAILED", Some(&format!("Oracle error: {}", e))).await?;
+        }
+    }
 
     Ok(())
 }

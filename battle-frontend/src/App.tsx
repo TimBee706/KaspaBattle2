@@ -17,6 +17,10 @@ import { EscrowPage } from './pages/EscrowPage';
 import { WhitepaperPage } from './pages/WhitepaperPage';
 import { TermsPage } from './pages/TermsPage';
 import { SupportPage } from './pages/SupportPage';
+import { TournamentListPage } from './pages/TournamentListPage';
+import { TournamentDetailPage } from './pages/TournamentDetailPage';
+import { TournamentResultsPage } from './pages/TournamentResultsPage';
+import { TournamentAdminPage } from './pages/TournamentAdminPage';
 
 import { useAuthStore } from './stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
@@ -109,6 +113,10 @@ export default function App() {
             <Route path="whitepaper" element={<WhitepaperPage />} />
             <Route path="terms" element={<TermsPage />} />
             <Route path="support" element={<SupportPage />} />
+            <Route path="tournaments" element={<TournamentListPage />} />
+            <Route path="tournaments/:id" element={<TournamentDetailPage />} />
+            <Route path="tournaments/:id/results" element={<TournamentResultsPage />} />
+            <Route path="admin/tournaments" element={<AuthGuard><TournamentAdminPage /></AuthGuard>} />
 
             {/* Geschützte Routen - AuthGuard zeigt Banner */}
             <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />

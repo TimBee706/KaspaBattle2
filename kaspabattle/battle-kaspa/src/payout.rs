@@ -439,6 +439,250 @@ impl PayoutService {
     }
 }
 
+// ── Phase 3: Multi-Output Tournament Payout ───────────────────────────────────
+
+/// Parameters for a tournament multi-output payout.
+///
+/// `outputs` is a vec of (kaspa_address, amount_sompi) — order: winner, runner-up, treasury.
+pub struct TournamentPayoutParams {
+    pub escrow_address: String,
+    pub outputs: Vec<(String, u64)>,
+}
+
+/// Result of a tournament multi-output payout or refund.
+#[derive(Debug, Clone)]
+pub struct TournamentPayoutResult {
+    pub tx_id: String,
+    pub total_sompi: u64,
+    pub fee_sompi: u64,
+    pub output_count: usize,
+}
+
+impl PayoutService {
+    /// Execute a multi-output payout for a completed tournament.
+    ///
+    /// Builds a single transaction from the tournament escrow with one output
+    /// per entry in `params.outputs`. Useful for N-way prize splits.
+    pub async fn execute_tournament_payout(
+        &self,
+        params: &TournamentPayoutParams,
+    ) -> Result<TournamentPayoutResult, PayoutError> {
+        if params.outputs.is_empty() {
+            return Err(PayoutError::TxBuildError(
+                "Tournament payout requires at least one output".to_string(),
+            ));
+        }
+
+        // Node sync check
+        let synced = self
+            .rpc_client
+            .is_synced()
+            .await
+            .map_err(PayoutError::KaspaRpcError)?;
+        if !synced {
+            return Err(PayoutError::NodeNotReady);
+        }
+
+        // Fee estimate
+        let fee_estimate = self
+            .rpc_client
+            .get_fee_estimate()
+            .await
+            .map_err(PayoutError::KaspaRpcError)?;
+        // Scale fee with number of outputs (larger TX = more mass)
+        let output_count = params.outputs.len() as u64;
+        let estimated_mass = ESTIMATED_TX_MASS_GRAMS + output_count * 300;
+        let fee_sompi = ((fee_estimate.normal_bucket_feerate * estimated_mass as f64).ceil() as u64)
+            .max(1000);
+
+        // Get total requested payout
+        let total_requested: u64 = params.outputs.iter().map(|(_, amt)| *amt).sum();
+
+        // Validate escrow balance
+        let is_valid = self
+            .validate_escrow_balance(&params.escrow_address, total_requested)
+            .await?;
+        if !is_valid {
+            let found = self
+                .rpc_client
+                .get_balance(&params.escrow_address)
+                .await
+                .unwrap_or(0);
+            return Err(PayoutError::InsufficientEscrowBalance {
+                expected: total_requested,
+                found,
+            });
+        }
+
+        // Get UTXOs
+        let utxos = self
+            .rpc_client
+            .get_utxos(&params.escrow_address)
+            .await
+            .map_err(PayoutError::KaspaRpcError)?;
+
+        if utxos.is_empty() {
+            return Err(PayoutError::InsufficientEscrowBalance {
+                expected: total_requested,
+                found: 0,
+            });
+        }
+
+        // Retrieve escrow signing key
+        let private_key_bytes = {
+            let keys = self.escrow_private_keys.lock().await;
+            keys.get(&params.escrow_address)
+                .copied()
+                .ok_or_else(|| PayoutError::SigningKeyNotFound(params.escrow_address.clone()))?
+        };
+
+        // Build escrow script_public_key for UTXO entries
+        let escrow_addr = Address::try_from(params.escrow_address.as_str())
+            .map_err(|e| PayoutError::TxBuildError(format!("Invalid escrow address: {}", e)))?;
+        let escrow_script_pk = pay_to_address_script(&escrow_addr);
+
+        // Build outputs — deduct fee proportionally from all outputs
+        let total_after_fee = total_requested.saturating_sub(fee_sompi);
+        let outputs: Vec<TransactionOutput> = params
+            .outputs
+            .iter()
+            .enumerate()
+            .map(|(i, (addr_str, amount))| {
+                let adjusted = if total_requested > 0 {
+                    // Pro-rata fee deduction
+                    (*amount * total_after_fee) / total_requested
+                } else {
+                    *amount
+                };
+                // Give any rounding remainder to the last output
+                let final_amount = if i == params.outputs.len() - 1 {
+                    total_after_fee.saturating_sub(
+                        params.outputs[..i]
+                            .iter()
+                            .map(|(_, a)| (*a * total_after_fee) / total_requested)
+                            .sum::<u64>(),
+                    )
+                } else {
+                    adjusted
+                };
+
+                let addr = Address::try_from(addr_str.as_str())
+                    .expect("Invalid output address — validated before this point");
+                TransactionOutput {
+                    value: final_amount,
+                    script_public_key: pay_to_address_script(&addr),
+                }
+            })
+            .collect();
+
+        // Build inputs
+        let inputs: Vec<TransactionInput> = utxos
+            .iter()
+            .map(|u| TransactionInput {
+                previous_outpoint: TransactionOutpoint {
+                    transaction_id: TransactionId::from_slice(
+                        &hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]),
+                    ),
+                    index: u.output_index,
+                },
+                signature_script: vec![],
+                sequence: u64::MAX,
+                sig_op_count: 1,
+            })
+            .collect();
+
+        let mut tx = Transaction::new(0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, vec![]);
+
+        let utxo_entries: Vec<UtxoEntry> = utxos
+            .iter()
+            .map(|u| UtxoEntry {
+                amount: u.amount,
+                script_public_key: escrow_script_pk.clone(),
+                block_daa_score: u.block_daa_score,
+                is_coinbase: u.is_coinbase,
+            })
+            .collect();
+
+        // Sign — two-pass pattern to avoid borrow conflicts
+        let secp = secp256k1::Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_slice(&private_key_bytes)
+            .map_err(|e| PayoutError::TxBuildError(format!("Invalid secret key: {}", e)))?;
+        let keypair = secp256k1::Keypair::from_secret_key(&secp, &sk);
+
+        let sighashes: Vec<kaspa_hashes::Hash> = {
+            let mut reused_values = SigHashReusedValues::new();
+            let populated = PopulatedTransaction::new(&tx, utxo_entries);
+            (0..tx.inputs.len())
+                .map(|i| calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values))
+                .collect()
+        };
+
+        for (i, sighash) in sighashes.iter().enumerate() {
+            let msg = secp256k1::Message::from_digest(sighash.as_bytes());
+            let sig = secp.sign_schnorr(&msg, &keypair);
+            let mut script = Vec::with_capacity(66);
+            script.push(0x41);
+            script.extend_from_slice(&sig.serialize());
+            script.push(SIG_HASH_ALL.to_u8());
+            tx.inputs[i].signature_script = script;
+        }
+
+        let rpc_tx = transaction_to_rpc(tx);
+        let payload = serde_json::to_string(&rpc_tx)
+            .map_err(|e| PayoutError::TxBuildError(format!("Serialization failed: {}", e)))?;
+
+        let submitted_id = self
+            .rpc_client
+            .submit_transaction(&payload)
+            .await
+            .map_err(PayoutError::KaspaRpcError)?;
+
+        tracing::info!(
+            "🏆 Tournament payout TX {} submitted: {} output(s), {} sompi total, {} sompi fee",
+            submitted_id,
+            params.outputs.len(),
+            total_requested,
+            fee_sompi
+        );
+
+        for (addr, amt) in &params.outputs {
+            tracing::info!("  → {} sompi → {}", amt, addr);
+        }
+
+        Ok(TournamentPayoutResult {
+            tx_id: submitted_id,
+            total_sompi: total_requested,
+            fee_sompi,
+            output_count: params.outputs.len(),
+        })
+    }
+
+    /// Execute refunds for all teams in a cancelled tournament.
+    ///
+    /// For each team, sends their buy-in back to the captain's Kaspa address.
+    /// All refunds are batched into a single transaction (N outputs) to minimise fees.
+    pub async fn execute_tournament_refund(
+        &self,
+        escrow_address: &str,
+        refund_outputs: Vec<(String /* kaspa_address */, u64 /* sompi */)>,
+    ) -> Result<TournamentPayoutResult, PayoutError> {
+        if refund_outputs.is_empty() {
+            return Ok(TournamentPayoutResult {
+                tx_id: "no-refund-needed".to_string(),
+                total_sompi: 0,
+                fee_sompi: 0,
+                output_count: 0,
+            });
+        }
+
+        let params = TournamentPayoutParams {
+            escrow_address: escrow_address.to_string(),
+            outputs: refund_outputs,
+        };
+        self.execute_tournament_payout(&params).await
+    }
+}
+
 /// Convert a consensus Transaction to an RpcTransaction for submission.
 fn transaction_to_rpc(tx: Transaction) -> RpcTransaction {
     RpcTransaction {
