@@ -49,7 +49,7 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - .env.docker
+      - .env.production
     environment:
       # Override to use Docker service names instead of localhost
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
