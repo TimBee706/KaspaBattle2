@@ -44,6 +44,19 @@ export function FaceitCallback() {
         const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
         const backendCallback = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
         console.log('🔄 FACEIT callback: forwarding to backend...', backendCallback);
+        
+        try {
+            // FACEIT renders our redirect_uri inside an invisible iframe if not opened in a popup.
+            // We MUST escape this iframe so the top-level browser window goes to our backend!
+            if (window !== window.top) {
+                console.log('⛓️ Detected FACEIT iframe jail. Breaking out...');
+                window.top!.location.href = backendCallback;
+                return;
+            }
+        } catch (e) {
+            console.warn('⚠️ Frame-bust failed (CORS), falling back to frame-navigation', e);
+        }
+
         window.location.replace(backendCallback);
     }, [searchParams]);
 
