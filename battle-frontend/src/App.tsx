@@ -31,8 +31,6 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
     const linked = params.get('linked');
     const errorParam = params.get('error');
 
