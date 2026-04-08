@@ -90,11 +90,31 @@ services:
       retries: 5
       start_period: 30s
 
+  # ── Caddy Reverse Proxy ─────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
 volumes:
   pgdata:
     name: kaspabattle_pgdata
   kaspa-data:
     name: kaspabattle_kaspa_data
+  caddy_data:
+    name: kaspabattle_caddy_data
+  caddy_config:
+    name: kaspabattle_caddy_config
 
 networks:
   default:
