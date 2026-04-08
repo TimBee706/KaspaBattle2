@@ -18,7 +18,7 @@ export default defineConfig({
     target: 'esnext',
   },
   server: {
-    port: 3000,
+    port: 5173,
     allowedHosts: true, // Erlaubt Ngrok und andere Tunnel
     fs: {
       allow: ['..']
