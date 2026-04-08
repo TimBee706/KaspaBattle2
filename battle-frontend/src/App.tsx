@@ -36,15 +36,7 @@ export default function App() {
     const linked = params.get('linked');
     const errorParam = params.get('error');
 
-    if (code && state) {
-      // FaceIT redirected with ?code=&state= to the frontend instead of the backend callback.
-      // Forward these params to the backend callback endpoint which exchanges the code and sets the session cookie.
-      console.log('\u{1F504} FaceIT OAuth code received, forwarding to backend...');
-      const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-      const callbackUrl = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-
-      window.location.href = callbackUrl;
-    } else if (linked) {
+    if (linked) {
       console.log('\u{1F517} [App] ?linked=1 detected, calling fetchUser...');
       fetchUser()
         .then(() => {

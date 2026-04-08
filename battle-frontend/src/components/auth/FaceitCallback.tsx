@@ -33,6 +33,13 @@ export function FaceitCallback() {
             return;
         }
 
+        // Prevent React 18 StrictMode double-fire which invalidates the OAuth state
+        const dedupeKey = `oauth_bounce_${state}`;
+        if (sessionStorage.getItem(dedupeKey)) {
+            return;
+        }
+        sessionStorage.setItem(dedupeKey, '1');
+
         // Forward to backend — backend handles token exchange + session-bounce
         const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
         const backendCallback = `${apiBase}/faceit/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;

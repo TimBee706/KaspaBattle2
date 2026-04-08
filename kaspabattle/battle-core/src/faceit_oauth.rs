@@ -1,4 +1,4 @@
-﻿use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
@@ -72,8 +72,7 @@ impl FaceitOAuthService {
             .append_pair("scope", "openid email profile")
             .append_pair("state", &state)
             .append_pair("code_challenge", &code_challenge)
-            .append_pair("code_challenge_method", "S256")
-            .append_pair("redirect_popup", "true");
+            .append_pair("code_challenge_method", "S256");
 
         let pending_state = OAuthPendingState {
             state: state.clone(),
