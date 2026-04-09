@@ -96,15 +96,30 @@ export const useAuthStore = create<AuthState>()(
 
             fetchUser: async () => {
                 try {
-                    const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
-                    const user = res.data;
-                    if (import.meta.env.DEV) {
-                        const prev = get().user;
-                        if (prev?.faceit_connected && !user.faceit_connected) {
-                            console.warn('[AuthStore] fetchUser would lose FACEIT data!', { prev, next: user });
+                    let attempts = 0;
+                    const maxAttempts = 5;
+                    while (attempts < maxAttempts) {
+                        try {
+                            const res = await (await import('../api/client')).default.get<UserProfile>('/auth/me');
+                            const user = res.data;
+                            if (import.meta.env.DEV) {
+                                const prev = get().user;
+                                if (prev?.faceit_connected && !user.faceit_connected) {
+                                    console.warn('[AuthStore] fetchUser would lose FACEIT data!', { prev, next: user });
+                                }
+                            }
+                            applyUserState(set, user);
+                            break; // Success, exit loop
+                        } catch (err: any) {
+                            attempts++;
+                            if (err?.response?.status === 429 && attempts < maxAttempts) {
+                                console.warn(`[AuthStore] fetchUser rate limited (429). Retrying... (Attempt ${attempts} of ${maxAttempts})`);
+                                await new Promise((resolve) => setTimeout(resolve, 2000 * attempts));
+                            } else {
+                                throw err;
+                            }
                         }
                     }
-                    applyUserState(set, user);
                 } finally {
                     set({ isAuthLoading: false });
                 }

@@ -7,13 +7,13 @@
 //!
 //! | Tier | Endpoints | Limit |
 //! |---|---|---|
-//! | `auth` | wallet-challenge, wallet-verify, logout | 5 req/min per IP |
+//! | `auth` | wallet-challenge, wallet-verify, logout | 30 req/min per IP |
 //! | `match_create` | POST /challenges | 3 req/min per IP |
 //! | `global` | All other API routes | 120 req/min per IP |
 //!
 //! ## Configuration (env vars)
 //!
-//! - `RATE_LIMIT_AUTH_RPM` — Auth requests per minute per IP (default: 5)
+//! - `RATE_LIMIT_AUTH_RPM` — Auth requests per minute per IP (default: 30)
 //! - `RATE_LIMIT_GLOBAL_RPM` — Global requests per minute per IP (default: 120)
 //! - `RATE_LIMIT_MATCH_RPM` — Match-create requests per minute per IP (default: 3)
 
@@ -54,12 +54,12 @@ pub fn build_ip_limiter(rpm: u32) -> IpRateLimiter {
     Arc::new(RateLimiter::keyed(quota))
 }
 
-/// Read `RATE_LIMIT_AUTH_RPM` from env (default: 5).
+/// Read `RATE_LIMIT_AUTH_RPM` from env (default: 30).
 pub fn auth_rpm() -> u32 {
     std::env::var("RATE_LIMIT_AUTH_RPM")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(5)
+        .unwrap_or(30)
 }
 
 /// Read `RATE_LIMIT_GLOBAL_RPM` from env (default: 120).

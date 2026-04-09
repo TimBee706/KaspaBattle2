@@ -27,7 +27,7 @@ export function Header() {
 
                 <div className="flex items-center gap-4">
                     {/* DEV Test Mode Toggle */}
-                    {import.meta.env.MODE === 'development' && (
+                    {import.meta.env.VITE_ENABLE_TEST_MODE === 'true' && (
                         <div className="flex items-center gap-2 mr-2 bg-kaspa-dark/50 px-3 py-1.5 rounded-lg border border-kaspa-border">
                             <label className="text-xs text-gray-400 font-mono cursor-pointer" onClick={() => setTestMode(!testMode)}>
                                 {t('common.header.test_mode')}
