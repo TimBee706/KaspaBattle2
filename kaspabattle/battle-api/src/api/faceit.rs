@@ -348,6 +348,11 @@ async fn faceit_status(
 
 // ── /faceit/profile ────────────────────────────────────────────────────────
 
+#[derive(Deserialize)]
+struct FaceitProfileQuery {
+    game: Option<String>,
+}
+
 #[derive(Serialize)]
 struct FaceitProfileApiResponse {
     faceit_player_id: String,
@@ -364,6 +369,7 @@ struct FaceitProfileApiResponse {
 async fn faceit_profile(
     State(state): State<AppState>,
     user: crate::api::auth_guard::SessionUserNoWallet,
+    Query(query): Query<FaceitProfileQuery>,
 ) -> Result<Json<FaceitProfileApiResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
 
@@ -409,6 +415,9 @@ async fn faceit_profile(
     let cache_updated_at: Option<chrono::DateTime<chrono::Utc>> =
         row.try_get("faceit_cache_updated_at").unwrap_or(None);
 
+    let requested_game_id_raw = query.game.as_deref().unwrap_or("cs2");
+    let requested_game_id = validate_game_id(requested_game_id_raw)?;
+
     // TTL check: if cache is <5 min old, return cached data directly
     let cache_fresh = cache_updated_at
         .map(|ts| (chrono::Utc::now() - ts).num_seconds() < FACEIT_CACHE_TTL_SECS)
@@ -426,7 +435,9 @@ async fn faceit_profile(
             country: String::new(),
             elo: cached_elo.unwrap_or(0),
             skill_level: cached_level.unwrap_or(0),
-            games: vec!["cs2".to_string()],
+            // TODO(R-01): Persist games list in DB (e.g. faceit_games_cache column)
+            // and return it here. Empty vec hides the frontend game selector on cache hits.
+            games: vec![],
             faceit_url: format!("https://www.faceit.com/en/players/{}", cached_nick),
             is_cached: true,
         }));
@@ -440,11 +451,13 @@ async fn faceit_profile(
 
     match faceit_data_svc.get_player_by_id(&player_id).await {
         Ok(profile) => {
-            // Extract game-specific ELO (default to cs2)
+            // Extract game-specific ELO by requested game_id, fallback to cs2 or any available game.
             let (elo, skill_level) = profile
                 .games
-                .get("cs2")
+                .get(requested_game_id)
                 .map(|g| (g.faceit_elo, g.skill_level))
+                .or_else(|| profile.games.get("cs2").map(|g| (g.faceit_elo, g.skill_level)))
+                .or_else(|| profile.games.values().next().map(|g| (g.faceit_elo, g.skill_level)))
                 .unwrap_or((cached_elo.unwrap_or(0), cached_level.unwrap_or(0)));
 
             // Update cache in DB (including timestamp)
@@ -485,7 +498,8 @@ async fn faceit_profile(
                 country: String::new(),
                 elo: cached_elo.unwrap_or(0),
                 skill_level: cached_level.unwrap_or(0),
-                games: vec!["cs2".to_string()],
+                // TODO(R-01): Return cached games list once persisted in DB.
+                games: vec![],
                 faceit_url: format!("https://www.faceit.com/en/players/{}", cached_nick),
                 is_cached: true,
             }))
@@ -767,8 +781,8 @@ async fn faceit_disconnect(
 
 #[cfg(test)]
 mod tests {
-    use super::{infer_return_to, sanitize_return_to};
-    use axum::http::{HeaderMap, HeaderValue};
+    use super::{infer_return_to, sanitize_return_to, validate_game_id};
+    use axum::http::{HeaderMap, HeaderValue, StatusCode};
 
     #[test]
     fn sanitize_return_to_keeps_http_urls_and_removes_fragments() {
@@ -808,5 +822,31 @@ mod tests {
         );
 
         assert_eq!(infer_return_to(&headers), "https://demo.ngrok-free.dev");
+    }
+
+    #[test]
+    fn validate_game_id_allows_valorant() {
+        assert_eq!(validate_game_id("valorant").unwrap(), "valorant");
+    }
+
+    #[test]
+    fn validate_game_id_allows_rocket_league() {
+        assert_eq!(validate_game_id("rocket_league").unwrap(), "rocket_league");
+    }
+
+    #[test]
+    fn validate_game_id_allows_dota2() {
+        assert_eq!(validate_game_id("dota2").unwrap(), "dota2");
+    }
+
+    #[test]
+    fn validate_game_id_allows_lol() {
+        assert_eq!(validate_game_id("lol").unwrap(), "lol");
+    }
+
+    #[test]
+    fn validate_game_id_rejects_unknown_game_id() {
+        let err = validate_game_id("unknown").unwrap_err();
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
     }
 }

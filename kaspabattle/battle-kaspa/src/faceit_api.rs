@@ -1,4 +1,4 @@
-﻿use crate::models::faceit_data::FaceitMatchDetails;
+use crate::models::faceit_data::FaceitMatchDetails;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -57,53 +57,32 @@ impl FaceitApiClient {
     }
 
     /// Überprüft, ob beide Spieler (anhand ihrer FACEIT-Guids) im Match waren
+    /// und ob das Match ein 1v1 mit genau einem Spieler pro Faction ist.
     pub fn verify_players_in_match(
         &self,
         match_details: &FaceitMatchDetails,
         player_a_guid: &str,
         player_b_guid: &str,
     ) -> bool {
-        let in_f1 = match_details
-            .teams
-            .faction1
-            .roster
-            .iter()
-            .any(|p| p.player_id == player_a_guid || p.player_id == player_b_guid);
-        let in_f2 = match_details
-            .teams
-            .faction2
-            .roster
-            .iter()
-            .any(|p| p.player_id == player_a_guid || p.player_id == player_b_guid);
+        let faction1 = &match_details.teams.faction1.roster;
+        let faction2 = &match_details.teams.faction2.roster;
 
-        // Muss in verschiedenen Teams sein oder beide irgendwie im Match
-        // In 1v1 ist A in Faction 1, B in Faction 2
-        let a_in_match = match_details
-            .teams
-            .faction1
-            .roster
-            .iter()
-            .any(|p| p.player_id == player_a_guid)
-            || match_details
-                .teams
-                .faction2
-                .roster
-                .iter()
-                .any(|p| p.player_id == player_a_guid);
-        let b_in_match = match_details
-            .teams
-            .faction1
-            .roster
-            .iter()
-            .any(|p| p.player_id == player_b_guid)
-            || match_details
-                .teams
-                .faction2
-                .roster
-                .iter()
-                .any(|p| p.player_id == player_b_guid);
+        if faction1.len() != 1 || faction2.len() != 1 {
+            return false;
+        }
 
-        a_in_match && b_in_match && (in_f1 || in_f2)
+        let combined_ids = [
+            faction1[0].player_id.as_str(),
+            faction2[0].player_id.as_str(),
+        ];
+
+        let a_in_match = combined_ids.contains(&player_a_guid);
+        let b_in_match = combined_ids.contains(&player_b_guid);
+        let exact_players = combined_ids
+            .iter()
+            .all(|id| *id == player_a_guid || *id == player_b_guid);
+
+        a_in_match && b_in_match && exact_players
     }
 
     /// Ermittelt den Gewinner des Matches (gibt die GUID des Gewinners zurück)
@@ -249,6 +228,7 @@ mod tests {
         winner: Option<&str>,
         p_a: &str,
         p_b: &str,
+        game: &str,
     ) -> FaceitMatchDetails {
         let results = winner.map(|w| crate::models::faceit_data::FaceitResults {
             winner: w.to_string(),
@@ -261,7 +241,7 @@ mod tests {
         FaceitMatchDetails {
             match_id: "m1".to_string(),
             status: status.to_string(),
-            game: "cs2".to_string(),
+            game: game.to_string(),
             teams: crate::models::faceit_data::FaceitTeams {
                 faction1: crate::models::faceit_data::FaceitFaction {
                     faction_id: "f1".to_string(),
@@ -287,28 +267,28 @@ mod tests {
     #[test]
     fn test_verify_players_in_match_both_present() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("ONGOING", None, "guid-1", "guid-2");
+        let details = fake_details("ONGOING", None, "guid-1", "guid-2", "cs2");
         assert!(client.verify_players_in_match(&details, "guid-1", "guid-2"));
     }
 
     #[test]
     fn test_verify_players_in_match_one_missing() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("ONGOING", None, "guid-1", "stranger");
+        let details = fake_details("ONGOING", None, "guid-1", "stranger", "cs2");
         assert!(!client.verify_players_in_match(&details, "guid-1", "guid-2"));
     }
 
     #[test]
     fn test_verify_players_in_match_both_missing() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("ONGOING", None, "stranger1", "stranger2");
+        let details = fake_details("ONGOING", None, "stranger1", "stranger2", "cs2");
         assert!(!client.verify_players_in_match(&details, "guid-1", "guid-2"));
     }
 
     #[test]
     fn test_determine_winner_guid_f1_wins() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("faction1"), "guid-A", "guid-B");
+        let details = fake_details("FINISHED", Some("faction1"), "guid-A", "guid-B", "cs2");
         let winner = client
             .determine_winner_guid(&details, "guid-A", "guid-B")
             .unwrap();
@@ -318,7 +298,7 @@ mod tests {
     #[test]
     fn test_determine_winner_guid_f2_wins() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("faction2"), "guid-A", "guid-B");
+        let details = fake_details("FINISHED", Some("faction2"), "guid-A", "guid-B", "cs2");
         let winner = client
             .determine_winner_guid(&details, "guid-A", "guid-B")
             .unwrap();
@@ -328,7 +308,7 @@ mod tests {
     #[test]
     fn test_determine_winner_guid_not_finished() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("ONGOING", None, "guid-A", "guid-B");
+        let details = fake_details("ONGOING", None, "guid-A", "guid-B", "cs2");
         let res = client.determine_winner_guid(&details, "guid-A", "guid-B");
         assert!(res.is_err());
         assert!(res
@@ -341,7 +321,7 @@ mod tests {
     fn test_determine_winner_guid_stranger_won() {
         let client = FaceitApiClient::new("".to_string());
         // Faction 1 wins, but neither A nor B are in Faction 1
-        let mut details = fake_details("FINISHED", Some("faction1"), "guid-A", "guid-B");
+        let mut details = fake_details("FINISHED", Some("faction1"), "guid-A", "guid-B", "cs2");
         details.teams.faction1.roster[0].player_id = "stranger".to_string(); // Replace guid-A
 
         let res = client.determine_winner_guid(&details, "guid-A", "guid-B");
@@ -356,12 +336,92 @@ mod tests {
     #[test]
     fn test_determine_winner_guid_invalid_faction() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("invalid_faction"), "guid-A", "guid-B");
+        let details = fake_details("FINISHED", Some("invalid_faction"), "guid-A", "guid-B", "cs2");
         let res = client.determine_winner_guid(&details, "guid-A", "guid-B");
         assert!(res.is_err());
         assert!(res
             .unwrap_err()
             .to_string()
             .contains("Unbekannte Gewinner-Fraktion"));
+    }
+
+    #[test]
+    fn test_verify_players_in_match_requires_1v1_rosters() {
+        let client = FaceitApiClient::new("".to_string());
+        let mut details = fake_details("ONGOING", None, "guid-1", "guid-2", "cs2");
+        details.teams.faction1.roster.push(crate::models::faceit_data::FaceitPlayer {
+            player_id: "extra".to_string(),
+            nickname: "Extra".to_string(),
+        });
+
+        assert!(!client.verify_players_in_match(&details, "guid-1", "guid-2"));
+    }
+
+    #[test]
+    fn test_verify_players_in_match_valorant_1v1() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction2"), "guid-A", "guid-B", "valorant");
+        assert!(client.verify_players_in_match(&details, "guid-A", "guid-B"));
+    }
+
+    #[test]
+    fn test_determine_winner_guid_valorant() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction2"), "guid-A", "guid-B", "valorant");
+        let winner = client
+            .determine_winner_guid(&details, "guid-A", "guid-B")
+            .unwrap();
+        assert_eq!(winner, "guid-B");
+    }
+
+    #[test]
+    fn test_verify_players_in_match_rocket_league_1v1() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction1"), "guid-X", "guid-Y", "rocket_league");
+        assert!(client.verify_players_in_match(&details, "guid-X", "guid-Y"));
+    }
+
+    #[test]
+    fn test_determine_winner_guid_rocket_league() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction1"), "guid-X", "guid-Y", "rocket_league");
+        let winner = client
+            .determine_winner_guid(&details, "guid-X", "guid-Y")
+            .unwrap();
+        assert_eq!(winner, "guid-X");
+    }
+
+    #[test]
+    fn test_verify_players_in_match_dota2_1v1() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction2"), "guid-P", "guid-Q", "dota2");
+        assert!(client.verify_players_in_match(&details, "guid-P", "guid-Q"));
+    }
+
+    #[test]
+    fn test_determine_winner_guid_dota2() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction2"), "guid-P", "guid-Q", "dota2");
+        let winner = client
+            .determine_winner_guid(&details, "guid-P", "guid-Q")
+            .unwrap();
+        assert_eq!(winner, "guid-Q");
+    }
+
+    #[test]
+    fn test_verify_players_in_match_lol_1v1() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction1"), "guid-R", "guid-S", "lol");
+        assert!(client.verify_players_in_match(&details, "guid-R", "guid-S"));
+    }
+
+    #[test]
+    fn test_determine_winner_guid_lol() {
+        let client = FaceitApiClient::new("".to_string());
+        let details = fake_details("FINISHED", Some("faction1"), "guid-R", "guid-S", "lol");
+        let winner = client
+            .determine_winner_guid(&details, "guid-R", "guid-S")
+            .unwrap();
+        assert_eq!(winner, "guid-R");
     }
 }
