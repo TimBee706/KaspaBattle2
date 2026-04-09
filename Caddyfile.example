@@ -1,13 +1,13 @@
 # ─── KaspaBattle Production Reverse Proxy ─────────────────────────────────────
 # Caddy handles HTTPS (Let's Encrypt) automatically.
-# Canonical domain: kaspabattle.com (without www)
+# Canonical domain: www.kaspabattle.com (with www)
 
-# Redirect www → non-www (single canonical origin for cookies & CORS)
-www.kaspabattle.com {
-	redir https://kaspabattle.com{uri} permanent
+# Redirect non-www → www (single canonical origin for cookies & CORS)
+kaspabattle.com {
+	redir https://www.kaspabattle.com{uri} permanent
 }
 
-kaspabattle.com {
+www.kaspabattle.com {
 	tls timo.beermann98@gmail.com
 
 	# ── API: preserve full path, proxy to backend ──────────────────────────

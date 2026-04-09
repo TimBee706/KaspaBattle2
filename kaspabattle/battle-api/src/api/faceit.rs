@@ -245,11 +245,22 @@ async fn faceit_callback(
     //    on localhost:8080 which the browser treats as a different origin.
     let frontend_url = return_to.unwrap_or_else(default_frontend_url);
 
-    // Derive bounce base from the frontend URL so the browser navigates through
-    // the same origin (Vite proxy or production reverse-proxy).
+    // Extract origin to avoid appending /api/v1 to a specific route like /lobby
+    let origin = if let Some(pos) = frontend_url.find("://") {
+        let rest = &frontend_url[pos + 3..];
+        if let Some(slash) = rest.find('/') {
+            &frontend_url[..pos + 3 + slash]
+        } else {
+            &frontend_url
+        }
+    } else {
+        &frontend_url
+    };
+
+    // Derive bounce base from the frontend origin
     let bounce_base = format!(
         "{}/api/v1/faceit/session-bounce",
-        frontend_url.trim_end_matches('/')
+        origin.trim_end_matches('/')
     );
     let bounce_url = format!(
         "{}?token={}&next={}",
