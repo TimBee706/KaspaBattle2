@@ -78,8 +78,8 @@ cd KaspaBattle2
 docker-compose up -d
 ```
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8080
+- **Frontend**: <http://localhost:3000>
+- **Backend API**: <http://localhost:8080>
 - **Database**: PostgreSQL on port 5432
 
 ### Manual Development Setup
@@ -90,7 +90,7 @@ docker-compose up -d postgres
 
 # 2. Backend
 cd kaspabattle
-cp .env.example .env   # configure Kaspa Node URL
+#cp .env.example .env   # configure Kaspa Node URL
 cargo run -p battle-api
 
 # 3. Frontend (new terminal)
