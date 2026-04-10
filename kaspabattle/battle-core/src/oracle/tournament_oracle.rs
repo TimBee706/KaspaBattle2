@@ -236,12 +236,14 @@ async fn advance_winner(
     }
 
     // Place winner into the appropriate side of the next slot
+    // H-02: Accept both WAITING and READY status to allow admin dispute resolution
+    // to override an incorrect auto-advance from an earlier result.
     if is_team_a_slot {
         sqlx::query(
             "UPDATE tournament_bracket \
              SET team_a_id = $1, status = CASE WHEN team_b_id IS NOT NULL THEN 'READY' ELSE status END, \
                  updated_at = NOW() \
-             WHERE tournament_id = $2 AND round = $3 AND slot_index = $4 AND status = 'WAITING'",
+             WHERE tournament_id = $2 AND round = $3 AND slot_index = $4 AND status IN ('WAITING', 'READY')",
         )
         .bind(winner_team_id)
         .bind(tournament_id)
@@ -254,7 +256,7 @@ async fn advance_winner(
             "UPDATE tournament_bracket \
              SET team_b_id = $1, status = CASE WHEN team_a_id IS NOT NULL THEN 'READY' ELSE status END, \
                  updated_at = NOW() \
-             WHERE tournament_id = $2 AND round = $3 AND slot_index = $4 AND status = 'WAITING'",
+             WHERE tournament_id = $2 AND round = $3 AND slot_index = $4 AND status IN ('WAITING', 'READY')",
         )
         .bind(winner_team_id)
         .bind(tournament_id)

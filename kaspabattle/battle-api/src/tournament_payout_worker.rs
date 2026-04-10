@@ -80,10 +80,13 @@ async fn run_deposit_watcher(pool: Arc<PgPool>, watcher: Arc<BlockchainWatcher>)
 }
 
 async fn poll_tournament_deposits(pool: &PgPool, watcher: &BlockchainWatcher) -> Result<usize, BoxError> {
+    // C-02: Only process tournaments that are still accepting deposits.
+    // Explicitly exclude CANCELLED/COMPLETED to prevent crediting late-arriving UTXOs.
     let rows = sqlx::query(
         "SELECT id, escrow_address, buy_in_sompi \
          FROM tournaments \
          WHERE status IN ('REGISTRATION', 'FUNDED') \
+           AND status NOT IN ('CANCELLED', 'COMPLETED', 'DISPUTED') \
            AND escrow_address IS NOT NULL",
     )
     .fetch_all(pool)
@@ -112,6 +115,21 @@ async fn poll_tournament_deposits(pool: &PgPool, watcher: &BlockchainWatcher) ->
             let tx_id = utxo.tx_id.clone();
             let amount_sompi = utxo.amount as i64;
 
+            // C-02: Re-check tournament status before processing each UTXO
+            // to guard against mid-cycle cancellation.
+            let current_status: Option<String> = sqlx::query_scalar(
+                "SELECT status::text FROM tournaments WHERE id = $1",
+            )
+            .bind(tournament_id)
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+
+            if !matches!(current_status.as_deref(), Some("REGISTRATION") | Some("FUNDED")) {
+                tracing::info!(tournament_id = %tournament_id, status = ?current_status, "Deposit watcher: tournament no longer accepting deposits — skipping");
+                break;
+            }
+
             let already: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM tournament_payments WHERE tx_id = $1 AND tournament_id = $2)",
             )
@@ -125,13 +143,24 @@ async fn poll_tournament_deposits(pool: &PgPool, watcher: &BlockchainWatcher) ->
                 continue;
             }
 
+            // C-01: Atomic deposit attribution using UPDATE...RETURNING with
+            // FOR UPDATE SKIP LOCKED to prevent two UTXOs from crediting the same team.
             let team_to_credit: Option<Uuid> = if amount_sompi >= buy_in_sompi {
                 sqlx::query_scalar(
-                    "SELECT id FROM tournament_teams \
-                     WHERE tournament_id = $1 AND deposit_status = 'PENDING' \
-                     ORDER BY seed ASC NULLS LAST, created_at ASC LIMIT 1",
+                    "UPDATE tournament_teams \
+                     SET deposit_status = 'CONFIRMED', deposit_tx_hash = $2, \
+                         deposit_confirmed_at = NOW(), updated_at = NOW() \
+                     WHERE id = ( \
+                         SELECT id FROM tournament_teams \
+                         WHERE tournament_id = $1 AND deposit_status = 'PENDING' \
+                         ORDER BY seed ASC NULLS LAST, created_at ASC \
+                         LIMIT 1 \
+                         FOR UPDATE SKIP LOCKED \
+                     ) \
+                     RETURNING id",
                 )
                 .bind(tournament_id)
+                .bind(&tx_id)
                 .fetch_optional(pool)
                 .await
                 .unwrap_or(None)
@@ -152,17 +181,6 @@ async fn poll_tournament_deposits(pool: &PgPool, watcher: &BlockchainWatcher) ->
             .await?;
 
             if let Some(team_id) = team_to_credit {
-                sqlx::query(
-                    "UPDATE tournament_teams \
-                     SET deposit_status = 'CONFIRMED', deposit_tx_hash = $1, \
-                         deposit_confirmed_at = NOW(), updated_at = NOW() \
-                     WHERE id = $2 AND deposit_status = 'PENDING'",
-                )
-                .bind(&tx_id)
-                .bind(team_id)
-                .execute(pool)
-                .await?;
-
                 tracing::info!(tournament_id = %tournament_id, team_id = %team_id, "✅ Team deposit confirmed");
             }
 

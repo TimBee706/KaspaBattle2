@@ -387,7 +387,7 @@ pub async fn register_team(
 
     // Verify tournament exists and is in REGISTRATION status
     let tournament = sqlx::query(
-        "SELECT status, max_teams FROM tournaments WHERE id = $1",
+        "SELECT status, max_teams, registration_deadline FROM tournaments WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -404,6 +404,21 @@ pub async fn register_team(
                 message: "Tournament registration is closed.",
             }),
         ));
+    }
+
+    // M-04: Enforce registration_deadline server-side
+    let deadline: Option<chrono::DateTime<chrono::Utc>> =
+        tournament.try_get("registration_deadline").unwrap_or(None);
+    if let Some(dl) = deadline {
+        if chrono::Utc::now() > dl {
+            return Err((
+                StatusCode::CONFLICT,
+                Json(ApiErrorResponse {
+                    error: "registration_closed",
+                    message: "Registration deadline has passed.",
+                }),
+            ));
+        }
     }
 
     let max_teams: i32 = tournament.try_get("max_teams").unwrap_or(8);
@@ -631,10 +646,11 @@ pub async fn lock_bracket(
 
     let max_teams: i32 = tournament.try_get("max_teams").unwrap_or(8);
 
-    // Fetch confirmed (funded) teams ordered by seed
+    // H-01: Only seed teams with CONFIRMED deposits into the bracket.
+    // Unconfirmed teams are excluded to prevent prize pool / escrow mismatch.
     let teams = sqlx::query(
         "SELECT id, seed FROM tournament_teams \
-         WHERE tournament_id = $1 \
+         WHERE tournament_id = $1 AND deposit_status = 'CONFIRMED' \
          ORDER BY COALESCE(seed, 9999), created_at",
     )
     .bind(id)
@@ -721,6 +737,62 @@ pub async fn lock_bracket(
         }
         if slots_per_round > 1 {
             slots_per_round /= 2;
+        }
+    }
+
+    // M-03: Propagate BYE winners into the next round slots now that all rounds exist.
+    // Without this, BYE winners appear as "TBD" in the next round.
+    for slot_idx in 0..half {
+        let team_a_id = funded_team_ids.get(slot_idx * 2).copied();
+        let team_b_id = funded_team_ids.get(slot_idx * 2 + 1).copied();
+        let is_bye = team_a_id.is_some() && team_b_id.is_none();
+
+        if is_bye {
+            if let Some(bye_winner) = team_a_id {
+                let next_round = 2i32;
+                let next_slot = (slot_idx / 2) as i32;
+                let is_team_a_side = (slot_idx % 2) == 0;
+
+                if is_team_a_side {
+                    sqlx::query(
+                        "UPDATE tournament_bracket \
+                         SET team_a_id = $1, \
+                             status = CASE WHEN team_b_id IS NOT NULL THEN 'READY' ELSE status END, \
+                             updated_at = NOW() \
+                         WHERE tournament_id = $2 AND round = $3 AND slot_index = $4",
+                    )
+                    .bind(bye_winner)
+                    .bind(id)
+                    .bind(next_round)
+                    .bind(next_slot)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+                } else {
+                    sqlx::query(
+                        "UPDATE tournament_bracket \
+                         SET team_b_id = $1, \
+                             status = CASE WHEN team_a_id IS NOT NULL THEN 'READY' ELSE status END, \
+                             updated_at = NOW() \
+                         WHERE tournament_id = $2 AND round = $3 AND slot_index = $4",
+                    )
+                    .bind(bye_winner)
+                    .bind(id)
+                    .bind(next_round)
+                    .bind(next_slot)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+                }
+
+                tracing::debug!(
+                    tournament_id = %id,
+                    bye_team = %bye_winner,
+                    next_round,
+                    next_slot,
+                    "⬆️ BYE winner auto-advanced to next round"
+                );
+            }
         }
     }
 
