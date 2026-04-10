@@ -9,6 +9,7 @@ import {
   type Tournament,
   type TournamentStatus,
 } from '../api/tournaments';
+import { startFaceitLogin } from '../api/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -229,6 +230,19 @@ export function TournamentListPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleCreateClick = async () => {
+    if (user) {
+      setShowCreate(true);
+      return;
+    }
+
+    try {
+      await startFaceitLogin();
+    } catch {
+      // ignore
+    }
+  };
+
   const filtered = filter === 'ALL' ? tournaments : tournaments.filter(t => t.status === filter);
   const filterOptions: Array<{ value: TournamentStatus | 'ALL'; label: string }> = [
     { value: 'ALL', label: 'All' },
@@ -257,15 +271,13 @@ export function TournamentListPage() {
             >
               ↻
             </button>
-            {user && (
-              <button
-                id="create-tournament-btn"
-                onClick={() => setShowCreate(true)}
-                className="px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.3)]"
-              >
-                + Create Tournament
-              </button>
-            )}
+            <button
+              id="create-tournament-btn"
+              onClick={() => { void handleCreateClick(); }}
+              className="px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.3)]"
+            >
+              {user ? '+ Create Tournament' : 'Login to Create'}
+            </button>
           </div>
         </div>
 
@@ -301,6 +313,13 @@ export function TournamentListPage() {
             <p className="text-sm mt-1">
               {user ? 'Be the first to create one!' : 'Sign in to create a tournament'}
             </p>
+            <button
+              id="empty-state-create-tournament-btn"
+              onClick={() => { void handleCreateClick(); }}
+              className="mt-6 px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.2)]"
+            >
+              {user ? '+ Create Tournament' : 'Login to Create'}
+            </button>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
