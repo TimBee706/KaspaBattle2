@@ -4,6 +4,7 @@ import { formatKas, shortenAddress } from '../utils/format';
 import { faceitApi } from '../api/faceit';
 import type { FaceitProfileResponse } from '../api/types';
 import type { FaceitStatsResponse } from '../api/faceit';
+import { SUPPORTED_GAMES } from '../config/constants';
 import { useTranslation } from 'react-i18next';
 import { startFaceitLogin, startFaceitLink } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +26,7 @@ function StatSkeleton() {
 export function ProfilePage() {
     const { user, isAuthenticated, isFaceitConnected, fetchUser } = useAuthStore();
     const [faceitData, setFaceitData] = useState<FaceitProfileResponse | null>(null);
+    const [selectedFaceitGame, setSelectedFaceitGame] = useState('cs2');
     const [gameStats, setGameStats] = useState<FaceitStatsResponse | null>(null);
     const [loadingProfile, setLoadingProfile] = useState(true);
     const [loadingStats, setLoadingStats] = useState(true);
@@ -48,17 +50,26 @@ export function ProfilePage() {
 
     // Load FACEIT game stats
     useEffect(() => {
+        if (!faceitData?.games?.length) return;
+        if (!faceitData.games.includes(selectedFaceitGame)) {
+            const fallbackGame = faceitData.games.find((game) => SUPPORTED_GAMES.some((entry) => entry.id === game))
+                || faceitData.games[0];
+            setSelectedFaceitGame(fallbackGame);
+        }
+    }, [faceitData, selectedFaceitGame]);
+
+    useEffect(() => {
         if (!user || !isFaceitConnected) { setLoadingStats(false); return; }
         setLoadingStats(true);
         setStatsError(null);
-        faceitApi.getStats('cs2')
+        faceitApi.getStats(selectedFaceitGame)
             .then(res => { setGameStats(res); setLoadingStats(false); })
             .catch(err => {
                 console.error("Fehler beim Abrufen der FACEIT Stats:", err);
                 setStatsError(t('profile.stats_error'));
                 setLoadingStats(false);
             });
-    }, [user, isFaceitConnected, t]);
+    }, [user, isFaceitConnected, selectedFaceitGame, t]);
 
     const handleDisconnect = async () => {
         setDisconnecting(true);
@@ -75,6 +86,10 @@ export function ProfilePage() {
     };
 
     if (!user) return null;
+
+    const selectedFaceitGameMeta = SUPPORTED_GAMES.find((game) => game.id === selectedFaceitGame);
+    const activeFaceitGameName = selectedFaceitGameMeta?.name || 'FACEIT';
+    const availableFaceitGames = faceitData?.games ?? [];
 
     // Not connected → Prompt to connect
     if (!isFaceitConnected) {
@@ -98,12 +113,12 @@ export function ProfilePage() {
 
     // Parse game stats lifetime data
     const lifetime = gameStats?.lifetime?.lifetime || gameStats?.lifetime || null;
-    const csMatches = lifetime?.Matches || lifetime?.matches || '—';
-    const csWinRate = lifetime?.['Win Rate %'] || lifetime?.win_rate || '—';
-    const csKD = lifetime?.['Average K/D Ratio'] || lifetime?.average_kd || '—';
-    const csHS = lifetime?.['Average Headshots %'] || lifetime?.average_headshots || '—';
-    const csWins = lifetime?.Wins || lifetime?.wins || '—';
-    const csRecentResults = lifetime?.['Recent Results'] || lifetime?.recent_results || [];
+    const gameMatches = lifetime?.Matches || lifetime?.matches || '—';
+    const gameWinRate = lifetime?.['Win Rate %'] || lifetime?.win_rate || '—';
+    const gameKD = lifetime?.['Average K/D Ratio'] || lifetime?.average_kd || '—';
+    const gameHS = lifetime?.['Average Headshots %'] || lifetime?.average_headshots || '—';
+    const gameWins = lifetime?.Wins || lifetime?.wins || '—';
+    const gameRecentResults = lifetime?.['Recent Results'] || lifetime?.recent_results || [];
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -162,10 +177,29 @@ export function ProfilePage() {
                 </div>
             </div>
 
-            {/* ── FACEIT Game Stats (CS2) ─────────────────────────── */}
+            {/* ── FACEIT Game Stats ─────────────────────────── */}
             <div>
+                {availableFaceitGames.length > 0 && (
+                    <div className="mb-4 flex flex-wrap gap-2">
+                        {availableFaceitGames.map((gameId) => {
+                            const gameMeta = SUPPORTED_GAMES.find((game) => game.id === gameId);
+                            const label = gameMeta?.name || gameId;
+                            return (
+                                <button
+                                    key={gameId}
+                                    type="button"
+                                    onClick={() => setSelectedFaceitGame(gameId)}
+                                    className={`px-3 py-2 rounded-full text-xs font-bold transition-colors ${selectedFaceitGame === gameId ? 'bg-kaspa-primary text-black' : 'bg-slate-700 text-gray-300 hover:bg-slate-600'}`}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-orange-500 pl-4 flex items-center gap-3">
-                    {t('profile.cs2_stats_title')}
+                    {activeFaceitGameName} {t('profile.stats_title', { defaultValue: 'Stats' })}
                     {gameStats?.is_cached && <span className="text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded-full font-bold normal-case">cached</span>}
                 </h3>
 
@@ -176,7 +210,7 @@ export function ProfilePage() {
                             onClick={() => {
                                 setStatsError(null);
                                 setLoadingStats(true);
-                                faceitApi.getStats('cs2')
+                                faceitApi.getStats(selectedFaceitGame)
                                     .then(res => { setGameStats(res); setLoadingStats(false); })
                                     .catch(() => { setStatsError(t('profile.stats_retry_failed')); setLoadingStats(false); });
                             }}
@@ -193,33 +227,33 @@ export function ProfilePage() {
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="card text-center p-6">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.matches')}</span>
-                            <span className="text-3xl font-black text-white">{csMatches}</span>
+                            <span className="text-3xl font-black text-white">{gameMatches}</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-green-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.win_rate')}</span>
-                            <span className="text-3xl font-black text-green-400">{csWinRate}%</span>
+                            <span className="text-3xl font-black text-green-400">{gameWinRate}%</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-blue-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.kd')}</span>
-                            <span className="text-3xl font-black text-blue-400">{csKD}</span>
+                            <span className="text-3xl font-black text-blue-400">{gameKD}</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-yellow-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.hs')}</span>
-                            <span className="text-3xl font-black text-yellow-400">{csHS}%</span>
+                            <span className="text-3xl font-black text-yellow-400">{gameHS}%</span>
                         </div>
                         <div className="card text-center p-6 border-b-4 border-b-emerald-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.wins')}</span>
-                            <span className="text-3xl font-black text-emerald-400">{csWins}</span>
+                            <span className="text-3xl font-black text-emerald-400">{gameWins}</span>
                         </div>
                     </div>
                 )}
 
                 {/* Recent Results Streak */}
-                {Array.isArray(csRecentResults) && csRecentResults.length > 0 && (
+                {Array.isArray(gameRecentResults) && gameRecentResults.length > 0 && (
                     <div className="mt-4 flex items-center gap-2">
                         <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{t('profile.stats_labels.recent_results')}</span>
                         <div className="flex gap-1">
-                            {csRecentResults.slice(0, 20).map((r: string, i: number) => (
+                            {gameRecentResults.slice(0, 20).map((r: string, i: number) => (
                                 <div
                                     key={i}
                                     className={`w-5 h-5 rounded text-[9px] font-black flex items-center justify-center ${

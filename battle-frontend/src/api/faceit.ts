@@ -23,8 +23,10 @@ export interface FaceitLifetimeStats {
     'Win Rate %': string;
     'Recent Results': string[];
     Wins: string;
-    'Average K/D Ratio': string;
-    'Average Headshots %': string;
+
+    // FPS-spezifische Felder (CS2, Valorant — nicht verfügbar für LoL/Rocket League)
+    'Average K/D Ratio'?: string;
+    'Average Headshots %'?: string;
 
     // Erweiterte Felder (F-12, optional)
     'Current Win Streak'?: string;
@@ -55,9 +57,11 @@ export const faceitApi = {
 
     /**
      * Ruft das Faceit-Profil (Stats + Level + ELO) des aktuellen Users ab.
+     * @param game Optional: game_id für game-spezifischen ELO (Standard: 'cs2')
      */
-    getProfile: async (): Promise<FaceitProfileResponse> => {
-        const response = await apiClient.get<FaceitProfileResponse>('/faceit/profile');
+    getProfile: async (game?: string): Promise<FaceitProfileResponse> => {
+        const params = game ? `?game=${game}` : '';
+        const response = await apiClient.get<FaceitProfileResponse>(`/faceit/profile${params}`);
         return response.data;
     },
 

@@ -110,9 +110,10 @@ export const useAuthStore = create<AuthState>()(
                             }
                             applyUserState(set, user);
                             break; // Success, exit loop
-                        } catch (err: any) {
+                        } catch (err: unknown) {
                             attempts++;
-                            if (err?.response?.status === 429 && attempts < maxAttempts) {
+                            const error = err as { response?: { status?: number } };
+                            if (error?.response?.status === 429 && attempts < maxAttempts) {
                                 console.warn(`[AuthStore] fetchUser rate limited (429). Retrying... (Attempt ${attempts} of ${maxAttempts})`);
                                 await new Promise((resolve) => setTimeout(resolve, 2000 * attempts));
                             } else {

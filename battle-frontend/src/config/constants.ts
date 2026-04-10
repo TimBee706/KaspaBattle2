@@ -37,7 +37,11 @@ export const LOBBY_POLL_INTERVAL_MS = 10_000;
 
 // Unterstützte Spiele
 export const SUPPORTED_GAMES = [
-    { id: 'cs2', name: 'Counter-Strike 2', icon: '/cs2_logo.svg', platform: 'FACEIT' }
+    { id: 'cs2', name: 'Counter-Strike 2', icon: '/game_logo_cs2.svg', platform: 'FACEIT' },
+    { id: 'valorant', name: 'Valorant', icon: '/game_logo_valorant.svg', platform: 'FACEIT' },
+    { id: 'rocket_league', name: 'Rocket League', icon: '/game_logo_rocket_league.svg', platform: 'FACEIT' },
+    { id: 'dota2', name: 'Dota 2', icon: '/game_logo_dota2.svg', platform: 'FACEIT' },
+    { id: 'lol', name: 'League of Legends', icon: '/game_logo_lol.svg', platform: 'FACEIT' }
 ] as const;
 
 export type GameId = typeof SUPPORTED_GAMES[number]['id'];

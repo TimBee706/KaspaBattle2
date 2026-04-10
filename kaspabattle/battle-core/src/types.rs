@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 pub type MatchId = String;
 pub type KaspaAddress = String;
@@ -25,6 +25,10 @@ pub enum GameType {
     Dota2,
     #[serde(rename = "valorant")]
     Valorant,
+    #[serde(rename = "rocket_league")]
+    RocketLeague,
+    #[serde(rename = "lol")]
+    LeagueOfLegends,
 }
 
 impl GameType {
@@ -33,6 +37,8 @@ impl GameType {
             GameType::CounterStrike2 => "cs2",
             GameType::Dota2 => "dota2",
             GameType::Valorant => "valorant",
+            GameType::RocketLeague => "rocket_league",
+            GameType::LeagueOfLegends => "lol",
         }
     }
 }
@@ -45,6 +51,8 @@ impl std::str::FromStr for GameType {
             "cs2" => Ok(GameType::CounterStrike2),
             "dota2" => Ok(GameType::Dota2),
             "valorant" => Ok(GameType::Valorant),
+            "rocket_league" => Ok(GameType::RocketLeague),
+            "lol" => Ok(GameType::LeagueOfLegends),
             _ => Err(()),
         }
     }
