@@ -100,7 +100,7 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
                 value={form.max_teams}
                 onChange={e => setForm(f => ({ ...f, max_teams: Number(e.target.value) }))}
               >
-                {[4, 8, 16, 32].map(n => <option key={n} value={n}>{n} Teams</option>)}
+                {[4, 8, 16].map(n => <option key={n} value={n}>{n} Teams</option>)}
               </select>
             </div>
             <div>
