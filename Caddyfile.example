@@ -15,9 +15,20 @@ www.kaspabattle.com {
 		reverse_proxy backend:8080
 	}
 
-	# ── WebSocket: proxy to backend ────────────────────────────────────────
+	# ── WebSocket (Backend): /ws und /ws/* matchen ──────────────────────────
+	# /ws/* matcht NICHT /ws exakt — beide Varianten nötig
+	handle /ws {
+		reverse_proxy backend:8080
+	}
 	handle /ws/* {
 		reverse_proxy backend:8080
+	}
+
+	# ── Kaspa wRPC Proxy (Browser → Node) ───────────────────────────────────
+	# Browser-WASM kann kein ws:// über https:// nutzen (mixed content).
+	# Caddy terminiert TLS und leitet als plain WS weiter.
+	handle /kaspa-rpc {
+		reverse_proxy ws://217.160.255.235:17110
 	}
 
 	# ── Frontend SPA: everything else ──────────────────────────────────────

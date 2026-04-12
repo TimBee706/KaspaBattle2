@@ -1,11 +1,11 @@
 // Kaspa (Testnet Config)
 const rawKaspaNodeUrl = import.meta.env.VITE_KASPA_NODE_URL?.trim();
 
-export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-12';
+export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-10';
 // KASPA_NODE_URL: set to empty string to use the Resolver (may have CORS issues in browser).
-// Set a direct WSS URL to bypass the Resolver's HTTP discovery step entirely.
+// Set a direct WS(S) URL to bypass the Resolver's HTTP discovery step entirely.
 export const KASPA_NODE_URL = rawKaspaNodeUrl ?? '';
-export const KASPA_EXPLORER_URL = 'https://explorer-tn12.kaspa.org'; // Testnet-12 Explorer
+export const KASPA_EXPLORER_URL = 'https://explorer-tn10.kaspa.org'; // Testnet-10 Explorer
 export const SOMPI_PER_KAS = 100_000_000; // 1 KAS = 10^8 Sompi
 
 // KaspaBattle API

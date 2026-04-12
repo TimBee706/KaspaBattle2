@@ -53,9 +53,10 @@ services:
     environment:
       # Override to use Docker service names instead of localhost
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
-      # Kaspa RPC: uses Resolver by default (no KASPA_NODE_URL needed).
-      # To opt-in to a direct node, set KASPA_USE_EXPLICIT_NODE=true and KASPA_NODE_URL.
-      KASPA_USE_EXPLICIT_NODE: "false"
+      # Kaspa RPC: eigene Node auf 217.160.255.235 (Testnet-10, wRPC Borsh Port 17110)
+      KASPA_USE_EXPLICIT_NODE: "true"
+      KASPA_NODE_URL: "ws://217.160.255.235:17110"
+      KASPA_NETWORK: "testnet-10"
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,6 +81,8 @@ services:
     environment:
       VITE_API_BASE_URL: /api/v1
       VITE_WS_BASE_URL: wss://www.kaspabattle.com/ws
+      VITE_KASPA_NETWORK: testnet-10
+      VITE_KASPA_NODE_URL: wss://www.kaspabattle.com/kaspa-rpc
     depends_on:
       backend:
         condition: service_started
