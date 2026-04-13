@@ -34,6 +34,7 @@ use crate::api::auth_guard::SessionUser;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTournamentReq {
+    #[serde(rename = "name")]
     pub title: String,
     pub max_teams: i32,
     pub buy_in_sompi: i64,
@@ -43,8 +44,9 @@ pub struct CreateTournamentReq {
     pub prize_runner_up_pct: i16,
     #[serde(default = "default_fee_pct")]
     pub platform_fee_pct: i16,
-    #[serde(default = "default_game_type")]
+    #[serde(default = "default_game_type", rename = "game_id")]
     pub game_type: String,
+    pub registration_deadline: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 fn default_winner_pct() -> i16 { 70 }
@@ -55,7 +57,9 @@ fn default_game_type() -> String { "CS2".to_string() }
 #[derive(Debug, Serialize)]
 pub struct TournamentResponse {
     pub id: Uuid,
+    #[serde(rename = "name")]
     pub title: String,
+    #[serde(rename = "game_id")]
     pub game_type: String,
     pub max_teams: i32,
     pub buy_in_sompi: i64,
@@ -68,6 +72,7 @@ pub struct TournamentResponse {
     pub organizer_user_id: Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub team_count: i64,
+    pub registration_deadline: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,12 +241,12 @@ pub async fn create_tournament(
         "INSERT INTO tournaments \
          (id, title, game_type, max_teams, buy_in_sompi, \
           prize_winner_pct, prize_runner_up_pct, platform_fee_pct, \
-          escrow_address, organizer_user_id) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) \
+          escrow_address, organizer_user_id, registration_deadline) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) \
          RETURNING id, title, game_type, max_teams, buy_in_sompi, \
                    prize_winner_pct, prize_runner_up_pct, platform_fee_pct, \
-                   escrow_address, total_prize_pool_sompi, status, \
-                   organizer_user_id, created_at",
+                   escrow_address, total_prize_pool_sompi, status::text, \
+                   organizer_user_id, created_at, registration_deadline",
     )
     .bind(tournament_id)
     .bind(req.title.trim())
@@ -253,6 +258,7 @@ pub async fn create_tournament(
     .bind(req.platform_fee_pct)
     .bind(&escrow_address)
     .bind(user.id)
+    .bind(req.registration_deadline)
     .fetch_one(&state.pool)
     .await
     .map_err(db_err)?;
@@ -280,6 +286,7 @@ pub async fn create_tournament(
             organizer_user_id: row.try_get("organizer_user_id").unwrap(),
             created_at: row.try_get("created_at").unwrap(),
             team_count: 0,
+            registration_deadline: row.try_get("registration_deadline").unwrap_or(None),
         }),
     ))
 }
@@ -292,8 +299,8 @@ pub async fn list_tournaments(
     let rows = sqlx::query(
         "SELECT t.id, t.title, t.game_type, t.max_teams, t.buy_in_sompi, \
                 t.prize_winner_pct, t.prize_runner_up_pct, t.platform_fee_pct, \
-                t.escrow_address, t.total_prize_pool_sompi, t.status, \
-                t.organizer_user_id, t.created_at, \
+                t.escrow_address, t.total_prize_pool_sompi, t.status::text, \
+                t.organizer_user_id, t.created_at, t.registration_deadline, \
                 COUNT(tt.id) AS team_count \
          FROM tournaments t \
          LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id \
@@ -321,6 +328,7 @@ pub async fn list_tournaments(
         organizer_user_id: r.try_get("organizer_user_id").unwrap(),
         created_at: r.try_get("created_at").unwrap(),
         team_count: r.try_get::<i64, _>("team_count").unwrap_or(0),
+        registration_deadline: r.try_get("registration_deadline").unwrap_or(None),
     }).collect();
 
     Ok(Json(result))
@@ -335,8 +343,8 @@ pub async fn get_tournament(
     let row = sqlx::query(
         "SELECT t.id, t.title, t.game_type, t.max_teams, t.buy_in_sompi, \
                 t.prize_winner_pct, t.prize_runner_up_pct, t.platform_fee_pct, \
-                t.escrow_address, t.total_prize_pool_sompi, t.status, \
-                t.organizer_user_id, t.created_at, \
+                t.escrow_address, t.total_prize_pool_sompi, t.status::text, \
+                t.organizer_user_id, t.created_at, t.registration_deadline, \
                 COUNT(tt.id) AS team_count \
          FROM tournaments t \
          LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id \
@@ -364,6 +372,7 @@ pub async fn get_tournament(
         organizer_user_id: row.try_get("organizer_user_id").unwrap(),
         created_at: row.try_get("created_at").unwrap(),
         team_count: row.try_get::<i64, _>("team_count").unwrap_or(0),
+        registration_deadline: row.try_get("registration_deadline").unwrap_or(None),
     }))
 }
 

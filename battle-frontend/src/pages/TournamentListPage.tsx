@@ -59,7 +59,9 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
     try {
       const payload = {
         ...form,
-        registration_deadline: form.registration_deadline || undefined,
+        registration_deadline: form.registration_deadline 
+          ? new Date(form.registration_deadline).toISOString() 
+          : undefined,
       };
       const t = await createTournament(payload);
       onCreated(t);
