@@ -27,8 +27,8 @@ www.kaspabattle.com {
 	# ── Kaspa wRPC Proxy (Browser → Node) ───────────────────────────────────
 	# Browser-WASM kann kein ws:// über https:// nutzen (mixed content).
 	# Caddy terminiert TLS und leitet als plain WS weiter.
-	handle /kaspa-rpc {
-		reverse_proxy ws://217.160.255.235:17110
+	handle_path /kaspa-rpc {
+		reverse_proxy http://217.160.255.235:17110
 	}
 
 	# ── Frontend SPA: everything else ──────────────────────────────────────
