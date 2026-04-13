@@ -282,7 +282,13 @@
         "player_opponent": "Opponent",
         "unknown_player": "Unknown Player",
         "view_faceit_profile": "FaceIT Profile",
-        "no_faceit_link": "No FACEIT Link"
+        "no_faceit_link": "No FACEIT Link",
+        "refunded": "Stake Refunded",
+        "refund_complete_info": "Your deposit has been returned. The refund transaction has been confirmed on the Kaspa network.",
+        "refund_pending_info": "Your deposit will be automatically refunded once the blockchain transaction is confirmed.",
+        "refund_failed_info": "Refund failed. Please try again or contact support.",
+        "request_refund": "REQUEST REFUND",
+        "refund_request_error": "Could not process refund request. Please try again later."
     },
     "deposit": {
         "status": {
@@ -318,6 +324,7 @@
         "PAID_OUT": "Paid Out",
         "DISPUTED": "Dispute",
         "CANCELLED": "Cancelled",
+        "REFUNDED": "Refunded",
         "UNKNOWN": "Unknown"
     },
     "escrow": {

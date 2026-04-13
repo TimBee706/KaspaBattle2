@@ -120,6 +120,7 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/resolve", post(admin_resolve_match))
         .route("/matches/:id/faceid", post(submit_faceid_handler))
         .route("/matches/:id/cancel", post(cancel_match_handler))
+        .route("/matches/:id/refund-request", post(refund_request_handler))
         .route("/webhook/faceit", post(faceit_webhook))
         .route("/matches/:id/faceit-match-id", post(submit_faceit_match_id))
         .route("/matches/:id/payout/pskt", get(get_payout_pskt))
@@ -1598,10 +1599,124 @@ pub async fn submit_faceid_handler(
 
 // ── v0.2: Cancel Endpoint ─────────────────────────────────────────────────
 
+/// POST /matches/:id/refund-request — manually request a refund for a cancelled/disputed match
+///
+/// Only match participants (Player A or Player B) can request a refund.
+/// Validates that the match is in a refund-eligible state and no payout has been executed.
+pub async fn refund_request_handler(
+    State(state): State<AppState>,
+    crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let user_id = user.id;
+
+    let current_match = load_match_full(&state.pool, id)
+        .await
+        .map_err(|_| (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "match_not_found", "message": "Match not found" })),
+        ))?;
+
+    // Authorization: must be Player A or Player B
+    let is_player_a = current_match.creator_user_id == user_id;
+    let is_player_b = current_match.opponent_user_id.map(|oid| oid == user_id).unwrap_or(false);
+    if !is_player_a && !is_player_b {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "error": "not_participant", "message": "You are not a participant in this match" })),
+        ));
+    }
+
+    // Check: no payout has been executed
+    if current_match.payout_tx_hash.is_some() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "payout_already_executed", "message": "A payout has already been executed for this match" })),
+        ));
+    }
+
+    // Check: match is in a refund-eligible status
+    let refund_eligible = matches!(
+        current_match.status,
+        MatchStatus::Cancelled
+            | MatchStatus::Disputed
+            | MatchStatus::Open
+            | MatchStatus::AwaitingFunding
+            | MatchStatus::Funded
+            | MatchStatus::GameIdInput
+    );
+    if !refund_eligible {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "error": "not_refundable",
+                "message": "Match is not in a refundable state",
+                "current_status": format!("{:?}", current_match.status),
+            })),
+        ));
+    }
+
+    // Check: refund not already successful
+    let current_refund_status = current_match.refund_status.as_deref().unwrap_or("none");
+    if current_refund_status == "success" {
+        return Ok(Json(serde_json::json!({
+            "message": "Refund already completed",
+            "refund_status": "success",
+            "refund_tx_hash": current_match.refund_tx_hash,
+        })));
+    }
+
+    // Reset refund_status to 'none' so the Refund Worker retries on the next poll cycle.
+    // Also ensure status is CANCELLED if it was in a pre-game state.
+    let new_status = if matches!(
+        current_match.status,
+        MatchStatus::Open
+            | MatchStatus::AwaitingFunding
+            | MatchStatus::Funded
+            | MatchStatus::GameIdInput
+    ) {
+        "CANCELLED"
+    } else {
+        // Keep current status (CANCELLED or DISPUTED)
+        match current_match.status {
+            MatchStatus::Cancelled => "CANCELLED",
+            MatchStatus::Disputed => "DISPUTED",
+            _ => "CANCELLED",
+        }
+    };
+
+    sqlx::query(
+        "UPDATE matches SET refund_status = 'none', status = $1::match_status, cancelled_at = COALESCE(cancelled_at, NOW()) WHERE id = $2",
+    )
+    .bind(new_status)
+    .bind(id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(match_id = %id, error = %e, "refund_request: DB update failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": "db_error", "message": "Failed to process refund request" })),
+        )
+    })?;
+
+    tracing::info!(
+        match_id = %id,
+        user_id = %user_id,
+        "💸 Refund requested manually by player"
+    );
+
+    Ok(Json(serde_json::json!({
+        "message": "Refund is being processed",
+        "refund_status": "pending",
+        "match_id": id.to_string(),
+    })))
+}
+
 /// POST /matches/:id/cancel — cancel an open or pending match
 ///
-/// Only the match creator can cancel, and only while status is OPEN or AWAITING_FUNDING.
-/// Does NOT auto-refund deposits (manual process for now).
+/// Either player can cancel if the state machine allows it.
+/// After cancellation, the Refund Worker will automatically process the on-chain refund.
 pub async fn cancel_match_handler(
     State(state): State<AppState>,
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
@@ -1627,7 +1742,7 @@ pub async fn cancel_match_handler(
         })?;
 
     // Transition authorized. EITHER player can cancel if the state machine allows it.
-    sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
+    sqlx::query("UPDATE matches SET status = 'CANCELLED', cancelled_at = NOW() WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
         .await
@@ -1638,18 +1753,8 @@ pub async fn cancel_match_handler(
 
     tracing::info!("❌ Match {} cancelled by {}", id, user_id);
 
-    // M-09: Trigger refund process if an escrow address exists
-    // PayoutService will check on-chain balance and execute refund if deposits exist
-    if let Some(escrow) = updated.escrow_address.as_ref() {
-        if !escrow.is_empty() {
-            let state_clone = state.clone();
-            let m_clone = updated.clone();
-            let escrow_clone = escrow.clone();
-            tokio::spawn(async move {
-                let _ = execute_refund_for_match(&state_clone, &m_clone, &escrow_clone).await;
-            });
-        }
-    }
+    // Refund is now handled by the background Refund Worker (refund_worker.rs)
+    // which polls CANCELLED matches with refund_status IN ('none', 'failed').
 
     Ok(Json(updated))
 }
@@ -1686,71 +1791,6 @@ fn verify_faceit_hmac(body: &[u8], secret: &str, signature: &str) -> bool {
         == 0
 }
 
-/// Helper: execute refund for a cancelled match using PayoutService
-async fn execute_refund_for_match(
-    state: &AppState,
-    m: &Match,
-    escrow_address: &str,
-) -> Result<(String, String), StatusCode> {
-    let payout_svc = state.payout_service.as_ref().ok_or_else(|| {
-        tracing::error!("❌ PayoutService not available");
-        StatusCode::SERVICE_UNAVAILABLE
-    })?;
-
-    // Register escrow key with PayoutService (derive from wallet)
-    if let Some(ref wallet) = state.escrow_wallet {
-        let match_id_str = m.id.to_string();
-        if let Ok((addr, _)) = wallet.derive_escrow_address(&match_id_str) {
-            if let Ok(privkey) = wallet.get_private_key(&addr) {
-                payout_svc
-                    .register_escrow_key(escrow_address.to_string(), privkey)
-                    .await;
-                tracing::info!("🔑 Escrow key registered for refund {}", escrow_address);
-            }
-        }
-    }
-
-    // Build a BattleMatch from DB data
-    let creator_addr = crate::api::get_user_kaspa_address(&state.pool, m.creator_user_id)
-        .await
-        .unwrap_or_else(|_| "unknown".to_string());
-    let opponent_addr = match m.opponent_user_id {
-        Some(uid) => crate::api::get_user_kaspa_address(&state.pool, uid)
-            .await
-            .unwrap_or_else(|_| "unknown".to_string()),
-        None => "unknown".to_string(), // Can be none if cancelled before join
-    };
-
-    let battle_match = battle_core::models::match_::BattleMatch {
-        id: m.id,
-        player_a_kas_address: creator_addr,
-        player_b_kas_address: opponent_addr,
-        player_a_faceit_id: String::new(),
-        player_b_faceit_id: String::new(),
-        faceit_match_id: m.external_match_id.clone(),
-        wager_amount_sompi: m.wager_sompi as u64,
-        escrow_address: escrow_address.to_string(),
-        status: battle_core::models::match_::MatchStatus::Cancelled,
-        winner_kas_address: None,
-        payout_tx_hash: None,
-        oracle_result_signature: None,
-        created_at: m.created_at.unwrap_or_else(chrono::Utc::now),
-        locked_at: None,
-        resolved_at: None,
-        timeout_at: m.created_at.unwrap_or_else(chrono::Utc::now) + chrono::Duration::minutes(90),
-    };
-
-    match payout_svc.execute_refund(&battle_match).await {
-        Ok(res) => {
-            tracing::info!("✅ Refund executed: TX A={}, TX B={}", res.0, res.1);
-            Ok(res)
-        }
-        Err(e) => {
-            tracing::error!("❌ Refund failed: {:?}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

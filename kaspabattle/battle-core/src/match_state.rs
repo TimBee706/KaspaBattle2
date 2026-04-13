@@ -1,4 +1,4 @@
-﻿use crate::errors::MatchError;
+use crate::errors::MatchError;
 use serde::{Deserialize, Serialize};
 
 /// Match states — reflects the full lifecycle including FaceIT integration and Dispute.
@@ -45,6 +45,10 @@ pub enum MatchState {
     Cancelled {
         reason: String,
     },
+    /// F-REFUND: Deposits have been returned to players on-chain.
+    Refunded {
+        refund_tx_hash: Option<String>,
+    },
     Completed,
 }
 
@@ -62,6 +66,7 @@ impl MatchState {
             MatchState::Resolved { .. } => "Resolved",
             MatchState::Disputed { .. } => "Disputed",
             MatchState::Cancelled { .. } => "Cancelled",
+            MatchState::Refunded { .. } => "Refunded",
             MatchState::Completed => "Completed",
         }
     }
@@ -209,6 +214,12 @@ pub fn transition(
             Err(MatchError::CannotCancelLockedMatch)
         }
         (MatchState::Cancelled { .. }, MatchAction::Cancel { .. }) => {
+            Err(MatchError::InvalidTransition {
+                from: current_state.state_name().to_string(),
+                action: "Cancel".to_string(),
+            })
+        }
+        (MatchState::Refunded { .. }, MatchAction::Cancel { .. }) => {
             Err(MatchError::InvalidTransition {
                 from: current_state.state_name().to_string(),
                 action: "Cancel".to_string(),

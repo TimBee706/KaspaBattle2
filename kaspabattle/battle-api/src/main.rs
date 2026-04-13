@@ -18,6 +18,7 @@ mod episodes;
 mod models;
 mod services;
 mod payout_worker;
+mod refund_worker;
 
 fn try_load_dotenv() -> Vec<std::path::PathBuf> {
     let mut candidates = Vec::new();
@@ -626,6 +627,20 @@ async fn main() {
         tracing::info!("✅ Payout Worker started");
     } else {
         tracing::info!("ℹ️ Payout Worker disabled (MultisigEscrowService not available)");
+    }
+
+    // ── Refund Worker ─────────────────────────────────────────────────────────
+    // Polls CANCELLED/DISPUTED matches and auto-executes on-chain refunds.
+    // Only started when MultisigEscrowService is available (Kaspa RPC connected).
+    if let Some(ref multisig_svc) = state.multisig_service {
+        let rw_pool = Arc::new(state.pool.clone());
+        let rw_multisig = multisig_svc.clone();
+        tokio::spawn(async move {
+            crate::refund_worker::run_refund_worker(rw_pool, rw_multisig).await;
+        });
+        tracing::info!("✅ Refund Worker started");
+    } else {
+        tracing::info!("ℹ️ Refund Worker disabled (MultisigEscrowService not available)");
     }
 
     // ── kdapp Engine + Proxy (v0.7 — on-chain Episode processing) ─────────
