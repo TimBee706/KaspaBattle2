@@ -46,6 +46,7 @@ pub struct CreateTournamentReq {
     pub platform_fee_pct: i16,
     #[serde(default = "default_game_type", rename = "game_id")]
     pub game_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registration_deadline: Option<chrono::DateTime<chrono::Utc>>,
 }
 
