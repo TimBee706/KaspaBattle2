@@ -27,9 +27,6 @@ export function CreateChallengeForm() {
     const validation = validateWagerAmount(wagerNumber);
     const potentialWin = wagerNumber * 2 * (FEE_WINNER_PERCENT / 100);
 
-    const requireFaceit = !FEATURE_FLAGS.TEST_MODE;
-    const canSubmit = validation.valid && isConnected && (!requireFaceit || isFullyConnected);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const hasRequiredAuth = FEATURE_FLAGS.TEST_MODE ? isConnected : isFullyConnected;
