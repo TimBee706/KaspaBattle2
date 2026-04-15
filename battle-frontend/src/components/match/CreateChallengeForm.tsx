@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { GameId } from '../../config/constants';
 import type { MatchMode } from '../../api/types';
 import { getErrorMessage } from '../../utils/errors';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
@@ -28,7 +29,8 @@ export function CreateChallengeForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validation.valid || !isConnected || !isFullyConnected) return;
+        const hasRequiredAuth = FEATURE_FLAGS.TEST_MODE ? isConnected : isFullyConnected;
+        if (!validation.valid || !hasRequiredAuth) return;
 
         setError(null);
 
@@ -58,7 +60,7 @@ export function CreateChallengeForm() {
                 {/* Spiel-Auswahl */}
                 <div>
                     <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.select_game')}</label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {SUPPORTED_GAMES.map((game) => (
                             <button
                                 key={game.id}
@@ -81,7 +83,7 @@ export function CreateChallengeForm() {
                 </div>
 
                 {/* Modus & Einsatz */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('challenge.mode')}</label>
                         <select
@@ -124,8 +126,8 @@ export function CreateChallengeForm() {
                     </div>
                 </div>
 
-                {(!isConnected || !isFullyConnected) && (
-                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {!isFullyConnected && isConnected ? 'Bitte zuerst FaceIT verbinden' : t('challenge.wallet_needed')}</p>
+                {(!isConnected || (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected)) && (
+                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {(!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected) ? 'Bitte zuerst FaceIT verbinden' : t('challenge.wallet_needed')}</p>
                 )}
 
                 {error && (
@@ -134,8 +136,8 @@ export function CreateChallengeForm() {
 
                 <button
                     type="submit"
-                    disabled={!validation.valid || isCreating || !isConnected || !isFullyConnected}
-                    title={!isFullyConnected ? 'Bitte zuerst FaceIT und Wallet verbinden' : undefined}
+                    disabled={!validation.valid || isCreating || (!FEATURE_FLAGS.TEST_MODE ? !isFullyConnected : !isConnected)}
+                    title={(!FEATURE_FLAGS.TEST_MODE && !isFullyConnected) ? 'Bitte zuerst FaceIT und Wallet verbinden' : undefined}
                     className="w-full btn-primary h-12 relative overflow-hidden group"
                 >
                     {isCreating ? t('challenge.creating') : (
