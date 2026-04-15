@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { GameId } from '../../config/constants';
 import type { MatchMode } from '../../api/types';
 import { getErrorMessage } from '../../utils/errors';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
@@ -26,9 +27,12 @@ export function CreateChallengeForm() {
     const validation = validateWagerAmount(wagerNumber);
     const potentialWin = wagerNumber * 2 * (FEE_WINNER_PERCENT / 100);
 
+    const requireFaceit = !FEATURE_FLAGS.TEST_MODE;
+    const canSubmit = validation.valid && isConnected && (!requireFaceit || isFullyConnected);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validation.valid || !isConnected || !isFullyConnected) return;
+        if (!canSubmit) return;
 
         setError(null);
 
@@ -124,8 +128,8 @@ export function CreateChallengeForm() {
                     </div>
                 </div>
 
-                {(!isConnected || !isFullyConnected) && (
-                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {!isFullyConnected && isConnected ? 'Bitte zuerst FaceIT verbinden' : t('challenge.wallet_needed')}</p>
+                {(!isConnected || (!isFullyConnected && requireFaceit)) && (
+                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {(!isFullyConnected && requireFaceit) && isConnected ? 'Bitte zuerst FaceIT verbinden' : t('challenge.wallet_needed')}</p>
                 )}
 
                 {error && (
@@ -134,8 +138,8 @@ export function CreateChallengeForm() {
 
                 <button
                     type="submit"
-                    disabled={!validation.valid || isCreating || !isConnected || !isFullyConnected}
-                    title={!isFullyConnected ? 'Bitte zuerst FaceIT und Wallet verbinden' : undefined}
+                    disabled={!canSubmit || isCreating}
+                    title={(!isFullyConnected && requireFaceit) ? 'Bitte zuerst FaceIT und Wallet verbinden' : undefined}
                     className="w-full btn-primary h-12 relative overflow-hidden group"
                 >
                     {isCreating ? t('challenge.creating') : (

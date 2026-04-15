@@ -828,9 +828,8 @@ pub async fn create_challenge(
 ) -> Result<Json<Match>, StatusCode> {
     let user_id = user.id;
 
-    // Require wallet — address derivation is purely cryptographic (no Kaspa node needed).
-    let wallet = state.escrow_wallet.as_ref().ok_or_else(|| {
-        tracing::error!("EscrowWallet not initialized — cannot generate escrow address");
+    let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
+        tracing::error!("MultisigEscrowService not initialized — cannot generate escrow address");
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
@@ -854,24 +853,43 @@ pub async fn create_challenge(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Derive escrow address deterministically from match UUID.
-    //    Pure BIP44 derivation — no Kaspa node connection required.
-    let (escrow_addr_obj, derivation_index) = wallet
-        .derive_escrow_address(&record.id.to_string())
+    // 2. Create multisig escrow deterministically from match UUID.
+    let escrow_info = multisig_svc
+        .create_escrow(record.id, payload.wager_sompi as u64, None)
+        .await
         .map_err(|e| {
-            tracing::error!("Failed to derive escrow address for match {}: {}", record.id, e);
+            tracing::error!("Failed to create multisig escrow for match {}: {}", record.id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let escrow_addr = escrow_addr_obj.to_string();
+
+    let escrow_addr = escrow_info.escrow_address;
 
     tracing::info!(
         match_id = %record.id,
         escrow_address = %escrow_addr,
-        derivation_index,
-        "Escrow address derived"
+        "Multisig escrow created and address derived"
     );
 
-    // 3. UPDATE match with the freshly-derived escrow address.
+    // 3. Persist the multisig escrow configuration into `multisig_escrows`.
+    sqlx::query(
+        "INSERT INTO multisig_escrows (match_id, pubkey_a_hex, pubkey_b_hex, pubkey_oracle_hex, redeem_script_hex, p2sh_address, wager_per_player_sompi) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)"
+    )
+    .bind(record.id)
+    .bind(&escrow_info.pubkeys[0]) // pubkey_a_hex
+    .bind(&escrow_info.pubkeys[1]) // pubkey_b_hex
+    .bind(&escrow_info.pubkeys[2]) // pubkey_oracle_hex
+    .bind(&escrow_info.redeem_script_hex)
+    .bind(&escrow_addr)
+    .bind(payload.wager_sompi)
+    .execute(&mut *db_tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("SQL Error inserting multisig_escrow for match {}: {:?}", record.id, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // 4. UPDATE match with the freshly-derived escrow address.
     let mut updated = sqlx::query_as::<_, Match>(
         "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at",
     )
@@ -884,7 +902,7 @@ pub async fn create_challenge(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 4. Commit the transaction — both rows are now consistent.
+    // 5. Commit the transaction — all rows are now consistent.
     db_tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit match creation transaction: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
