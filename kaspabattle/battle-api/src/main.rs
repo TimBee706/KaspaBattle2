@@ -334,7 +334,7 @@ async fn main() {
             panic!("CRITICAL: ORACLE_PRIVATE_KEY must be set in all environments. Generate with: openssl rand -hex 32");
         });
 
-        let oracle_sk_bytes: [u8; 32] = match hex::decode(&oracle_sk_hex) {
+        let oracle_sk_bytes: [u8; 32] = match hex::decode(oracle_sk_hex.trim()) {
             Ok(bytes) if bytes.len() == 32 => bytes.try_into().unwrap(),
             _ => {
                 tracing::warn!("⚠️ Invalid ORACLE_PRIVATE_KEY — MultisigEscrowService disabled");
