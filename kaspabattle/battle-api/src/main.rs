@@ -106,22 +106,27 @@ mod tests {
     use super::{explicit_kaspa_node_enabled, normalized_kaspa_node_url};
 
     #[test]
-    fn explicit_node_is_opt_in() {
+    fn test_kaspa_node_url_resolution() {
+        // Make sure environment is clean
         std::env::remove_var("KASPA_USE_EXPLICIT_NODE");
         std::env::remove_var("KASPA_USE_NODE_URL");
+
+        // 1. explicit_node_is_opt_in
         std::env::set_var("KASPA_NODE_URL", "ws://kaspa-node:16111");
         assert_eq!(normalized_kaspa_node_url(), None);
-    }
 
-    #[test]
-    fn explicit_node_can_be_enabled() {
+        // 2. explicit_node_can_be_enabled
         std::env::set_var("KASPA_USE_EXPLICIT_NODE", "true");
+        // Ensure KASPA_NODE_URL is still set to what we expect
         std::env::set_var("KASPA_NODE_URL", "ws://kaspa-node:16111");
+        
         assert!(explicit_kaspa_node_enabled());
         assert_eq!(
             normalized_kaspa_node_url(),
             Some("ws://kaspa-node:16111".to_string())
         );
+
+        // Cleanup
         std::env::remove_var("KASPA_USE_EXPLICIT_NODE");
         std::env::remove_var("KASPA_NODE_URL");
     }

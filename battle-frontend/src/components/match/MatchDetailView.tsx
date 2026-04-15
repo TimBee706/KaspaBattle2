@@ -137,8 +137,8 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-kaspa-card p-6 rounded-2xl border border-kaspa-border relative overflow-hidden">
+        <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-kaspa-card p-4 md:p-6 rounded-2xl border border-kaspa-border relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                     {game?.icon && <img src={game.icon} alt={game.name} className="w-48 h-48 object-contain grayscale" />}
                 </div>
@@ -153,9 +153,9 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     </div>
                 </div>
 
-                <div className="flex flex-col items-end">
+                <div className="flex flex-col items-start md:items-end w-full md:w-auto mt-2 md:mt-0 pt-4 md:pt-0 border-t border-kaspa-border/50 md:border-0">
                     <MatchStatusBadge status={match.status} />
-                    <span className="text-[10px] text-gray-500 mt-2 font-mono">ID: {match.id}</span>
+                    <span className="text-[10px] text-gray-500 mt-2 font-mono break-all">ID: {match.id}</span>
                 </div>
             </div>
 
@@ -180,7 +180,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                             </a>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                             <div className="p-4 bg-kaspa-dark rounded-xl border border-kaspa-border">
                                 <span className="text-[10px] text-gray-500 font-bold block mb-1">{t('match.stake_per_player')}</span>
                                 <span className="text-xl font-black text-white">{formatKas(wagerSompi)} KAS</span>
@@ -248,7 +248,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                                 {isParticipant ? (
                                     <div className="space-y-3">
-                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wide">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wide">
                                             <div className={`rounded-lg border px-3 py-2 ${ownSubmittedFaceitId ? 'border-emerald-500/30 bg-emerald-900/20 text-emerald-300' : 'border-cyan-500/20 bg-kaspa-dark text-gray-400'}`}>
                                                 {ownSubmittedFaceitId ? t('match.faceit_status_you_submitted') : t('match.faceit_status_you_pending')}
                                             </div>
