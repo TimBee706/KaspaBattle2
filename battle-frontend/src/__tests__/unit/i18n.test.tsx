@@ -47,8 +47,9 @@ describe('i18n configuration and Language Switcher', () => {
         // Make sure it starts in English
         expect(await screen.findByText(/Create Challenge/i)).toBeInTheDocument();
         
-        // Find the language select component
-        const languageSelect = await screen.findByRole('combobox', { name: /Language/i });
+        // Find the language select component (take the first one as there are multi-view selectors)
+        const languageSelects = await screen.findAllByRole('combobox', { name: /Language/i });
+        const languageSelect = languageSelects[0];
         
         // Select German from the dropdown
         await act(async () => {

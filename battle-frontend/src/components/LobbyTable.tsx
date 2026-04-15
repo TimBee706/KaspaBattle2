@@ -33,15 +33,15 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title: string, isMyL
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => e.key === 'Enter' && onLobbyClick?.(m.id)}
-                        className="group bg-slate-900/60 border border-slate-700/50 p-5 rounded-xl flex justify-between items-center text-white hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all cursor-pointer select-none active:scale-[0.99]"
+                        className="group bg-slate-900/60 border border-slate-700/50 p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-white hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all cursor-pointer select-none active:scale-[0.99]"
                     >
-                        <div className="flex flex-col">
+                        <div className="flex flex-col w-full md:w-auto">
                             <span className="font-black text-white tracking-tight group-hover:text-emerald-400 transition-colors uppercase">
                                 {m.game_id || 'CS2'} | {getMatchMode(m)}
                             </span>
                             <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">{t('lobby.status_label')} {m.status}</span>
                         </div>
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center justify-between md:justify-end gap-4 md:gap-6 w-full md:w-auto mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-slate-700/30">
                             <span className="font-black text-xl text-emerald-400 tracking-tighter">
                                 {(getMatchStakeSompi(m) / 100_000_000).toLocaleString('de-DE', { minimumFractionDigits: 2 })} KAS
                             </span>
