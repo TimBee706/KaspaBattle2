@@ -282,7 +282,13 @@
         "player_opponent": "Gegner",
         "unknown_player": "Unbekannter Spieler",
         "view_faceit_profile": "FACEIT Profil",
-        "no_faceit_link": "Kein FACEIT-Link"
+        "no_faceit_link": "Kein FACEIT-Link",
+        "refunded": "Einsatz erstattet",
+        "refund_complete_info": "Deine Einzahlung wurde zurückerstattet. Die Refund-Transaktion ist im Kaspa-Netzwerk bestätigt.",
+        "refund_pending_info": "Deine Einzahlung wird automatisch erstattet, sobald die Blockchain-Transaktion bestätigt ist.",
+        "refund_failed_info": "Rückerstattung fehlgeschlagen. Bitte versuche es erneut oder kontaktiere den Support.",
+        "request_refund": "RÜCKERSTATTUNG ANFORDERN",
+        "refund_request_error": "Rückerstattung konnte nicht verarbeitet werden. Bitte versuche es später erneut."
     },
     "deposit": {
         "status": {
@@ -318,6 +324,7 @@
         "PAID_OUT": "Ausgezahlt",
         "DISPUTED": "Dispute",
         "CANCELLED": "Abgebrochen",
+        "REFUNDED": "Erstattet",
         "UNKNOWN": "Unbekannt"
     },
     "escrow": {

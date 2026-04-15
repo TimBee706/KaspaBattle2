@@ -5,7 +5,7 @@ import { formatKas, explorerAddressUrl, explorerTxUrl } from '../../utils/format
 import { SUPPORTED_GAMES } from '../../config/constants';
 import { MatchStatusBadge } from './MatchStatusBadge';
 import { DepositConfirmModal } from './DepositConfirmModal';
-import { acceptMatch, getMatch, submitFaceitMatchId } from '../../api/matches';
+import { acceptMatch, getMatch, submitFaceitMatchId, requestRefund } from '../../api/matches';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { KASPA_NETWORK } from '../../config/constants';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,8 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
     const [isSubmittingFaceitId, setIsSubmittingFaceitId] = useState(false);
     const [faceitSubmitError, setFaceitSubmitError] = useState<string | null>(null);
     const [faceitSubmitSuccess, setFaceitSubmitSuccess] = useState<string | null>(null);
+    const [isRequestingRefund, setIsRequestingRefund] = useState(false);
+    const [refundMessage, setRefundMessage] = useState<string | null>(null);
     const { t } = useTranslation();
     const game = SUPPORTED_GAMES.find(g => g.id === match.game_id);
 
@@ -312,6 +314,67 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                                 <a href={explorerTxUrl(match.payout_tx_hash!)} target="_blank" className="text-[10px] text-emerald-400 underline font-mono">
                                     TX: {match.payout_tx_hash?.slice(0, 16)}...
                                 </a>
+                            </div>
+                        )}
+
+                        {/* Refund Status Display */}
+                        {match.status === 'REFUNDED' && (
+                            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
+                                <div className="text-3xl mb-2">💸</div>
+                                <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.refunded')}</h4>
+                                <p className="text-xs text-gray-300 my-3">{t('match.refund_complete_info')}</p>
+                                {match.refund_tx_hash && (
+                                    <a href={explorerTxUrl(match.refund_tx_hash)} target="_blank" className="text-[10px] text-emerald-400 underline font-mono">
+                                        TX: {match.refund_tx_hash.slice(0, 16)}...
+                                    </a>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Cancelled/Disputed with pending refund */}
+                        {(match.status === 'CANCELLED' || match.status === 'DISPUTED') && (
+                            <div className="space-y-3">
+                                {(!match.refund_status || match.refund_status === 'none' || match.refund_status === 'pending' || match.refund_status === 'pending_manual') && (
+                                    <div className="p-4 bg-yellow-900/10 border border-yellow-500/20 rounded-xl">
+                                        <p className="text-xs text-yellow-400 font-bold">{t('match.refund_pending_info')}</p>
+                                    </div>
+                                )}
+
+                                {match.refund_status === 'failed' && (
+                                    <div className="p-4 bg-red-900/10 border border-red-500/20 rounded-xl">
+                                        <p className="text-xs text-red-400 font-bold">{t('match.refund_failed_info')}</p>
+                                    </div>
+                                )}
+
+                                {refundMessage && (
+                                    <div className="p-3 bg-emerald-900/20 border border-emerald-500/30 rounded-lg">
+                                        <p className="text-xs text-emerald-300 font-bold">{refundMessage}</p>
+                                    </div>
+                                )}
+
+                                {/* Refund Request Button — visible for participants when refund not yet successful */}
+                                {isParticipant && (!match.refund_status || match.refund_status === 'none' || match.refund_status === 'failed') && (
+                                    <button
+                                        onClick={async () => {
+                                            setIsRequestingRefund(true);
+                                            setRefundMessage(null);
+                                            try {
+                                                const response = await requestRefund(match.id);
+                                                setRefundMessage(response.message);
+                                                const refreshed = await getMatch(match.id);
+                                                setMatch(refreshed);
+                                            } catch {
+                                                setRefundMessage(t('match.refund_request_error'));
+                                            } finally {
+                                                setIsRequestingRefund(false);
+                                            }
+                                        }}
+                                        disabled={isRequestingRefund}
+                                        className="w-full bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-600/30 font-bold text-xs uppercase tracking-widest py-3 rounded-xl transition-colors disabled:opacity-50"
+                                    >
+                                        {isRequestingRefund ? '...' : t('match.request_refund')}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

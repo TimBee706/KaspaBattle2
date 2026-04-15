@@ -68,3 +68,17 @@ export async function getPaymentStatus(matchId: string): Promise<PaymentStatus> 
     const res = await apiClient.get<PaymentStatus>(`/matches/${matchId}/payment-status`);
     return res.data;
 }
+
+/** Response from the refund-request endpoint. */
+export interface RefundRequestResponse {
+    message: string;
+    refund_status: string;
+    match_id?: string;
+    refund_tx_hash?: string | null;
+}
+
+/** Request a manual refund for a cancelled or disputed match. */
+export async function requestRefund(matchId: string): Promise<RefundRequestResponse> {
+    const res = await apiClient.post<RefundRequestResponse>(`/matches/${matchId}/refund-request`);
+    return res.data;
+}

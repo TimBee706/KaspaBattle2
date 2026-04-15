@@ -13,7 +13,8 @@ export type MatchStatus =
     | 'RESOLVED'
     | 'PAID_OUT'
     | 'DISPUTED'
-    | 'CANCELLED';
+    | 'CANCELLED'
+    | 'REFUNDED';
 
 // ── Payment Status Types ──
 export interface PlayerPaymentInfo {
@@ -72,6 +73,11 @@ export interface BattleMatch {
     player_b_avatar_url?: string | null;
     player_a_faceit_profile_url?: string | null;
     player_b_faceit_profile_url?: string | null;
+
+    // ── v1.2 Refund Tracking ──
+    refund_tx_hash?: string | null;
+    refund_status?: string | null;       // 'none' | 'pending' | 'pending_manual' | 'success' | 'failed'
+    cancelled_at?: string | null;        // ISO 8601
 }
 
 export function getMatchStakeSompi(match: BattleMatch): number {

@@ -345,6 +345,11 @@ impl MultisigEscrowService {
     }
 
     /// Execute a refund — splits escrow funds equally back to both players.
+    ///
+    /// Guards:
+    /// - **Sync check**: Verifies the Kaspa node is synced before querying UTXOs.
+    /// - **Zero balance**: If escrow has no funds, returns immediately without
+    ///   broadcasting a transaction (idempotent for already-refunded escrows).
     pub async fn execute_refund(
         &self,
         match_id: &Uuid,
@@ -359,6 +364,16 @@ impl MultisigEscrowService {
                 .ok_or_else(|| anyhow!("Escrow not found for match {}", match_id))?
         };
 
+        // Verify node is synced (consistent with execute_payout)
+        let synced = self
+            .rpc
+            .is_synced()
+            .await
+            .map_err(|e| anyhow!("RPC error checking sync: {}", e))?;
+        if !synced {
+            return Err(anyhow!("Kaspa node is not synced — cannot execute refund"));
+        }
+
         let utxos = self
             .rpc
             .get_utxos(&escrow.p2sh_address)
@@ -366,6 +381,29 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to get UTXOs: {}", e))?;
 
         let total_balance: u64 = utxos.iter().map(|u| u.amount).sum();
+
+        // Zero-balance guard: nothing to refund (escrow already emptied or never funded)
+        if total_balance == 0 {
+            tracing::info!(
+                "💸 Refund for match {}: escrow has 0 balance — marking as refunded (no TX needed)",
+                match_id
+            );
+            {
+                let mut escrows = self.escrows.lock().await;
+                if let Some(esc) = escrows.get_mut(match_id) {
+                    esc.status = EscrowStatus::Refunded;
+                }
+            }
+            return Ok(MultisigPayoutResult {
+                match_id: match_id.to_string(),
+                tx_id: String::new(),
+                winner_address: format!("{} / {}", player_a_address, player_b_address),
+                winner_amount_sompi: 0,
+                platform_fee_sompi: 0,
+                network_fee_sompi: 0,
+                timestamp: Utc::now().to_rfc3339(),
+            });
+        }
 
         let fee_estimate = self
             .rpc

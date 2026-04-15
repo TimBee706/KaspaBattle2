@@ -1,4 +1,4 @@
-﻿use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,6 +11,7 @@ pub enum MatchStatus {
     PaidOut,
     Disputed,
     Cancelled,
+    Refunded,
 }
 
 impl MatchStatus {
@@ -26,7 +27,7 @@ impl MatchStatus {
     pub fn allows_refund(&self) -> bool {
         matches!(
             self,
-            MatchStatus::Open | MatchStatus::Funded | MatchStatus::Locked | MatchStatus::Disputed
+            MatchStatus::Open | MatchStatus::Funded | MatchStatus::Locked | MatchStatus::Disputed | MatchStatus::Cancelled
         )
     }
 }

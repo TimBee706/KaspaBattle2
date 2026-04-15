@@ -22,6 +22,7 @@ pub enum MatchStatus {
     PaidOut,         // Payout executed
     Disputed,        // Dispute filed
     Cancelled,
+    Refunded,        // Refund executed — deposits returned to players
 }
 
 #[derive(Type, Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -61,7 +62,8 @@ pub const MATCH_COLUMNS: &str = concat!(
     "faceit_match_id_final, faceit_match_status, ",
     "faceit_finished_at, faceit_winner_faction, faceit_score, ",
     "winner_user_id, loser_user_id, ",
-    "payout_pskt_hex, payout_tx_hash, payout_status"
+    "payout_pskt_hex, payout_tx_hash, payout_status, ",
+    "refund_tx_hash, refund_status, cancelled_at"
 );
 
 /// Backwards-compat alias (use `MATCH_COLUMNS` in new code).
@@ -142,6 +144,17 @@ pub struct Match {
     /// Status of the payout process: "pending_winner_sig", "broadcast", "confirmed"
     #[sqlx(default)]
     pub payout_status: Option<String>,
+
+    // ── v1.2 Refund Tracking ──
+    /// On-chain TX ID of the refund transaction
+    #[sqlx(default)]
+    pub refund_tx_hash: Option<String>,
+    /// Refund process status: "none", "pending", "pending_manual", "success", "failed"
+    #[sqlx(default)]
+    pub refund_status: Option<String>,
+    /// Timestamp when the match was cancelled
+    #[sqlx(default)]
+    pub cancelled_at: Option<chrono::DateTime<chrono::Utc>>,
 
     // ── v1.1 FACEIT Profile Enrichment (not stored in matches table) ──
     // These fields are populated in-memory after the DB load by joining faceit_links.
@@ -235,6 +248,9 @@ impl Match {
             },
             MatchStatus::Cancelled => MatchState::Cancelled {
                 reason: String::new(),
+            },
+            MatchStatus::Refunded => MatchState::Refunded {
+                refund_tx_hash: self.refund_tx_hash.clone(),
             },
         }
     }

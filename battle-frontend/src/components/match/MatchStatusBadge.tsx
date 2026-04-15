@@ -16,6 +16,7 @@ const STATUS_CONFIG: Record<MatchStatus, { key: string; color: string; pulse?: b
     PAID_OUT: { key: 'status.PAID_OUT', color: 'bg-emerald-600' },
     DISPUTED: { key: 'status.DISPUTED', color: 'bg-red-600', pulse: true },
     CANCELLED: { key: 'status.CANCELLED', color: 'bg-gray-600' },
+    REFUNDED: { key: 'status.REFUNDED', color: 'bg-emerald-600' },
 };
 
 const FALLBACK_STATUS_CONFIG = { key: 'status.UNKNOWN', color: 'bg-slate-600' } as const;
