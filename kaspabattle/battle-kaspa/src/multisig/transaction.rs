@@ -96,7 +96,9 @@ pub fn create_unsigned_payout_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count,
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();
@@ -173,7 +175,9 @@ pub fn create_unsigned_refund_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 3, // 2-of-3 multisig: 3 keys → 3 sigops for OP_CHECKMULTISIG
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();

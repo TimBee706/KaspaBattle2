@@ -15,6 +15,7 @@ import {
   type PayoutInfo,
 } from '../api/tournaments';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useTranslation } from 'react-i18next';
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ interface AdminRowProps {
 }
 
 function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: AdminRowProps) {
+  const { t } = useTranslation();
   const [payout, setPayout] = useState<PayoutInfo | null>(null);
   const [disputes, setDisputes] = useState<{ id: string; round: number; slot_index: number; reason?: string; team_a_id?: string; team_b_id?: string; winner_team_id?: string }[]>([]);
   const [resolveTeamId, setResolveTeamId] = useState<Record<string, string>>({});
@@ -66,7 +68,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
   }, [expanded, tournament.id]);
 
   const handleTriggerPayout = async () => {
-    if (!confirm('Trigger payout for this tournament?')) return;
+    if (!confirm(t('tournaments.admin.payout.confirm_trigger'))) return;
     setPayoutLoading(true);
     try {
       await adminTriggerPayout(tournament.id);
@@ -75,7 +77,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
   };
 
   const handleCancel = async () => {
-    if (!confirm('Cancel this tournament and refund all deposits?')) return;
+    if (!confirm(t('tournaments.admin.cancel.confirm_cancel'))) return;
     setCancelLoading(true);
     try {
       await adminCancelTournament(tournament.id);
@@ -84,7 +86,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
   };
 
   const handleResolveDispute = async (slotId: string, teamId: string) => {
-    if (!confirm('Resolve dispute and declare this team the winner?')) return;
+    if (!confirm(t('tournaments.admin.disputes.confirm_resolve'))) return;
     try {
       await adminResolveBracketDispute(tournament.id, slotId, teamId);
       onRefresh();
@@ -116,19 +118,19 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
       {expanded && (
         <div className="border-t border-white/5 p-4 space-y-4">
           {loading ? (
-            <div className="text-center py-4 text-gray-500 text-sm">Loading details…</div>
+            <div className="text-center py-4 text-gray-500 text-sm">{t('tournaments.admin.loading')}</div>
           ) : (
             <>
               {/* Payout info */}
               {payout && (
                 <div className="bg-[#0a0f14] rounded-xl p-4 space-y-2">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Payout Status</h4>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.admin.payout.title')}</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {[
-                      ['Winner Share', `${sompiToKas(payout.winner_share_sompi)} KAS`],
-                      ['Runner-up Share', `${sompiToKas(payout.runner_up_share_sompi)} KAS`],
-                      ['Platform Fee', `${sompiToKas(payout.platform_fee_sompi)} KAS`],
-                      ['Winner Address', payout.winner_kaspa_address ?? 'Not set'],
+                      [t('tournaments.admin.payout.winner_share'), `${sompiToKas(payout.winner_share_sompi)} KAS`],
+                      [t('tournaments.admin.payout.runner_up_share'), `${sompiToKas(payout.runner_up_share_sompi)} KAS`],
+                      [t('tournaments.admin.payout.platform_fee'), `${sompiToKas(payout.platform_fee_sompi)} KAS`],
+                      [t('tournaments.admin.payout.winner_address'), payout.winner_kaspa_address ?? t('tournaments.admin.payout.not_set')],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-2">
                         <span className="text-gray-500">{k}</span>
@@ -138,7 +140,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
                   </div>
                   {payout.payout_tx_hash ? (
                     <div className="mt-2 bg-[#49EACB]/5 border border-[#49EACB]/20 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-1">Payout TX (completed)</p>
+                      <p className="text-xs text-gray-500 mb-1">{t('tournaments.admin.payout.payout_tx')}</p>
                       <code className="text-xs text-[#49EACB] break-all">{payout.payout_tx_hash}</code>
                     </div>
                   ) : tournament.status === 'COMPLETED' && (
@@ -148,7 +150,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
                       disabled={payoutLoading}
                       className="mt-2 w-full py-2 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-lg text-sm disabled:opacity-40 transition-all"
                     >
-                      {payoutLoading ? 'Triggering…' : '💸 Trigger Payout'}
+                      {payoutLoading ? t('tournaments.admin.payout.triggering') : t('tournaments.admin.payout.trigger_btn')}
                     </button>
                   )}
                 </div>
@@ -158,13 +160,13 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
               {disputes.length > 0 && (
                 <div className="bg-orange-950/20 border border-orange-500/20 rounded-xl p-4">
                   <h4 className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-3">
-                    ⚖️ Disputed Slots ({disputes.length})
+                    {t('tournaments.admin.disputes.title', { count: disputes.length })}
                   </h4>
                   <div className="space-y-3">
                     {disputes.map(slot => (
                       <div key={slot.id} className="bg-[#0a0f14] rounded-lg p-3">
                         <div className="text-sm text-white mb-1">
-                          Round {slot.round + 1}, Slot {slot.slot_index + 1}
+                          {t('tournaments.admin.disputes.round_slot', { round: slot.round + 1, slot: slot.slot_index + 1 })}
                         </div>
                         {slot.reason && (
                           <p className="text-xs text-gray-400 mb-2 italic">&ldquo;{slot.reason}&rdquo;</p>
@@ -179,7 +181,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
                                   value={resolveTeamId[slot.id] ?? ''}
                                   onChange={e => setResolveTeamId(prev => ({ ...prev, [slot.id]: e.target.value }))}
                                 >
-                                  <option value="">Select winner…</option>
+                                  <option value="">{t('tournaments.admin.disputes.select_winner')}</option>
                                   {[slot.team_a_id, slot.team_b_id].filter(Boolean).map(t => (
                                     <option key={t} value={t!}>{t!.slice(0, 8)}…</option>
                                   ))}
@@ -190,14 +192,14 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
                                   disabled={!resolveTeamId[slot.id]}
                                   className="text-xs py-1 px-2 bg-orange-600 hover:bg-orange-500 text-white rounded disabled:opacity-40 transition-all"
                                 >
-                                  Resolve
+                                  {t('tournaments.admin.disputes.resolve_btn')}
                                 </button>
                               </div>
                             ))}
                           </div>
                         )}
                         {slot.winner_team_id && (
-                          <span className="text-xs text-[#49EACB]">✓ Resolved</span>
+                          <span className="text-xs text-[#49EACB]">{t('tournaments.admin.disputes.resolved')}</span>
                         )}
                       </div>
                     ))}
@@ -214,7 +216,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
                     disabled={cancelLoading}
                     className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-sm font-semibold rounded-lg disabled:opacity-40 transition-all"
                   >
-                    {cancelLoading ? 'Cancelling…' : 'Force Cancel & Refund'}
+                    {cancelLoading ? t('tournaments.admin.cancel.cancelling') : t('tournaments.admin.cancel.btn')}
                   </button>
                 )}
               </div>
@@ -229,13 +231,14 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
 // ─── Stats Bar ────────────────────────────────────────────────────────────────
 
 function StatsBar({ tournaments }: { tournaments: Tournament[] }) {
+  const { t } = useTranslation();
   const stats = [
-    { label: 'Total', value: tournaments.length, color: '#49EACB' },
-    { label: 'Live', value: tournaments.filter(t => t.status === 'IN_PROGRESS').length, color: '#10b981' },
-    { label: 'Disputed', value: tournaments.filter(t => t.status === 'DISPUTED').length, color: '#f97316' },
-    { label: 'Completed', value: tournaments.filter(t => t.status === 'COMPLETED').length, color: '#6b7280' },
+    { label: t('tournaments.admin.stats.total'), value: tournaments.length, color: '#49EACB' },
+    { label: t('tournaments.admin.stats.live'), value: tournaments.filter(t => t.status === 'IN_PROGRESS').length, color: '#10b981' },
+    { label: t('tournaments.admin.stats.disputed'), value: tournaments.filter(t => t.status === 'DISPUTED').length, color: '#f97316' },
+    { label: t('tournaments.admin.stats.completed'), value: tournaments.filter(t => t.status === 'COMPLETED').length, color: '#6b7280' },
     {
-      label: 'Total Prize Pool',
+      label: t('tournaments.admin.stats.prize_pool'),
       value: `${sompiToKas(tournaments.reduce((s, t) => s + t.total_prize_pool_sompi, 0))} KAS`,
       color: '#fbbf24',
     },
@@ -256,6 +259,7 @@ function StatsBar({ tournaments }: { tournaments: Tournament[] }) {
 // ─── Main Admin Page ──────────────────────────────────────────────────────────
 
 export function TournamentAdminPage() {
+  const { t } = useTranslation();
   const user = useAuthStore(s => s.user);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,8 +288,8 @@ export function TournamentAdminPage() {
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center">
         <div className="text-center">
           <div className="text-5xl mb-4">🔒</div>
-          <h2 className="text-xl font-bold text-white mb-2">Admin Access Required</h2>
-          <p className="text-gray-500 text-sm">Please sign in with an admin account.</p>
+          <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.admin.auth_required')}</h2>
+          <p className="text-gray-500 text-sm">{t('tournaments.admin.auth_msg')}</p>
         </div>
       </div>
     );
@@ -294,11 +298,11 @@ export function TournamentAdminPage() {
   const filtered = filter === 'ALL' ? tournaments : tournaments.filter(t => t.status === filter);
 
   const filterOptions: Array<{ value: TournamentStatus | 'ALL'; label: string }> = [
-    { value: 'ALL', label: 'All' },
-    { value: 'DISPUTED', label: '⚖️ Disputed' },
-    { value: 'IN_PROGRESS', label: '🔴 Live' },
-    { value: 'COMPLETED', label: '✅ Done' },
-    { value: 'CANCELLED', label: '🚫 Cancelled' },
+    { value: 'ALL', label: t('tournaments.filter.all') },
+    { value: 'DISPUTED', label: t('tournaments.filter.disputed') },
+    { value: 'IN_PROGRESS', label: t('tournaments.filter.live') },
+    { value: 'COMPLETED', label: t('tournaments.filter.completed') },
+    { value: 'CANCELLED', label: t('tournaments.filter.cancelled') },
   ];
 
   return (
@@ -309,9 +313,13 @@ export function TournamentAdminPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-black text-white">
-              Tournament <span className="text-[#49EACB]">Admin</span>
+               {t('tournaments.admin.title').replace('Tournament Admin', '').trim() === '' ? (
+                 <>Tournament <span className="text-[#49EACB]">Admin</span></>
+               ) : (
+                 t('tournaments.admin.title').split(' ').map((word, i) => i === 0 ? <span key={i} className="text-[#49EACB]">{word} </span> : word + ' ')
+               )}
             </h1>
-            <p className="text-gray-400 text-sm mt-0.5">Dispute resolution, payout management, oversight</p>
+            <p className="text-gray-400 text-sm mt-0.5">{t('tournaments.admin.subtitle')}</p>
           </div>
           <button
             id="admin-refresh-btn"
@@ -353,7 +361,7 @@ export function TournamentAdminPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
             <div className="text-4xl mb-3">📋</div>
-            <p>No tournaments in this category</p>
+            <p>{t('tournaments.empty.admin_title')}</p>
           </div>
         ) : (
           <div className="space-y-3">
