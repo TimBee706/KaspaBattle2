@@ -840,9 +840,14 @@ impl MultisigEscrowService {
             .collect();
 
         // 5. Calculate overall mass (compute mass + storage mass combined per KIP-9).
-        let mass = mass_calc
+        let mass_unsigned = mass_calc
             .calc_overall_mass_for_unsigned_consensus_transaction(tx, &utxo_refs, minimum_signatures)
             .map_err(|e| anyhow!("Mass calculation failed: {}", e))?;
+
+        // Add 10% overhead to account for signature script bytes not present in the
+        // unsigned provisional TX. Each P2SH sig script adds 66 bytes per signature
+        // + redeem script length, increasing storage mass beyond the provisional estimate.
+        let mass = ((mass_unsigned as f64) * 1.1).ceil() as u64;
 
         // 6. Derive fee: take the maximum of minimum relay fee and feerate-based fee.
         let min_fee = mass_calc.calc_minimum_transaction_fee_from_mass(mass);
@@ -850,6 +855,7 @@ impl MultisigEscrowService {
         let fee = min_fee.max(feerate_fee).max(1000);
 
         tracing::debug!(
+            mass_unsigned,
             mass,
             fee_rate,
             min_fee,
