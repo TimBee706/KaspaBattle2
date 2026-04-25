@@ -27,12 +27,12 @@ export function Footer() {
                         >
                             {t('footer_links.discord')}
                         </a>
-                        <a
-                            href="mailto:info@kaspabattle.com"
+                        <Link
+                            to="/support"
                             className="hover:text-kaspa-primary transition-colors"
                         >
                             {t('footer_links.support')}
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </div>
