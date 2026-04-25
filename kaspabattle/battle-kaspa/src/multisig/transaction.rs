@@ -178,16 +178,25 @@ pub fn create_unsigned_refund_tx(
         })
         .collect();
 
-    let outputs = vec![
-        TransactionOutput {
+    let mut outputs = Vec::new();
+    if player_a_address == player_b_address {
+        // Single player refund (Player B never joined) -> send full balance in one output
+        // This prevents wallet UI bugs that fail to parse multiple outputs to the same address
+        outputs.push(TransactionOutput {
+            value: net,
+            script_public_key: pay_to_address_script(&addr_a),
+        });
+    } else {
+        // Two-player refund -> split 50/50
+        outputs.push(TransactionOutput {
             value: half,
             script_public_key: pay_to_address_script(&addr_a),
-        },
-        TransactionOutput {
+        });
+        outputs.push(TransactionOutput {
             value: net - half,
             script_public_key: pay_to_address_script(&addr_b),
-        },
-    ];
+        });
+    }
 
     let tx = Transaction::new(0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, vec![]);
 
