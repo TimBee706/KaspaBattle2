@@ -1,4 +1,4 @@
-﻿//! Transaction building and signing for multisig escrows.
+//! Transaction building and signing for multisig escrows.
 //!
 //! Handles unsigned TX creation, sighash computation, Schnorr signing,
 //! and final TX assembly with signature scripts.
@@ -77,6 +77,12 @@ pub fn create_unsigned_payout_tx(
         .map_err(|e| TxError::InvalidAddress(format!("platform: {}", e)))?;
 
     // Build inputs from UTXOs
+    // sig_op_count must equal the number of public keys in the redeem script
+    // because OP_CHECKMULTISIG counts N sigops (one per key), not M (the threshold).
+    // For a 2-of-3 multisig: 3 keys → sig_op_count = 3.
+    // Setting this to 2 (the threshold) causes node rejection:
+    // "sig op count exceeds passed limit of 2"
+    let sig_op_count: u8 = 3; // 2-of-3 multisig: 3 public keys in the redeem script
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
@@ -90,7 +96,7 @@ pub fn create_unsigned_payout_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 2, // For 2-of-3 multisig
+                sig_op_count,
             }
         })
         .collect();
@@ -152,6 +158,8 @@ pub fn create_unsigned_refund_tx(
     let net = total_balance.saturating_sub(network_fee);
     let half = net / 2;
 
+    // sig_op_count = 3: OP_CHECKMULTISIG counts one sigop per public key in the
+    // redeem script (n, not m). For a 2-of-3 multisig there are 3 public keys.
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
@@ -165,7 +173,7 @@ pub fn create_unsigned_refund_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 2,
+                sig_op_count: 3, // 2-of-3 multisig: 3 keys → 3 sigops for OP_CHECKMULTISIG
             }
         })
         .collect();

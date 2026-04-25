@@ -490,7 +490,21 @@ async fn main() {
 
     tracing::info!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            tracing::error!(
+                "❌ Port 8080 is already in use (another battle-api instance is running).\n\
+                 Kill it first with:\n\
+                 PowerShell: Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force\n\
+                 Linux/Mac:  kill $(lsof -ti:8080)"
+            );
+            std::process::exit(1);
+        }
+        Err(e) => {
+            panic!("Failed to bind TCP listener on 0.0.0.0:8080: {}", e);
+        }
+    };
 
     // ── Background Episode-Runner (v0.4) ──────────────────────────────────────
     // Polls every 5s for AWAITING_FUNDING matches (fast confirmation detection),
