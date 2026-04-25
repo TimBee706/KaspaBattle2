@@ -14,6 +14,8 @@ import { MatchPage } from './pages/MatchPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { EscrowPage } from './pages/EscrowPage';
+import { WhitepaperPage } from './pages/WhitepaperPage';
+import { TermsPage } from './pages/TermsPage';
 
 import { useAuthStore } from './stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
@@ -105,6 +107,8 @@ export default function App() {
             <Route path="lobby/create" element={<CreateMatchPage />} />
             <Route path="lobby/:lobbyId" element={<LobbyPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="whitepaper" element={<WhitepaperPage />} />
+            <Route path="terms" element={<TermsPage />} />
 
             {/* Geschuetzte Routen - AuthGuard zeigt Banner */}
             <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />

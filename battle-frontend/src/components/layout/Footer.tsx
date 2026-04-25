@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 export function Footer() {
     const { t } = useTranslation();
@@ -12,10 +13,26 @@ export function Footer() {
                     </div>
 
                     <div className="flex items-center gap-6 text-sm text-gray-400">
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.whitepaper')}</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.terms')}</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.discord')}</a>
-                        <a href="#" className="hover:text-kaspa-primary transition-colors">{t('footer_links.support')}</a>
+                        <Link to="/whitepaper" className="hover:text-kaspa-primary transition-colors">
+                            {t('footer_links.whitepaper')}
+                        </Link>
+                        <Link to="/terms" className="hover:text-kaspa-primary transition-colors">
+                            {t('footer_links.terms')}
+                        </Link>
+                        <a
+                            href="https://x.com/KaspaBattle"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-kaspa-primary transition-colors"
+                        >
+                            {t('footer_links.discord')}
+                        </a>
+                        <a
+                            href="mailto:info@kaspabattle.com"
+                            className="hover:text-kaspa-primary transition-colors"
+                        >
+                            {t('footer_links.support')}
+                        </a>
                     </div>
                 </div>
             </div>
