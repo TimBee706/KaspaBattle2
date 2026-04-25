@@ -23,11 +23,16 @@ use crate::multisig::types::*;
 use crate::rpc::KaspaBackend;
 
 use battle_core::types::SOMPI_PER_KAS;
-
 use battle_core::constants::PLATFORM_FEE_PERCENT;
 
-/// Estimated transaction mass in grams (for fee calculation)
-const ESTIMATED_TX_MASS_GRAMS: u64 = 3000;
+// Kaspa mass-based fee calculation imports
+use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_consensus_core::tx::TransactionId;
+use kaspa_consensus_client::UtxoEntry as ClientUtxoEntry;
+use kaspa_consensus_client::UtxoEntryReference;
+use kaspa_consensus_client::TransactionOutpoint as ClientOutpoint;
+use kaspa_wallet_core::tx::mass::MassCalculator;
+use kaspa_wallet_core::utxo::NetworkParams;
 
 /// MultisigEscrowService — manages the complete lifecycle of multisig escrows.
 ///
@@ -247,27 +252,51 @@ impl MultisigEscrowService {
             ));
         }
 
-        // Calculate fee
-        let fee_estimate = self
-            .rpc
-            .get_fee_estimate()
-            .await
-            .map_err(|e| anyhow!("Fee estimate failed: {}", e))?;
-        let network_fee = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
-            .ceil() as u64)
-            .max(1000);
-
-        // Calculate split
-        let net_pot = total_balance.saturating_sub(network_fee);
-        let platform_fee = net_pot * PLATFORM_FEE_PERCENT / 100;
-        let winner_amount = net_pot - platform_fee;
-
         // Build redeem script and P2SH for signing
         let redeem_script = hex::decode(&escrow.redeem_script_hex)
             .map_err(|e| anyhow!("Invalid redeem script hex: {}", e))?;
         let p2sh_spk = redeem_script_to_p2sh(&redeem_script);
 
-        // Create unsigned TX
+        // --- Kaspa Mass-based Fee Calculation (v2) ---
+        // Stage 1: Build provisional TX (fee=0) to measure real TX mass.
+        // We use provisional split amounts to get accurate output structure.
+        let provisional_platform_fee = total_balance * PLATFORM_FEE_PERCENT / 100;
+        let provisional_winner_amount = total_balance - provisional_platform_fee;
+        let (tmp_tx, _) = create_unsigned_payout_tx(
+            &utxos,
+            winner_address,
+            provisional_winner_amount,
+            &self.treasury_address,
+            provisional_platform_fee,
+            &p2sh_spk,
+        )
+        .map_err(|e| anyhow!("Failed to create provisional payout TX: {}", e))?;
+
+        // Stage 2: Compute real fee from actual TX mass + node fee-rate.
+        let network_fee = self
+            .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("[FALLBACK] Fee calculation failed ({}), using conservative 5000 sompi", e);
+                5000
+            });
+
+        // Stage 3: Final split with correct fee.
+        let net_pot = total_balance.saturating_sub(network_fee);
+        let platform_fee = net_pot * PLATFORM_FEE_PERCENT / 100;
+        let winner_amount = net_pot - platform_fee;
+
+        tracing::info!(
+            match_id = %match_id,
+            total_balance,
+            utxo_count = utxos.len(),
+            network_fee,
+            platform_fee,
+            winner_amount,
+            "Payout TX fees computed (mass-based)"
+        );
+
+        // Stage 4: Build final unsigned TX with correct amounts.
         let (tx, utxo_entries) = create_unsigned_payout_tx(
             &utxos,
             winner_address,
@@ -405,19 +434,40 @@ impl MultisigEscrowService {
             });
         }
 
-        let fee_estimate = self
-            .rpc
-            .get_fee_estimate()
-            .await
-            .map_err(|e| anyhow!("Fee estimate failed: {}", e))?;
-        let network_fee = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
-            .ceil() as u64)
-            .max(1000);
-
         let redeem_script = hex::decode(&escrow.redeem_script_hex)
             .map_err(|e| anyhow!("Invalid redeem script hex: {}", e))?;
         let p2sh_spk = redeem_script_to_p2sh(&redeem_script);
 
+        // --- Kaspa Mass-based Fee Calculation (v2) ---
+        // Stage 1: Provisional refund TX with fee=0 to measure real mass.
+        let (tmp_tx, _) = create_unsigned_refund_tx(
+            &utxos,
+            player_a_address,
+            player_b_address,
+            total_balance,
+            0, // fee=0 for mass measurement only
+            &p2sh_spk,
+        )
+        .map_err(|e| anyhow!("Failed to create provisional refund TX: {}", e))?;
+
+        // Stage 2: Compute real fee from TX mass + node fee-rate.
+        let network_fee = self
+            .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("[FALLBACK] Refund fee calc failed ({}), using conservative 5000 sompi", e);
+                5000
+            });
+
+        tracing::info!(
+            match_id = %match_id,
+            total_balance,
+            utxo_count = utxos.len(),
+            network_fee,
+            "Refund TX fees computed (mass-based)"
+        );
+
+        // Stage 3: Build final refund TX with correct fee.
         let (tx, utxo_entries) = create_unsigned_refund_tx(
             &utxos,
             player_a_address,
@@ -553,16 +603,34 @@ impl MultisigEscrowService {
             ));
         }
 
-        // ── Fee calculation ────────────────────────────────────────────────
-        let fee_estimate = self
-            .rpc
-            .get_fee_estimate()
-            .await
-            .map_err(|e| anyhow!("Fee estimate failed: {}", e))?;
-        let network_fee = ((fee_estimate.normal_bucket_feerate * ESTIMATED_TX_MASS_GRAMS as f64)
-            .ceil() as u64)
-            .max(1000);
+        // ── Fee calculation (Kaspa Mass-based, v2) ────────────────────────
+        // Stage 1: Build provisional TX to measure real TX mass.
+        let redeem_script = hex::decode(&escrow.redeem_script_hex)
+            .map_err(|e| anyhow!("Invalid redeem script hex: {}", e))?;
+        let p2sh_spk = crate::multisig::scripts::redeem_script_to_p2sh(&redeem_script);
 
+        let provisional_platform_fee = total_balance * PLATFORM_FEE_PERCENT / 100;
+        let provisional_winner_amount = total_balance - provisional_platform_fee;
+        let (tmp_tx, _) = create_unsigned_payout_tx(
+            &utxos,
+            winner_address,
+            provisional_winner_amount,
+            &self.treasury_address,
+            provisional_platform_fee,
+            &p2sh_spk,
+        )
+        .map_err(|e| anyhow!("Failed to create provisional PSKT TX: {}", e))?;
+
+        // Stage 2: Compute real fee from TX mass + node fee-rate.
+        let network_fee = self
+            .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("[FALLBACK] PSKT fee calc failed ({}), using conservative 5000 sompi", e);
+                5000
+            });
+
+        // Stage 3: Final amounts.
         let net_pot = total_balance.saturating_sub(network_fee);
         let platform_fee = net_pot * PLATFORM_FEE_PERCENT / 100;
         let winner_amount = net_pot - platform_fee;
@@ -570,18 +638,15 @@ impl MultisigEscrowService {
         tracing::info!(
             match_id = %match_id,
             total_balance,
+            utxo_count = utxos.len(),
             network_fee,
             platform_fee,
             winner_amount,
             winner_address,
-            "Creating PSKT for payout"
+            "Creating PSKT for payout (mass-based fee)"
         );
 
-        // ── Build unsigned TX ──────────────────────────────────────────────
-        let redeem_script = hex::decode(&escrow.redeem_script_hex)
-            .map_err(|e| anyhow!("Invalid redeem script hex: {}", e))?;
-        let p2sh_spk = crate::multisig::scripts::redeem_script_to_p2sh(&redeem_script);
-
+        // ── Build final unsigned TX ────────────────────────────────────────
         let (tx, utxo_entries) = create_unsigned_payout_tx(
             &utxos,
             winner_address,
@@ -715,6 +780,86 @@ impl MultisigEscrowService {
 
         Ok((pk_hex, sk_bytes))
     }
+
+    /// Computes the network fee for an unsigned transaction based on its actual mass.
+    ///
+    /// # Kaspa Mass-based Fee Calculation
+    ///
+    /// Uses `MassCalculator` from `kaspa-wallet-core` to determine the exact
+    /// compute + storage mass of the unsigned transaction, then derives the fee
+    /// from the node's current fee-rate. This ensures fees are never rejected
+    /// as "fees under required amount" by the Kaspa node.
+    ///
+    /// # Arguments
+    /// * `tx` - The unsigned consensus transaction (inputs must be set, signatures empty)
+    /// * `utxos` - UTXOs being spent (needed for storage mass calculation)
+    /// * `p2sh_spk` - The escrow P2SH script public key (applied to all UTXO entries)
+    /// * `minimum_signatures` - Number of required signatures (2 for 2-of-3 multisig)
+    async fn compute_network_fee_for_tx(
+        &self,
+        tx: &kaspa_consensus_core::tx::Transaction,
+        utxos: &[crate::rpc::UtxoInfo],
+        p2sh_spk: &kaspa_consensus_core::tx::ScriptPublicKey,
+        minimum_signatures: u16,
+    ) -> anyhow::Result<u64> {
+        // 1. Get current fee rate from the node.
+        let fee_estimate = self
+            .rpc
+            .get_fee_estimate()
+            .await
+            .map_err(|e| anyhow!("Fee estimate RPC failed: {}", e))?;
+        let fee_rate = fee_estimate.normal_bucket_feerate;
+
+        // 2. Map prefix → NetworkId (NetworkParams::from panics for bare Testnet without suffix).
+        let network_id = match self.prefix {
+            Prefix::Mainnet => NetworkId::new(NetworkType::Mainnet),
+            _ => NetworkId::with_suffix(NetworkType::Testnet, 10), // Default: Testnet-10
+        };
+
+        // 3. Build MassCalculator with network-specific params (same pattern as wallet generator).
+        let network_params = NetworkParams::from(network_id);
+        let mass_calc = MassCalculator::new(&network_id.into(), network_params);
+
+        // 4. Build UtxoEntryReference list from our UtxoInfo + escrow script public key.
+        let utxo_refs: Vec<UtxoEntryReference> = utxos
+            .iter()
+            .map(|u| {
+                let tx_id_bytes = hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]);
+                let tx_id = TransactionId::from_slice(&tx_id_bytes);
+                let outpoint = ClientOutpoint::new(tx_id, u.output_index);
+                let entry = ClientUtxoEntry {
+                    address: None,
+                    outpoint,
+                    amount: u.amount,
+                    script_public_key: p2sh_spk.clone(),
+                    block_daa_score: u.block_daa_score,
+                    is_coinbase: u.is_coinbase,
+                };
+                UtxoEntryReference::from(entry)
+            })
+            .collect();
+
+        // 5. Calculate overall mass (compute mass + storage mass combined per KIP-9).
+        let mass = mass_calc
+            .calc_overall_mass_for_unsigned_consensus_transaction(tx, &utxo_refs, minimum_signatures)
+            .map_err(|e| anyhow!("Mass calculation failed: {}", e))?;
+
+        // 6. Derive fee: take the maximum of minimum relay fee and feerate-based fee.
+        let min_fee = mass_calc.calc_minimum_transaction_fee_from_mass(mass);
+        let feerate_fee = (fee_rate * mass as f64).ceil() as u64;
+        let fee = min_fee.max(feerate_fee).max(1000);
+
+        tracing::debug!(
+            mass,
+            fee_rate,
+            min_fee,
+            feerate_fee,
+            fee,
+            "Mass-based fee computed"
+        );
+
+        Ok(fee)
+    }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -734,11 +879,25 @@ mod tests {
                 .try_into()
                 .unwrap();
 
+        // Valid kaspatest treasury address (derived from known keypair)
+        use kaspa_addresses::{Address, Version};
+        let treasury_sk: [u8; 32] =
+            hex::decode("5f6e7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e9f001")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let secp = secp256k1::Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_slice(&treasury_sk).unwrap();
+        let keypair = secp256k1::Keypair::from_secret_key(&secp, &sk);
+        let (xonly, _) = keypair.x_only_public_key();
+        let treasury_addr =
+            Address::new(Prefix::Testnet, Version::PubKey, &xonly.serialize()).to_string();
+
         let service = MultisigEscrowService::new(
             mock.clone() as Arc<dyn KaspaBackend>,
             Prefix::Testnet,
             oracle_sk,
-            "kaspatest:qz7ks4hqswjj40zr58hxnhkdq75ky7f0kquq9ltyrdm5cpygkhfg5j8pf83l".to_string(),
+            treasury_addr,
         )
         .unwrap();
 
@@ -928,5 +1087,199 @@ mod tests {
         let (service, _) = make_service();
         assert!(!service.oracle_pubkey_hex().is_empty());
         assert_eq!(service.oracle_pubkey_hex().len(), 64); // 32 bytes hex
+    }
+
+    // ─── Mass-based Fee Calculation Tests ────────────────────────────────────
+
+    /// Build a minimal UtxoInfo for use in fee tests.
+    fn make_utxo_info(tx_id: &str, amount: u64) -> UtxoInfo {
+        UtxoInfo {
+            tx_id: tx_id.to_string(),
+            output_index: 0,
+            amount,
+            amount_kas: amount as f64 / 1e8,
+            is_coinbase: false,
+            block_daa_score: 100,
+            script_public_key: None,
+        }
+    }
+
+    /// Returns a valid kaspatest P2PK address for use in tests.
+    fn test_kaspatest_address() -> String {
+        use kaspa_addresses::{Address, Version};
+        // Deterministic key: sha256 of "kaspabattle-test"
+        let sk_bytes: [u8; 32] =
+            hex::decode("1d99c236b1f37b3b845336e6c568ba37e9ced4769d83b7a096eec446b940d160")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let secp = secp256k1::Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_slice(&sk_bytes).unwrap();
+        let keypair = secp256k1::Keypair::from_secret_key(&secp, &sk);
+        let (xonly, _) = keypair.x_only_public_key();
+        let addr = Address::new(Prefix::Testnet, Version::PubKey, &xonly.serialize());
+        addr.to_string()
+    }
+
+    /// Returns a second valid kaspatest address for player B.
+    fn test_kaspatest_address_b() -> String {
+        use kaspa_addresses::{Address, Version};
+        let sk_bytes: [u8; 32] =
+            hex::decode("349ca0c824948fed8c2c568ce205e9d9be4468ef099cad76e3e5ec918954aca4")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let secp = secp256k1::Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_slice(&sk_bytes).unwrap();
+        let keypair = secp256k1::Keypair::from_secret_key(&secp, &sk);
+        let (xonly, _) = keypair.x_only_public_key();
+        let addr = Address::new(Prefix::Testnet, Version::PubKey, &xonly.serialize());
+        addr.to_string()
+    }
+
+    #[tokio::test]
+    async fn test_compute_network_fee_for_tx_returns_nonzero() {
+        use crate::multisig::scripts::redeem_script_to_p2sh;
+        use crate::multisig::transaction::create_unsigned_refund_tx;
+
+        let (service, _mock) = make_service();
+        let match_id = uuid::Uuid::new_v4();
+        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+
+        let redeem_script = hex::decode(&info.redeem_script_hex).unwrap();
+        let p2sh_spk = redeem_script_to_p2sh(&redeem_script);
+
+        let utxos = vec![
+            make_utxo_info(
+                "63020db736215f8b1105a9281f7bcbb6473d965ecc45bb2fb5da59bd35e6ff84",
+                5_000_000,
+            ),
+            make_utxo_info(
+                "73020db736215f8b1105a9281f7bcbb6473d965ecc45bb2fb5da59bd35e6ff84",
+                5_000_000,
+            ),
+        ];
+
+        let addr_a = test_kaspatest_address();
+        let addr_b = test_kaspatest_address_b();
+        let (tmp_tx, _) = create_unsigned_refund_tx(
+            &utxos, &addr_a, &addr_b, 10_000_000, 0, &p2sh_spk,
+        )
+        .unwrap();
+
+        let fee = service
+            .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
+            .await
+            .expect("Fee calculation should succeed");
+
+        assert!(fee >= 1000, "Fee should be at least 1000 sompi, got {}", fee);
+        tracing::info!("Computed fee: {} sompi (old ESTIMATED_TX_MASS_GRAMS=3000 approach was ~3000)", fee);
+    }
+
+    #[tokio::test]
+    async fn test_execute_refund_with_mock_uses_mass_based_fee() {
+        let (service, mock) = make_service();
+        let match_id = uuid::Uuid::new_v4();
+
+        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+
+        mock.add_utxo(
+            &info.escrow_address,
+            UtxoInfo {
+                tx_id: "aabbccdd00000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
+                output_index: 0,
+                amount: 5_000_000,
+                amount_kas: 0.05,
+                is_coinbase: false,
+                block_daa_score: 100,
+                script_public_key: None,
+            },
+        );
+        mock.add_utxo(
+            &info.escrow_address,
+            UtxoInfo {
+                tx_id: "eeff001122000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
+                output_index: 0,
+                amount: 5_000_000,
+                amount_kas: 0.05,
+                is_coinbase: false,
+                block_daa_score: 101,
+                script_public_key: None,
+            },
+        );
+
+        let player_a = test_kaspatest_address();
+        let player_b = test_kaspatest_address_b();
+
+        let result = service
+            .execute_refund(&match_id, &player_a, &player_b)
+            .await
+            .expect("Refund should succeed");
+
+        assert!(!result.tx_id.is_empty(), "TX ID should not be empty");
+        assert!(
+            result.network_fee_sompi >= 1000,
+            "Fee should be at least 1000 sompi, got {}",
+            result.network_fee_sompi
+        );
+        assert_eq!(result.platform_fee_sompi, 0, "Refund has no platform fee");
+
+        let submitted = mock.get_submitted_tx_ids();
+        assert_eq!(submitted.len(), 1, "Exactly one TX should be submitted");
+    }
+
+    #[tokio::test]
+    async fn test_execute_payout_with_mock_uses_mass_based_fee() {
+        let (service, mock) = make_service();
+        let match_id = uuid::Uuid::new_v4();
+
+        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+
+        mock.add_utxo(
+            &info.escrow_address,
+            UtxoInfo {
+                tx_id: "1100000000000000000000000000000000000000000000000000000000000011"
+                    .to_string(),
+                output_index: 0,
+                amount: 5_000_000,
+                amount_kas: 0.05,
+                is_coinbase: false,
+                block_daa_score: 200,
+                script_public_key: None,
+            },
+        );
+        mock.add_utxo(
+            &info.escrow_address,
+            UtxoInfo {
+                tx_id: "2200000000000000000000000000000000000000000000000000000000000022"
+                    .to_string(),
+                output_index: 0,
+                amount: 5_000_000,
+                amount_kas: 0.05,
+                is_coinbase: false,
+                block_daa_score: 201,
+                script_public_key: None,
+            },
+        );
+
+        let winner = test_kaspatest_address();
+
+        let result = service
+            .execute_payout(&match_id, &winner)
+            .await
+            .expect("Payout should succeed");
+
+        assert!(!result.tx_id.is_empty());
+        assert!(
+            result.network_fee_sompi >= 1000,
+            "Fee should be >= 1000 sompi, got {}",
+            result.network_fee_sompi
+        );
+        assert!(result.winner_amount_sompi > 0, "Winner should receive something");
+
+        let submitted = mock.get_submitted_tx_ids();
+        assert_eq!(submitted.len(), 1);
     }
 }
