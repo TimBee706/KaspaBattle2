@@ -1,4 +1,4 @@
-﻿//! Transaction building and signing for multisig escrows.
+//! Transaction building and signing for multisig escrows.
 //!
 //! Handles unsigned TX creation, sighash computation, Schnorr signing,
 //! and final TX assembly with signature scripts.
@@ -90,7 +90,9 @@ pub fn create_unsigned_payout_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 2, // For 2-of-3 multisig
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();
@@ -165,7 +167,9 @@ pub fn create_unsigned_refund_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 2,
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();

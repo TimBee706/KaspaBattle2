@@ -6,10 +6,12 @@ import {
   type TournamentResults,
   type BracketSlot,
 } from '../api/tournaments';
+import { useTranslation } from 'react-i18next';
 
 // ─── Podium ───────────────────────────────────────────────────────────────────
 
 function Podium({ results }: { results: TournamentResults }) {
+  const { t } = useTranslation();
   const total = results.total_prize_pool_sompi;
   const winner = results.winner_team;
   const runnerUp = results.runner_up_team;
@@ -27,7 +29,7 @@ function Podium({ results }: { results: TournamentResults }) {
           <div className="text-3xl">🥈</div>
           <div className="bg-gradient-to-b from-[#1a2535] to-[#0d1827] border border-[#9ca3af]/30 rounded-2xl p-5 w-36 text-center shadow-xl">
             <div className="text-2xl font-black text-[#9ca3af] mb-1">2nd</div>
-            <div className="font-bold text-white text-sm truncate">{runnerUp?.name ?? 'TBD'}</div>
+            <div className="font-bold text-white text-sm truncate">{runnerUp?.name ?? t('tournaments.detail.bracket.tbd')}</div>
             <div className="text-xs text-gray-500 mt-0.5">{runnerUp?.captain_display_name}</div>
             <div className="text-[#9ca3af] font-bold text-sm mt-3">
               {sompiToKas(results.runner_up_share_sompi)} KAS
@@ -43,7 +45,7 @@ function Podium({ results }: { results: TournamentResults }) {
           </div>
           <div className="bg-gradient-to-b from-[#1f2d1a] to-[#0d1a0f] border border-[#49EACB]/40 rounded-2xl p-6 w-44 text-center shadow-[0_0_48px_rgba(73,234,203,0.12)]">
             <div className="text-3xl font-black text-[#49EACB] mb-1">1st</div>
-            <div className="font-bold text-white text-base truncate">{winner?.name ?? 'TBD'}</div>
+            <div className="font-bold text-white text-base truncate">{winner?.name ?? t('tournaments.detail.bracket.tbd')}</div>
             <div className="text-xs text-gray-400 mt-0.5">{winner?.captain_display_name}</div>
             <div className="text-[#49EACB] font-black text-lg mt-3">
               {sompiToKas(results.winner_share_sompi)} KAS
@@ -67,7 +69,7 @@ function Podium({ results }: { results: TournamentResults }) {
       </div>
 
       <div className="text-center mt-2 text-sm text-gray-500">
-        Total Prize Pool: <span className="text-[#49EACB] font-bold">{sompiToKas(total)} KAS</span>
+        {t('tournaments.results.prize_pool')}: <span className="text-[#49EACB] font-bold">{sompiToKas(total)} KAS</span>
       </div>
     </div>
   );
@@ -76,15 +78,16 @@ function Podium({ results }: { results: TournamentResults }) {
 // ─── Results Bracket (read-only) ──────────────────────────────────────────────
 
 function ResultsBracket({ slots }: { slots: BracketSlot[] }) {
+  const { t } = useTranslation();
   const rounds = Array.from(new Set(slots.map(s => s.round))).sort((a, b) => a - b);
   const maxRound = Math.max(...rounds, 0);
 
   const roundLabel = (r: number) => {
     const n = slots.filter(s => s.round === r).length;
-    if (r === maxRound && n === 1) return 'Grand Final';
-    if (r === maxRound - 1 && n <= 2) return 'Semifinals';
-    if (r === maxRound - 2) return 'Quarterfinals';
-    return `Round ${r + 1}`;
+    if (r === maxRound && n === 1) return t('tournaments.detail.bracket.grand_final');
+    if (r === maxRound - 1 && n <= 2) return t('tournaments.detail.bracket.semifinals');
+    if (r === maxRound - 2) return t('tournaments.detail.bracket.quarterfinals');
+    return t('tournaments.detail.bracket.round', { num: r + 1 });
   };
 
   return (
@@ -122,7 +125,7 @@ function ResultsBracket({ slots }: { slots: BracketSlot[] }) {
                         }`}
                       >
                         <span className={`text-xs font-semibold ${!team ? 'text-gray-600 italic' : 'text-white'}`}>
-                          {team?.name ?? 'TBD'}
+                          {team?.name ?? t('tournaments.detail.bracket.tbd')}
                         </span>
                         {slot.winner_team_id === team?.id && (
                           <span className="text-[#49EACB] text-xs">✓</span>
@@ -145,6 +148,7 @@ function ResultsBracket({ slots }: { slots: BracketSlot[] }) {
 // ─── Payout Section ───────────────────────────────────────────────────────────
 
 function PayoutSection({ results }: { results: TournamentResults }) {
+  const { t } = useTranslation();
   if (!results.payout_tx_hash) {
     return (
       <div className="bg-[#0d1b2a] border border-orange-500/20 rounded-xl p-5">
@@ -171,7 +175,7 @@ function PayoutSection({ results }: { results: TournamentResults }) {
         )}
       </div>
       <div>
-        <p className="text-xs text-gray-500 mb-1">Transaction ID</p>
+        <p className="text-xs text-gray-500 mb-1">{t('tournaments.results.payout_tx')}</p>
         <code className="text-xs text-[#49EACB] break-all bg-[#0a0f14] rounded-lg p-3 block font-mono">
           {results.payout_tx_hash}
         </code>
@@ -183,6 +187,7 @@ function PayoutSection({ results }: { results: TournamentResults }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function TournamentResultsPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [results, setResults] = useState<TournamentResults | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,9 +219,9 @@ export function TournamentResultsPage() {
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center">
         <div className="text-center">
           <div className="text-5xl mb-4">🔍</div>
-          <h2 className="text-xl font-bold text-white mb-2">Results not found</h2>
+          <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.detail.not_found')}</h2>
           <Link to="/tournaments" className="text-[#49EACB] hover:underline text-sm">
-            ← Back to Tournaments
+            {t('tournaments.results.navbar_back')}
           </Link>
         </div>
       </div>
@@ -230,18 +235,18 @@ export function TournamentResultsPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-3">
           <Link to={`/tournaments/${id}`} className="text-gray-500 hover:text-[#49EACB] text-sm transition-colors">
-            ← Tournament
+            {t('tournaments.results.navbar_back')}
           </Link>
           <span className="text-gray-700">/</span>
-          <span className="text-gray-400 text-sm">Results</span>
+          <span className="text-gray-400 text-sm">{t('tournaments.detail.actions.results').replace('🏆 ', '')}</span>
         </div>
 
         {/* Title */}
         <div className="text-center">
           <h1 className="text-4xl font-black text-white">
-            Tournament <span className="text-[#49EACB]">Results</span>
+            {t('tournaments.results.title').split(' ').map((word, i) => i === 0 ? <span key={i} className="text-[#49EACB]">{word} </span> : word + ' ')}
           </h1>
-          <p className="text-gray-400 mt-2 text-sm">Final standings and prize distribution</p>
+          <p className="text-gray-400 mt-2 text-sm">{t('tournaments.results.subtitle')}</p>
         </div>
 
         {/* Podium */}
@@ -270,7 +275,7 @@ export function TournamentResultsPage() {
             to="/tournaments"
             className="inline-block px-6 py-3 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all shadow-[0_0_16px_rgba(73,234,203,0.3)]"
           >
-            Browse Tournaments
+            {t('tournaments.results.back_overview')}
           </Link>
         </div>
       </div>

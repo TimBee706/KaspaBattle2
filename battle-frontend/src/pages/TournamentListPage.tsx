@@ -11,6 +11,7 @@ import {
 } from '../api/tournaments';
 import { startFaceitLogin } from '../api/auth';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useTranslation } from 'react-i18next';
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ interface CreateModalProps {
 }
 
 function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     name: '',
     game_id: 'cs2',
@@ -66,7 +68,7 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
       const t = await createTournament(payload);
       onCreated(t);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to create tournament';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('tournaments.create.error_fallback');
       setError(msg);
     } finally {
       setLoading(false);
@@ -79,35 +81,35 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-[#0f1923] border border-[#49EACB]/20 rounded-2xl w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-bold text-white">Create Tournament</h2>
+          <h2 className="text-xl font-bold text-white">{t('tournaments.create.title')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-2xl leading-none">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Name</label>
+            <label className="block text-sm text-gray-400 mb-1">{t('tournaments.create.name')}</label>
             <input
               id="create-tournament-name"
               className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#49EACB] transition-colors"
               required minLength={3}
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="KaspaBattle Weekly #1"
+              placeholder={t('tournaments.create.name_placeholder')}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Max Teams</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('tournaments.create.max_teams')}</label>
               <select
                 id="create-tournament-max-teams"
                 className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#49EACB]"
                 value={form.max_teams}
                 onChange={e => setForm(f => ({ ...f, max_teams: Number(e.target.value) }))}
               >
-                {[4, 8, 16].map(n => <option key={n} value={n}>{n} Teams</option>)}
+                {[4, 8, 16].map(n => <option key={n} value={n}>{t('tournaments.create.teams_count', { count: n })}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Buy-In (KAS)</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('tournaments.create.buy_in')}</label>
               <input
                 id="create-tournament-buyin"
                 type="number" min={0} step={0.01}
@@ -118,12 +120,12 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
             </div>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Prize Split</label>
+            <label className="block text-sm text-gray-400 mb-2">{t('tournaments.create.prize_split')}</label>
             <div className="grid grid-cols-3 gap-2">
               {(['prize_winner_pct', 'prize_runner_up_pct', 'platform_fee_pct'] as const).map((key, i) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-500 mb-1">
-                    {['Winner %', 'Runner-up %', 'Fee %'][i]}
+                    {[t('tournaments.create.winner_pct'), t('tournaments.create.runner_up_pct'), t('tournaments.create.fee_pct')][i]}
                   </label>
                   <input
                     type="number" min={0} max={100}
@@ -135,11 +137,11 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
               ))}
             </div>
             {pct !== 100 && (
-              <p className="text-orange-400 text-xs mt-1">⚠️ Percentages must sum to 100 (currently {pct})</p>
+              <p className="text-orange-400 text-xs mt-1">{t('tournaments.create.pct_warning', { pct })}</p>
             )}
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Registration Deadline (optional)</label>
+            <label className="block text-sm text-gray-400 mb-1">{t('tournaments.create.deadline')}</label>
             <input
               type="datetime-local"
               className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#49EACB]"
@@ -154,7 +156,7 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
             disabled={loading || pct !== 100 || !form.name}
             className="w-full py-3 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#0a0f14] font-bold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? 'Creating…' : 'Create Tournament'}
+            {loading ? t('tournaments.create.creating') : t('tournaments.create.submit')}
           </button>
         </form>
       </div>
@@ -165,6 +167,7 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
 // ─── Tournament Card ──────────────────────────────────────────────────────────
 
 function TournamentCard({ tournament }: { tournament: Tournament }) {
+  const { t } = useTranslation();
   const kas = sompiToKas(tournament.buy_in_sompi);
   const pool = sompiToKas(tournament.total_prize_pool_sompi);
 
@@ -187,22 +190,22 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
       <div className="grid grid-cols-3 gap-3 mt-4">
         <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
           <div className="text-[#49EACB] font-bold text-lg">{kas}</div>
-          <div className="text-gray-500 text-xs mt-0.5">Buy-in (KAS)</div>
+          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.buy_in')}</div>
         </div>
         <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
           <div className="text-white font-bold text-lg">{tournament.max_teams}</div>
-          <div className="text-gray-500 text-xs mt-0.5">Max Teams</div>
+          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.max_teams')}</div>
         </div>
         <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
           <div className="text-[#49EACB] font-bold text-lg">{pool}</div>
-          <div className="text-gray-500 text-xs mt-0.5">Prize Pool</div>
+          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.prize_pool')}</div>
         </div>
       </div>
 
       {tournament.registration_deadline && (
         <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5">
           <span>⏰</span>
-          <span>Deadline: {new Date(tournament.registration_deadline).toLocaleString()}</span>
+          <span>{t('tournaments.card.deadline')}: {new Date(tournament.registration_deadline).toLocaleString()}</span>
         </div>
       )}
     </Link>
@@ -212,6 +215,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function TournamentListPage() {
+  const { t } = useTranslation();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -247,10 +251,10 @@ export function TournamentListPage() {
 
   const filtered = filter === 'ALL' ? tournaments : tournaments.filter(t => t.status === filter);
   const filterOptions: Array<{ value: TournamentStatus | 'ALL'; label: string }> = [
-    { value: 'ALL', label: 'All' },
-    { value: 'REGISTRATION', label: 'Open' },
-    { value: 'IN_PROGRESS', label: 'Live' },
-    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'ALL', label: t('tournaments.filter.all') },
+    { value: 'REGISTRATION', label: t('tournaments.filter.open') },
+    { value: 'IN_PROGRESS', label: t('tournaments.filter.live') },
+    { value: 'COMPLETED', label: t('tournaments.filter.completed') },
   ];
 
   return (
@@ -260,16 +264,16 @@ export function TournamentListPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-black text-white tracking-tight">
-              <span className="text-[#49EACB]">Kaspa</span> Tournaments
+              {t('tournaments.title').split(' ').map((word, i) => i === 0 ? <span key={i} className="text-[#49EACB]">{word} </span> : word + ' ')}
             </h1>
-            <p className="text-gray-400 text-sm mt-1">Compete, win, earn KAS</p>
+            <p className="text-gray-400 text-sm mt-1">{t('tournaments.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               id="refresh-tournaments-btn"
               onClick={load}
               className="p-2 rounded-lg border border-white/10 hover:border-[#49EACB]/30 text-gray-400 hover:text-[#49EACB] transition-all"
-              title="Refresh"
+              title={t('tournaments.refresh')}
             >
               ↻
             </button>
@@ -278,7 +282,7 @@ export function TournamentListPage() {
               onClick={() => { void handleCreateClick(); }}
               className="px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.3)]"
             >
-              {user ? '+ Create Tournament' : 'Login to Create'}
+              {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
             </button>
           </div>
         </div>
@@ -311,16 +315,16 @@ export function TournamentListPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-24 text-gray-500">
             <div className="text-5xl mb-4">🏆</div>
-            <p className="text-lg font-semibold text-gray-400">No tournaments found</p>
+            <p className="text-lg font-semibold text-gray-400">{t('tournaments.empty.title')}</p>
             <p className="text-sm mt-1">
-              {user ? 'Be the first to create one!' : 'Sign in to create a tournament'}
+              {user ? t('tournaments.empty.subtitle_auth') : t('tournaments.empty.subtitle_guest')}
             </p>
             <button
               id="empty-state-create-tournament-btn"
               onClick={() => { void handleCreateClick(); }}
               className="mt-6 px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.2)]"
             >
-              {user ? '+ Create Tournament' : 'Login to Create'}
+              {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
             </button>
           </div>
         ) : (

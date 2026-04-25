@@ -26,7 +26,7 @@ export function Header() {
                     <nav className="hidden md:flex items-center gap-6">
                         <Link to="/lobby" className="text-gray-300 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
                         {testMode && (
-                            <Link to="/tournaments" className="text-gray-300 hover:text-[#49EACB] transition-colors">Tournaments</Link>
+                            <Link to="/tournaments" className="text-gray-300 hover:text-[#49EACB] transition-colors">{t('tournaments.title')}</Link>
                         )}
                         <Link to="/lobby/create" className="text-gray-300 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
                         <Link to="/history" className="text-gray-300 hover:text-white transition-colors">{t('navigation.history')}</Link>

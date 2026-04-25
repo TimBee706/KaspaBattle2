@@ -19,6 +19,7 @@ import {
   type TournamentStatus,
 } from '../api/tournaments';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useTranslation } from 'react-i18next';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -48,6 +49,7 @@ interface BracketCardProps {
 }
 
 function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: BracketCardProps) {
+  const { t } = useTranslation();
   const [showMatchInput, setShowMatchInput] = useState(false);
   const [matchId, setMatchId] = useState('');
   const [showDisputeInput, setShowDisputeInput] = useState(false);
@@ -100,7 +102,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
       {/* Round label */}
       <div className="absolute -top-3 left-3">
         <span className="text-[10px] uppercase tracking-widest text-gray-500 bg-[#070d14] px-2 font-bold">
-          {slot.status === 'WAITING' ? 'Waiting' : slot.faceit_match_id ? `Match ${slot.faceit_match_id.slice(0, 8)}…` : `Slot ${slot.slot_index + 1}`}
+          {slot.status === 'WAITING' ? t('tournaments.detail.bracket.waiting') : slot.faceit_match_id ? t('tournaments.detail.bracket.match', { id: slot.faceit_match_id.slice(0, 8) }) : t('tournaments.detail.bracket.slot', { num: slot.slot_index + 1 })}
         </span>
       </div>
 
@@ -110,7 +112,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
           winner === teamA?.id ? 'bg-[#49EACB]/10 border border-[#49EACB]/30' : 'bg-[#0a0f14]'
         }`}>
           <span className={`font-semibold text-sm ${!teamA ? 'text-gray-600 italic' : 'text-white'}`}>
-            {teamA?.name ?? 'TBD'}
+            {teamA?.name ?? t('tournaments.detail.bracket.tbd')}
             {teamA?.seed != null && <span className="ml-1.5 text-gray-500 text-xs">#{teamA.seed}</span>}
           </span>
           {winner === teamA?.id && (
@@ -130,7 +132,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
           winner === teamB?.id ? 'bg-[#49EACB]/10 border border-[#49EACB]/30' : 'bg-[#0a0f14]'
         }`}>
           <span className={`font-semibold text-sm ${!teamB ? 'text-gray-600 italic' : 'text-white'}`}>
-            {teamB?.name ?? 'TBD'}
+            {teamB?.name ?? t('tournaments.detail.bracket.tbd')}
             {teamB?.seed != null && <span className="ml-1.5 text-gray-500 text-xs">#{teamB.seed}</span>}
           </span>
           {winner === teamB?.id && (
@@ -148,14 +150,14 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
                   onClick={() => setShowMatchInput(true)}
                   className="flex-1 text-xs py-1.5 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all"
                 >
-                  Submit Match ID
+                  {t('tournaments.detail.bracket.submit_id')}
                 </button>
                 <button
                   id={`dispute-slot-${slot.id}`}
                   onClick={() => setShowDisputeInput(true)}
                   className="text-xs py-1.5 px-3 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 text-orange-400 rounded-lg transition-all"
                 >
-                  Dispute
+                  {t('tournaments.detail.bracket.dispute')}
                 </button>
               </div>
             )}
@@ -165,16 +167,16 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
                 <input
                   id={`match-id-input-${slot.id}`}
                   className="w-full bg-[#0a0f14] border border-blue-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400"
-                  placeholder="FaceIT Match ID"
+                  placeholder={t('tournaments.detail.bracket.placeholder_id')}
                   value={matchId}
                   onChange={e => setMatchId(e.target.value)}
                 />
                 <div className="flex gap-2">
                   <button onClick={handleSubmitMatchId} disabled={loading} className="flex-1 text-xs py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 transition-all">
-                    {loading ? '…' : 'Submit'}
+                    {loading ? '…' : t('tournaments.detail.bracket.submit_btn')}
                   </button>
                   <button onClick={() => setShowMatchInput(false)} className="text-xs py-1.5 px-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg">
-                    Cancel
+                    {t('tournaments.detail.bracket.cancel')}
                   </button>
                 </div>
               </div>
@@ -186,16 +188,16 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
                   id={`dispute-reason-${slot.id}`}
                   className="w-full bg-[#0a0f14] border border-orange-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-orange-400 resize-none"
                   rows={2}
-                  placeholder="Describe the issue (min 10 chars)"
+                  placeholder={t('tournaments.detail.bracket.placeholder_dispute')}
                   value={disputeReason}
                   onChange={e => setDisputeReason(e.target.value)}
                 />
                 <div className="flex gap-2">
                   <button onClick={handleDispute} disabled={loading || disputeReason.trim().length < 10} className="flex-1 text-xs py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg disabled:opacity-50 transition-all">
-                    {loading ? '…' : 'File Dispute'}
+                    {loading ? '…' : t('tournaments.detail.bracket.file_dispute')}
                   </button>
                   <button onClick={() => setShowDisputeInput(false)} className="text-xs py-1.5 px-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg">
-                    Cancel
+                    {t('tournaments.detail.bracket.cancel')}
                   </button>
                 </div>
               </div>
@@ -205,13 +207,13 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
 
         {slot.disputed && (
           <div className="mt-2 text-xs text-orange-400 bg-orange-950/30 border border-orange-500/20 rounded-lg px-3 py-2 flex items-center gap-1.5">
-            ⚖️ Under dispute — awaiting admin resolution
+            {t('tournaments.detail.bracket.under_dispute')}
           </div>
         )}
 
         {isDone && slot.match_finished_at && (
           <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
-            ✓ Finished {new Date(slot.match_finished_at).toLocaleTimeString()}
+            {t('tournaments.detail.bracket.finished')} {new Date(slot.match_finished_at).toLocaleTimeString()}
           </div>
         )}
       </div>
@@ -230,13 +232,14 @@ interface BracketViewProps {
 }
 
 function BracketView({ slots, tournamentId, isCaptain, myTeamIds, onRefresh }: BracketViewProps) {
+  const { t } = useTranslation();
   const rounds = Array.from(new Set(slots.map(s => s.round))).sort((a, b) => a - b);
 
   if (rounds.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500">
         <div className="text-4xl mb-3">🗓️</div>
-        <p>Bracket will appear once the organizer locks it</p>
+        <p>{t('tournaments.detail.bracket.empty_title')}</p>
       </div>
     );
   }
@@ -245,10 +248,10 @@ function BracketView({ slots, tournamentId, isCaptain, myTeamIds, onRefresh }: B
   const maxRound = Math.max(...rounds);
   rounds.forEach(r => {
     const slotsInRound = slots.filter(s => s.round === r).length;
-    if (r === maxRound && slotsInRound === 1) roundLabels[r] = 'Grand Final';
-    else if (r === maxRound - 1 && slotsInRound <= 2) roundLabels[r] = 'Semifinals';
-    else if (r === maxRound - 2) roundLabels[r] = 'Quarterfinals';
-    else roundLabels[r] = `Round ${r + 1}`;
+    if (r === maxRound && slotsInRound === 1) roundLabels[r] = t('tournaments.detail.bracket.grand_final');
+    else if (r === maxRound - 1 && slotsInRound <= 2) roundLabels[r] = t('tournaments.detail.bracket.semifinals');
+    else if (r === maxRound - 2) roundLabels[r] = t('tournaments.detail.bracket.quarterfinals');
+    else roundLabels[r] = t('tournaments.detail.bracket.round', { num: r + 1 });
   });
 
   return (
@@ -286,6 +289,7 @@ function BracketView({ slots, tournamentId, isCaptain, myTeamIds, onRefresh }: B
 // ─── Teams List ───────────────────────────────────────────────────────────────
 
 function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: string[] }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
       {teams.map(team => (
@@ -301,18 +305,18 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
             <div className="flex items-center gap-2">
               <span className="font-semibold text-white">{team.name}</span>
               {myTeamIds.includes(team.id) && (
-                <span className="text-[10px] bg-[#49EACB]/20 text-[#49EACB] px-1.5 py-0.5 rounded font-bold">YOU</span>
+                <span className="text-[10px] bg-[#49EACB]/20 text-[#49EACB] px-1.5 py-0.5 rounded font-bold">{t('tournaments.detail.teams.you_badge')}</span>
               )}
               {team.seed != null && (
-                <span className="text-xs text-gray-500">Seed #{team.seed}</span>
+                <span className="text-xs text-gray-500">{t('tournaments.detail.teams.seed', { seed: team.seed })}</span>
               )}
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">Captain: {team.captain_display_name ?? 'Unknown'}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{t('tournaments.detail.teams.captain', { name: team.captain_display_name ?? t('tournaments.detail.teams.unknown') })}</div>
           </div>
           <div className={`flex items-center gap-1.5 text-xs font-semibold ${
             team.deposit_status === 'CONFIRMED' ? 'text-[#49EACB]' : 'text-orange-400'
           }`}>
-            {team.deposit_status === 'CONFIRMED' ? '✓ Funded' : '⏳ Awaiting Deposit'}
+            {team.deposit_status === 'CONFIRMED' ? t('tournaments.detail.teams.funded') : t('tournaments.detail.teams.awaiting_deposit')}
           </div>
         </div>
       ))}
@@ -323,6 +327,7 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
 // ─── Prize Pool Banner ────────────────────────────────────────────────────────
 
 function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
+  const { t } = useTranslation();
   const total = tournament.total_prize_pool_sompi;
   const winnerAmt = Math.floor(total * tournament.prize_winner_pct / 100);
   const runnerAmt = Math.floor(total * tournament.prize_runner_up_pct / 100);
@@ -331,9 +336,9 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
   return (
     <div className="grid grid-cols-3 gap-3">
       {[
-        { label: '🥇 Winner', amount: winnerAmt, pct: tournament.prize_winner_pct, color: '#fbbf24' },
-        { label: '🥈 Runner-up', amount: runnerAmt, pct: tournament.prize_runner_up_pct, color: '#9ca3af' },
-        { label: '🏛️ Platform Fee', amount: feeAmt, pct: tournament.platform_fee_pct, color: '#6b7280' },
+        { label: t('tournaments.detail.prize_banner.winner'), amount: winnerAmt, pct: tournament.prize_winner_pct, color: '#fbbf24' },
+        { label: t('tournaments.detail.prize_banner.runner_up'), amount: runnerAmt, pct: tournament.prize_runner_up_pct, color: '#9ca3af' },
+        { label: t('tournaments.detail.prize_banner.fee'), amount: feeAmt, pct: tournament.platform_fee_pct, color: '#6b7280' },
       ].map(item => (
         <div key={item.label} className="bg-[#0d1b2a] rounded-xl p-4 border border-white/5 text-center">
           <div className="text-sm text-gray-400 mb-1">{item.label}</div>
@@ -353,6 +358,7 @@ export function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
+  const { t } = useTranslation();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<TournamentTeam[]>([]);
@@ -437,7 +443,7 @@ export function TournamentDetailPage() {
 
   const handleLock = async () => {
     if (!id) return;
-    if (!confirm('Lock the bracket? This cannot be undone.')) return;
+    if (!confirm(t('tournaments.detail.confirm.lock'))) return;
     try {
       await lockBracket(id);
       await load();
@@ -446,7 +452,7 @@ export function TournamentDetailPage() {
 
   const handleCancel = async () => {
     if (!id) return;
-    if (!confirm('Cancel this tournament? All confirmed deposits will be refunded.')) return;
+    if (!confirm(t('tournaments.detail.confirm.cancel'))) return;
     try {
       await cancelTournament(id);
       await load();
@@ -479,9 +485,9 @@ export function TournamentDetailPage() {
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center text-center">
         <div>
           <div className="text-5xl mb-4">🔍</div>
-          <h2 className="text-xl font-bold text-white mb-2">Tournament not found</h2>
+          <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.detail.not_found')}</h2>
           <Link to="/tournaments" className="text-[#49EACB] hover:underline text-sm">
-            ← Back to Tournaments
+            {t('tournaments.detail.navbar_back')}
           </Link>
         </div>
       </div>
@@ -492,9 +498,8 @@ export function TournamentDetailPage() {
     <div className="min-h-screen bg-[#070d14] py-8 px-4">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        {/* Breadcrumb */}
         <Link to="/tournaments" className="text-gray-500 hover:text-[#49EACB] text-sm flex items-center gap-1.5 transition-colors w-fit">
-          ← Tournaments
+          {t('tournaments.detail.navbar_back')}
         </Link>
 
         {/* Header */}
@@ -508,11 +513,11 @@ export function TournamentDetailPage() {
               <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
                 <span className="uppercase tracking-wider">{tournament.game_id}</span>
                 <span>·</span>
-                <span>{teams.length} / {tournament.max_teams} teams</span>
+                <span>{teams.length} / {tournament.max_teams} {t('tournaments.detail.teams_count')}</span>
                 {tournament.registration_deadline && (
                   <>
                     <span>·</span>
-                    <span>Deadline: {new Date(tournament.registration_deadline).toLocaleString()}</span>
+                    <span>{t('tournaments.card.deadline')}: {new Date(tournament.registration_deadline).toLocaleString()}</span>
                   </>
                 )}
               </div>
@@ -526,7 +531,7 @@ export function TournamentDetailPage() {
                   id="view-results-btn"
                   className="px-4 py-2 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl text-sm transition-all"
                 >
-                  🏆 Results
+                  {t('tournaments.detail.actions.results')}
                 </Link>
               )}
               {user && tournament.status === 'REGISTRATION' && !isCaptain && (
@@ -535,7 +540,7 @@ export function TournamentDetailPage() {
                   onClick={() => setShowRegister(true)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all"
                 >
-                  Register Team
+                  {t('tournaments.detail.actions.register')}
                 </button>
               )}
               {isOrganizer && isLockable && teams.length >= 2 && (
@@ -544,7 +549,7 @@ export function TournamentDetailPage() {
                   onClick={handleLock}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-sm transition-all"
                 >
-                  🔒 Lock Bracket
+                  {t('tournaments.detail.actions.lock_bracket')}
                 </button>
               )}
               {isCaptain && ['IN_PROGRESS', 'BRACKET_READY', 'COMPLETED'].includes(tournament.status) && !showDispute && (
@@ -553,7 +558,7 @@ export function TournamentDetailPage() {
                   onClick={() => setShowDispute(true)}
                   className="px-4 py-2 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 text-orange-400 font-semibold rounded-xl text-sm transition-all"
                 >
-                  ⚖️ Dispute
+                  {t('tournaments.detail.actions.dispute')}
                 </button>
               )}
               {isCancellable && (
@@ -562,7 +567,7 @@ export function TournamentDetailPage() {
                   onClick={handleCancel}
                   className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 font-semibold rounded-xl text-sm transition-all"
                 >
-                  Cancel
+                  {t('tournaments.detail.actions.cancel')}
                 </button>
               )}
             </div>
@@ -571,12 +576,12 @@ export function TournamentDetailPage() {
           {/* Dispute form inline */}
           {showDispute && (
             <form onSubmit={handleDispute} className="mt-4 bg-orange-950/20 border border-orange-500/20 rounded-xl p-4 space-y-3">
-              <p className="text-sm text-orange-300 font-semibold">File a Tournament Dispute</p>
+              <p className="text-sm text-orange-300 font-semibold">{t('tournaments.detail.dispute.title')}</p>
               <textarea
                 id="tournament-dispute-reason"
                 className="w-full bg-[#0a0f14] border border-orange-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none resize-none"
                 rows={3}
-                placeholder="Describe the issue in detail (min 10 characters)"
+                placeholder={t('tournaments.detail.dispute.placeholder')}
                 value={disputeReason}
                 onChange={e => setDisputeReason(e.target.value)}
               />
@@ -586,14 +591,14 @@ export function TournamentDetailPage() {
                   disabled={disputeReason.trim().length < 10}
                   className="px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg text-sm disabled:opacity-40 transition-all"
                 >
-                  Submit Dispute
+                  {t('tournaments.detail.dispute.submit')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowDispute(false)}
                   className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm"
                 >
-                  Cancel
+                  {t('tournaments.detail.dispute.cancel')}
                 </button>
               </div>
             </form>
@@ -616,7 +621,7 @@ export function TournamentDetailPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              {tab}
+              {t(`tournaments.detail.tabs.${tab}` as any)}
             </button>
           ))}
         </div>
@@ -626,14 +631,14 @@ export function TournamentDetailPage() {
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="bg-[#0d1b2a] border border-white/5 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Tournament Info</h3>
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.info_title')}</h3>
                 <dl className="space-y-2 text-sm">
                   {[
-                    ['Status', STATUS_LABELS[tournament.status]],
-                    ['Game', tournament.game_id.toUpperCase()],
-                    ['Max Teams', tournament.max_teams],
-                    ['Buy-in', `${sompiToKas(tournament.buy_in_sompi)} KAS`],
-                    ['Prize Pool', `${sompiToKas(tournament.total_prize_pool_sompi)} KAS`],
+                    [t('tournaments.detail.overview.status'), STATUS_LABELS[tournament.status]],
+                    [t('tournaments.detail.overview.game'), tournament.game_id.toUpperCase()],
+                    [t('tournaments.card.max_teams'), tournament.max_teams],
+                    [t('tournaments.detail.overview.buy_in'), `${sompiToKas(tournament.buy_in_sompi)} KAS`],
+                    [t('tournaments.detail.overview.prize_pool'), `${sompiToKas(tournament.total_prize_pool_sompi)} KAS`],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex justify-between">
                       <dt className="text-gray-500">{k}</dt>
@@ -643,16 +648,16 @@ export function TournamentDetailPage() {
                 </dl>
               </div>
               <div className="bg-[#0d1b2a] border border-white/5 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Escrow</h3>
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.escrow_title')}</h3>
                 {tournament.escrow_address ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-500">Escrow Address</p>
+                    <p className="text-xs text-gray-500">{t('tournaments.detail.overview.escrow_address')}</p>
                     <code className="block text-xs text-[#49EACB] break-all bg-[#0a0f14] rounded-lg p-3">
                       {tournament.escrow_address}
                     </code>
                     {tournament.payout_tx_hash && (
                       <>
-                        <p className="text-xs text-gray-500 mt-3">Payout TX</p>
+                        <p className="text-xs text-gray-500 mt-3">{t('tournaments.detail.overview.payout_tx')}</p>
                         <code className="block text-xs text-green-400 break-all bg-[#0a0f14] rounded-lg p-3">
                           {tournament.payout_tx_hash}
                         </code>
@@ -660,7 +665,7 @@ export function TournamentDetailPage() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-600">No escrow address assigned yet</p>
+                  <p className="text-sm text-gray-600">{t('tournaments.detail.overview.no_escrow')}</p>
                 )}
               </div>
             </div>
@@ -672,11 +677,11 @@ export function TournamentDetailPage() {
             <TeamsList teams={teams} myTeamIds={myTeamIds} />
             {showRegister && (
               <form onSubmit={handleRegister} className="mt-4 bg-[#0d1b2a] border border-blue-500/20 rounded-xl p-5 space-y-3">
-                <p className="text-sm font-bold text-blue-300">Register Your Team</p>
+                <p className="text-sm font-bold text-blue-300">{t('tournaments.detail.teams.register_title')}</p>
                 <input
                   id="team-name-input"
                   className="w-full bg-[#0a0f14] border border-[#2a3a4a] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#49EACB]"
-                  placeholder="Team Name"
+                  placeholder={t('tournaments.detail.teams.team_name')}
                   value={teamName}
                   onChange={e => setTeamName(e.target.value)}
                   required minLength={2}
@@ -689,14 +694,14 @@ export function TournamentDetailPage() {
                     disabled={regLoading || !teamName.trim()}
                     className="px-5 py-2 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-lg text-sm disabled:opacity-40 transition-all"
                   >
-                    {regLoading ? 'Registering…' : 'Register'}
+                    {regLoading ? t('tournaments.detail.teams.registering') : t('tournaments.detail.teams.register_btn')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowRegister(false)}
                     className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm"
                   >
-                    Cancel
+                    {t('tournaments.detail.teams.cancel')}
                   </button>
                 </div>
               </form>
