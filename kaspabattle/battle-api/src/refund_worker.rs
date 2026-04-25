@@ -224,3 +224,34 @@ async fn poll_refundable_matches(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::Row;
+
+    #[tokio::test]
+    async fn debug_query_refunds() {
+        // Connect to db and print refunded matches
+        let pool = sqlx::PgPool::connect("postgres://postgres:postgres@localhost:5432/kaspabattle").await.unwrap();
+        let rows = sqlx::query("
+            SELECT m.id, m.status::text as match_status, m.refund_status, m.refund_tx_hash,
+                   ua.kaspa_address AS player_a_kas,
+                   ub.kaspa_address AS player_b_kas
+            FROM matches m
+            LEFT JOIN users ua ON ua.id = m.creator_user_id
+            LEFT JOIN users ub ON ub.id = m.opponent_user_id
+            WHERE m.status = 'REFUNDED' OR m.refund_status IN ('success', 'failed')
+        ").fetch_all(&pool).await.unwrap();
+        
+        for row in rows {
+            let id: uuid::Uuid = row.try_get("id").unwrap();
+            let tx_hash: Option<String> = row.try_get("refund_tx_hash").ok();
+            let player_a: Option<String> = row.try_get("player_a_kas").ok();
+            let player_b: Option<String> = row.try_get("player_b_kas").ok();
+            if tx_hash.is_some() {
+                println!("TX: {:?} | Player A: {:?} | Player B: {:?}", tx_hash.unwrap(), player_a, player_b);
+            }
+        }
+        panic!("Show me the output!");
+    }
+}
