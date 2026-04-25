@@ -181,8 +181,13 @@ async fn main() {
         Err(e) if e.to_string().contains("VersionMismatch")
             || e.to_string().contains("checksum")
             || e.to_string().contains("Checksum")
-            || e.to_string().contains("previously applied but has been modified") => {
-            tracing::warn!("⚠️ Migration mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
+            || e.to_string().contains("previously applied but has been modified")
+            || e.to_string().contains("previously applied but is missing") => {
+            tracing::warn!(
+                "⚠️ Migration state mismatch detected ('{}') — \
+                resetting _sqlx_migrations and re-applying all (idempotent) migrations...",
+                e
+            );
             sqlx::query("DELETE FROM _sqlx_migrations")
                 .execute(&pool)
                 .await
@@ -191,7 +196,7 @@ async fn main() {
                 .run(&pool)
                 .await
                 .expect("Failed to run database migrations after reset");
-            tracing::info!("✅ DB migrations re-applied successfully after checksum reset");
+            tracing::info!("✅ DB migrations re-applied successfully after reset");
         }
         Err(e) => {
             panic!("Failed to run database migrations: {}", e);
