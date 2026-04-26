@@ -1,15 +1,15 @@
-//! # SecretProvider — Abstraktionsschicht für Secrets (F-11)
+//! # SecretProvider — Abstraction layer for Secrets (F-11)
 //!
-//! Lädt sensible Konfigurationswerte (API-Keys, Passwörter, Credentials) aus
-//! verschiedenen Backends — je nach Deployment-Umgebung automatisch ausgewählt.
+//! Loads sensitive configuration values (API-Keys, passwords, credentials) from
+//! various backends — automatically selected depending on the deployment environment.
 //!
-//! ## Backends (Priorität absteigend)
+//! ## Backends (Descending Priority)
 //!
-//! 1. **Docker Secrets** (`/run/secrets/<name>`): Produktionsempfehlung für
-//!    Docker Swarm / Docker Compose mit `secrets:` Block. Kein Klartext in ENV.
-//! 2. **Environment Variables**: Fallback für lokale Entwicklung und CI.
+//! 1. **Docker Secrets** (`/run/secrets/<name>`): Production recommendation for
+//!    Docker Swarm / Docker Compose with `secrets:` block. No plaintext in ENV.
+//! 2. **Environment Variables**: Fallback for local development and CI.
 //!
-//! ## Verwendung in `main.rs`
+//! ## Usage in `main.rs`
 //!
 //! ```no_run
 //! use battle_core::secret_provider::SecretProvider;
@@ -22,7 +22,7 @@
 //! }
 //! ```
 //!
-//! ## Docker Compose Setup (Beispiel)
+//! ## Docker Compose Setup (Example)
 //!
 //! ```yaml
 //! services:
@@ -30,25 +30,25 @@
 //!     secrets:
 //!       - faceit_data_api_key
 //!     environment:
-//!       # Zeigt SecretProvider auf Docker-Secret-Datei
+//!       # Points SecretProvider to Docker Secret file
 //!       USE_DOCKER_SECRETS: "true"
 //!
 //! secrets:
 //!   faceit_data_api_key:
-//!     external: true  # vorher: docker secret create faceit_data_api_key ./key.txt
+//!     external: true  # before: docker secret create faceit_data_api_key ./key.txt
 //! ```
 
 use std::path::PathBuf;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Konfiguration
+// Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Standard-Pfad für Docker Secrets (Docker Swarm und Docker Compose secrets).
+/// Default path for Docker Secrets (Docker Swarm and Docker Compose secrets).
 const DOCKER_SECRETS_PATH: &str = "/run/secrets";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Fehlertyp
+// Error Type
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
@@ -69,16 +69,16 @@ pub enum SecretError {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Backend-Typen
+// Backend Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Konfiguriertes Secrets-Backend.
+/// Configured Secrets-Backend.
 #[derive(Debug, Clone)]
 pub enum SecretBackend {
-    /// Liest Secrets aus Environment-Variablen (Standard für lokale Entwicklung).
+    /// Reads secrets from Environment Variables (Default for local development).
     Env,
-    /// Liest Secrets aus Dateien in einem Verzeichnis (Docker Secrets / Vault Agent).
-    /// Dateiname entspricht dem Secret-Namen in Kleinbuchstaben mit `_` statt `-`.
+    /// Reads secrets from files in a directory (Docker Secrets / Vault Agent).
+    /// Filename corresponds to the secret name in lowercase with `_` instead of `-`.
     Files { base_path: PathBuf },
 }
 
@@ -86,22 +86,22 @@ pub enum SecretBackend {
 // SecretProvider
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Abstraktionsschicht für Secrets-Loading.
-/// Unterstützt mehrere Backends in Prioritätsreihenfolge.
+/// Abstraction layer for secrets loading.
+/// Supports multiple backends in priority order.
 #[derive(Debug, Clone)]
 pub struct SecretProvider {
     backends: Vec<SecretBackend>,
 }
 
 impl SecretProvider {
-    /// Erstellt einen Provider der nur ENV-Variablen nutzt (Standard für Dev).
+    /// Creates a provider that only uses ENV variables (Default for Dev).
     pub fn env_only() -> Self {
         Self {
             backends: vec![SecretBackend::Env],
         }
     }
 
-    /// Erstellt einen Provider der Docker Secrets zuerst probiert, dann ENV.
+    /// Creates a provider that tries Docker Secrets first, then ENV.
     pub fn with_docker_secrets(secrets_path: impl Into<PathBuf>) -> Self {
         Self {
             backends: vec![
@@ -113,12 +113,12 @@ impl SecretProvider {
         }
     }
 
-    /// **Auto-Detection**: Erkennt anhand der Umgebung das beste Backend.
+    /// **Auto-Detection**: Detects the best backend based on the environment.
     ///
-    /// - `USE_DOCKER_SECRETS=true` oder `/run/secrets` existiert → Docker Secrets zuerst
-    /// - Sonst → ENV only
+    /// - `USE_DOCKER_SECRETS=true` or `/run/secrets` exists -> Docker Secrets first
+    /// - Otherwise -> ENV only
     ///
-    /// Dies erlaubt dieselbe Binary in Dev (ENV) und Prod (Docker Secrets) zu nutzen.
+    /// This allows using the same binary in Dev (ENV) and Prod (Docker Secrets).
     pub fn auto_detect() -> Self {
         let docker_secrets_dir = PathBuf::from(DOCKER_SECRETS_PATH);
         let use_docker = std::env::var("USE_DOCKER_SECRETS")
@@ -138,7 +138,7 @@ impl SecretProvider {
         }
     }
 
-    /// Liest ein Secret. Gibt `Ok(None)` wenn nicht gefunden.
+    /// Reads a secret. Returns `Ok(None)` if not found.
     pub fn get(&self, name: &str) -> Result<Option<String>, SecretError> {
         for backend in &self.backends {
             match backend {
@@ -151,8 +151,8 @@ impl SecretProvider {
                     }
                 }
                 SecretBackend::Files { base_path } => {
-                    // Docker Secrets: Dateiname = secret name in lowercase,
-                    // z.B. "FACEIT_DATA_API_KEY" → "/run/secrets/faceit_data_api_key"
+                    // Docker Secrets: Filename = secret name in lowercase,
+                    // e.g., "FACEIT_DATA_API_KEY" -> "/run/secrets/faceit_data_api_key"
                     let file_name = name.to_lowercase();
                     let file_path = base_path.join(&file_name);
 
@@ -185,7 +185,7 @@ impl SecretProvider {
         Ok(None)
     }
 
-    /// Liest ein **Pflicht**-Secret. Gibt Err zurück wenn nicht gefunden oder leer.
+    /// Reads a **required** secret. Returns Err if not found or empty.
     pub fn require(&self, name: &str) -> Result<String, SecretError> {
         match self.get(name)? {
             Some(val) => Ok(val),
@@ -210,7 +210,7 @@ impl SecretProvider {
         }
     }
 
-    /// Gibt an ob der Provider im Docker-Secrets-Modus läuft.
+    /// Indicates whether the provider runs in Docker-Secrets mode.
     pub fn is_docker_secrets_mode(&self) -> bool {
         self.backends
             .iter()

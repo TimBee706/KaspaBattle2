@@ -63,7 +63,7 @@ pub async fn csrf_protection_layer_multi(
 
     // Skip CSRF check for webhook endpoints (they use HMAC/API key auth instead)
     let path = request.uri().path().to_string();
-    if path.starts_with("/api/v1/webhooks/") || path.starts_with("/api/v1/oracle/") {
+    if path.starts_with("/api/v1/webhook/") || path.starts_with("/api/v1/oracle/") {
         return next.run(request).await;
     }
 

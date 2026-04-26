@@ -91,3 +91,4 @@ battle-frontend/coverage/
 *.css.map
 .vite/
 .eslintcache
+battle-frontend/*.timestamp-*.mjs

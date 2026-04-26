@@ -83,12 +83,19 @@ pub fn match_rpm() -> u32 {
 /// Checks `X-Forwarded-For` first (for reverse-proxy setups), then falls back
 /// to the TCP peer address from `ConnectInfo<SocketAddr>`.
 fn extract_ip(req: &Request<Body>) -> Option<IpAddr> {
-    // Try X-Forwarded-For first (first IP in comma-separated list)
-    if let Some(forwarded) = req.headers().get("x-forwarded-for") {
-        if let Ok(val) = forwarded.to_str() {
-            if let Some(first) = val.split(',').next() {
-                if let Ok(ip) = first.trim().parse::<IpAddr>() {
-                    return Some(ip);
+    // Check if TRUST_X_FORWARDED_FOR is set
+    let trust_proxy = std::env::var("TRUST_X_FORWARDED_FOR")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    if trust_proxy {
+        // Try X-Forwarded-For first (first IP in comma-separated list)
+        if let Some(forwarded) = req.headers().get("x-forwarded-for") {
+            if let Ok(val) = forwarded.to_str() {
+                if let Some(first) = val.split(',').next() {
+                    if let Ok(ip) = first.trim().parse::<IpAddr>() {
+                        return Some(ip);
+                    }
                 }
             }
         }

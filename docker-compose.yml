@@ -4,11 +4,11 @@ services:
     image: postgres:16-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: kaspabattle
+      POSTGRES_USER: ${POSTGRES_USER:-kaspabattle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+      POSTGRES_DB: ${POSTGRES_DB:-kaspabattle}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Run init SQL on first start
@@ -52,8 +52,8 @@ services:
       - .env.production
     environment:
       # Override to use Docker service names instead of localhost
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/kaspabattle
-      # Kaspa RPC: eigene Node auf 217.160.255.235 (Testnet-10, wRPC Borsh Port 17110)
+      DATABASE_URL: postgres://${POSTGRES_USER:-kaspabattle}:${POSTGRES_PASSWORD:?Database password required}@postgres:5432/${POSTGRES_DB:-kaspabattle}
+      # Kaspa RPC: Custom Node on 217.160.255.235 (Testnet-10, wRPC Borsh Port 17110)
       KASPA_USE_EXPLICIT_NODE: "true"
       KASPA_NODE_URL: "ws://217.160.255.235:17110"
       KASPA_NETWORK: "testnet-10"
