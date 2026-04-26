@@ -505,6 +505,7 @@ dependencies = [
  "js-sys",
  "kaspa-addresses",
  "kaspa-bip32",
+ "kaspa-consensus-client",
  "kaspa-consensus-core",
  "kaspa-hashes",
  "kaspa-rpc-core",

@@ -236,17 +236,10 @@ async fn main() {
             let word_count = trimmed.split_whitespace().count();
             let byte_len = m.len();
             let trimmed_len = trimmed.len();
-            let first_char = m.chars().next().map(|c| format!("{:?} (U+{:04X})", c, c as u32)).unwrap_or_default();
-            let last_char = m.chars().last().map(|c| format!("{:?} (U+{:04X})", c, c as u32)).unwrap_or_default();
-            let hex_preview: String = m.bytes().take(30).map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" ");
-            tracing::warn!(
-                "🔍 KASPA_MNEMONIC diagnostic: byte_len={}, trimmed_len={}, word_count={}, first_char={}, last_char={}, hex_preview=[{}]",
-                byte_len, trimmed_len, word_count, first_char, last_char, hex_preview
+            tracing::info!(
+                "✅ KASPA_MNEMONIC is set: byte_len={}, trimmed_len={}, word_count={}",
+                byte_len, trimmed_len, word_count
             );
-            // Log each word individually for debugging
-            for (i, word) in trimmed.split_whitespace().enumerate() {
-                tracing::warn!("🔍   word[{}] = {:?} (len={})", i, word, word.len());
-            }
         }
         None => {
             tracing::warn!("🔍 KASPA_MNEMONIC is NOT SET — will generate random mnemonic");

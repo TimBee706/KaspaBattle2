@@ -66,8 +66,8 @@ Copy `.env.example` to `.env` and configure:
 | `FACEIT_CLIENT_ID` | ✅ | FACEIT OAuth client ID |
 | `FACEIT_CLIENT_SECRET` | ✅ | FACEIT OAuth client secret |
 | `FACEIT_REDIRECT_URI` | ✅ | OAuth callback URL |
-| `ESCROW_MNEMONIC` | ✅ | BIP-44 mnemonic for escrow wallet |
-| `SESSION_SECRET` | ✅ | Random string for session encryption |
+| `KASPA_MNEMONIC` | ✅ | BIP-44 mnemonic for escrow wallet |
+| `TREASURY_MNEMONIC` | ✅ | BIP-44 mnemonic for the treasury wallet |
 
 ### IDE Setup
 

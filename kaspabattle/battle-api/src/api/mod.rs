@@ -826,6 +826,10 @@ pub async fn create_challenge(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<CreateReq>,
 ) -> Result<Json<Match>, StatusCode> {
+    if payload.wager_sompi <= 0 {
+        tracing::warn!("create_challenge: wager_sompi must be > 0");
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let user_id = user.id;
 
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
@@ -1009,9 +1013,19 @@ pub async fn submit_deposit(
         return Err(StatusCode::CONFLICT);
     }
 
-    // Step 3: Double-deposit guard + column update based on player_role
-    // player_role "A" = creator, "B" = opponent
-    match payload.player_role.to_uppercase().as_str() {
+    // Step 3: Double-deposit guard + column update based on actual player_role
+    let is_creator = *caller_id == m.creator_user_id;
+    let is_opponent = Some(*caller_id) == m.opponent_user_id;
+    let actual_role = if is_creator {
+        "A"
+    } else if is_opponent {
+        "B"
+    } else {
+        tracing::error!("❌ submit_deposit: Caller {} is not a participant in match {}", caller_id, id);
+        return Err(StatusCode::FORBIDDEN);
+    };
+
+    match actual_role {
         "A" => {
             if let Some(ref existing) = m.player_a_deposit_tx_hash {
                 tracing::warn!(
@@ -2087,6 +2101,7 @@ pub struct SubmitFaceitMatchIdReq {
 pub struct SubmitSignatureReq {
     pub signature_hex: Option<String>,
     pub signed_tx_hex: Option<String>,
+    pub public_key: Option<String>,
 }
 
 /// GET /api/v1/matches/{id}/payout/pskt
@@ -2202,6 +2217,15 @@ pub async fn submit_payout_signature(
             })?
             .and_then(|row| row.try_get::<Option<String>, _>("kaspa_address").ok().flatten())
             .ok_or_else(|| api_err(StatusCode::CONFLICT, "no_kaspa_address", "Winner has no Kaspa address linked"))?;
+
+        if let (Some(sig_hex), Some(pub_key)) = (&payload.signature_hex, &payload.public_key) {
+            let message = format!("Approve payout for match {}", match_id);
+            if verify_wallet_signature(&winner_addr, pub_key, &message, sig_hex).is_err() {
+                return Err(api_err(StatusCode::UNAUTHORIZED, "invalid_signature", "Signature verification failed"));
+            }
+        } else {
+            return Err(api_err(StatusCode::BAD_REQUEST, "missing_signature", "signature_hex and public_key are required"));
+        }
 
         // Restore escrow from DB if needed
         if multisig_svc.get_escrow(&match_id).await.is_none() {
