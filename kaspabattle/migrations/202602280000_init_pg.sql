@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS matches (
     creator_user_id UUID REFERENCES users(id) NOT NULL,
     opponent_user_id UUID REFERENCES users(id),
     game_id VARCHAR(255) NOT NULL,
-    stake_kas BIGINT NOT NULL,
+    stake_kas BIGINT NOT NULL CHECK (stake_kas > 0),
     mode match_mode NOT NULL,
     status match_status NOT NULL DEFAULT 'OPEN',
     external_match_id VARCHAR(255),

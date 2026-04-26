@@ -229,23 +229,7 @@ async fn main() {
     let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-12".to_string());
     let kaspa_mnemonic = std::env::var("KASPA_MNEMONIC").ok();
 
-    // ── DIAGNOSTIC: Debug mnemonic issues in production ──────────────────────
-    match &kaspa_mnemonic {
-        Some(m) => {
-            let trimmed = m.trim();
-            let word_count = trimmed.split_whitespace().count();
-            let byte_len = m.len();
-            let trimmed_len = trimmed.len();
-            tracing::info!(
-                "✅ KASPA_MNEMONIC is set: byte_len={}, trimmed_len={}, word_count={}",
-                byte_len, trimmed_len, word_count
-            );
-        }
-        None => {
-            tracing::warn!("🔍 KASPA_MNEMONIC is NOT SET — will generate random mnemonic");
-        }
-    }
-    // ── END DIAGNOSTIC ──────────────────────────────────────────────────────
+
 
     let escrow_wallet = Arc::new(
         battle_kaspa::wallet::EscrowWallet::new(kaspa_mnemonic, &kaspa_network)
