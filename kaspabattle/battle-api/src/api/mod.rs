@@ -2161,8 +2161,9 @@ pub async fn get_payout_pskt(
 
 /// POST /api/v1/matches/{id}/payout/submit-signature
 ///
-/// Backend-held-keys MVP: winner triggers payout, backend signs + broadcasts TX → RESOLVED.
-/// Note: signature_hex is NOT verified in this MVP — auth is session + status guard only.
+/// Winner triggers payout by submitting a cryptographic signature over the payout message.
+/// The signature is verified via `verify_wallet_signature` before the backend signs and broadcasts the TX.
+/// On success, match status transitions to RESOLVED.
 pub async fn submit_payout_signature(
     State(state): State<AppState>,
     SessionUser(user): SessionUser,
