@@ -74,7 +74,7 @@ export const faceitApi = {
             const response = await apiClient.get<FaceitStatsResponse>(`/faceit/stats?game=${game}`);
             return response.data;
         } catch (error: unknown) {
-            const err = error as { response?: { status?: number; data?: any } };
+            const err = error as { response?: { status?: number; data?: unknown } };
 
             // Wenn der Upstream (FACEIT) 502/503 liefert, reagiert battle-api mit 502.
             // In diesem Fall gibt es aktuell keine verwertbaren Daten → wir liefern
