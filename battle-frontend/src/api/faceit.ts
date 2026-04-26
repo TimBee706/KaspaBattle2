@@ -42,7 +42,7 @@ export interface FaceitLifetimeStats {
 
 export interface FaceitStatsResponse {
     game_id: string;
-    lifetime: FaceitLifetimeStats;
+    lifetime: FaceitLifetimeStats | null;
     is_cached: boolean;
 }
 
@@ -70,8 +70,29 @@ export const faceitApi = {
      * @param game Standard: 'cs2'
      */
     getStats: async (game = 'cs2'): Promise<FaceitStatsResponse> => {
-        const response = await apiClient.get<FaceitStatsResponse>(`/faceit/stats?game=${game}`);
-        return response.data;
+        try {
+            const response = await apiClient.get<FaceitStatsResponse>(`/faceit/stats?game=${game}`);
+            return response.data;
+        } catch (error: unknown) {
+            const err = error as { response?: { status?: number; data?: unknown } };
+
+            // Wenn der Upstream (FACEIT) 502/503 liefert, reagiert battle-api mit 502.
+            // In diesem Fall gibt es aktuell keine verwertbaren Daten → wir liefern
+            // ein konsistentes, aber leeres Response-Objekt zurück, damit das Frontend
+            // weiterhin rendern kann.
+            if (err.response?.status === 502 || err.response?.status === 503) {
+                console.warn('[faceitApi.getStats] Upstream error, returning empty stats payload', err.response?.data);
+                return {
+                    game_id: game,
+                    lifetime: null,
+                    is_cached: false,
+                };
+            }
+
+            // Bei allen anderen Fehlern reichen wir die Exception weiter, damit
+            // die aufrufende Komponente eine klare Fehlermeldung anzeigen kann.
+            throw error;
+        }
     },
 
     /**
