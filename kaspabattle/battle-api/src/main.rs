@@ -182,8 +182,13 @@ async fn main() {
         Err(e) if e.to_string().contains("VersionMismatch")
             || e.to_string().contains("checksum")
             || e.to_string().contains("Checksum")
-            || e.to_string().contains("previously applied but has been modified") => {
-            tracing::warn!("⚠️ Migration mismatch detected — resetting migration tracking table and re-applying all (idempotent) migrations...");
+            || e.to_string().contains("previously applied but has been modified")
+            || e.to_string().contains("previously applied but is missing") => {
+            tracing::warn!(
+                "⚠️ Migration state mismatch detected ('{}') — \
+                resetting _sqlx_migrations and re-applying all (idempotent) migrations...",
+                e
+            );
             sqlx::query("DELETE FROM _sqlx_migrations")
                 .execute(&pool)
                 .await
@@ -192,7 +197,7 @@ async fn main() {
                 .run(&pool)
                 .await
                 .expect("Failed to run database migrations after reset");
-            tracing::info!("✅ DB migrations re-applied successfully after checksum reset");
+            tracing::info!("✅ DB migrations re-applied successfully after reset");
         }
         Err(e) => {
             panic!("Failed to run database migrations: {}", e);
@@ -486,7 +491,21 @@ async fn main() {
 
     tracing::info!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            tracing::error!(
+                "❌ Port 8080 is already in use (another battle-api instance is running).\n\
+                 Kill it first with:\n\
+                 PowerShell: Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force\n\
+                 Linux/Mac:  kill $(lsof -ti:8080)"
+            );
+            std::process::exit(1);
+        }
+        Err(e) => {
+            panic!("Failed to bind TCP listener on 0.0.0.0:8080: {}", e);
+        }
+    };
 
     // ── Background Episode-Runner (v0.4) ──────────────────────────────────────
     // Polls every 5s for AWAITING_FUNDING matches (fast confirmation detection),

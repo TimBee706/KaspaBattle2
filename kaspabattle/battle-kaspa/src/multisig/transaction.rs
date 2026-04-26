@@ -77,6 +77,12 @@ pub fn create_unsigned_payout_tx(
         .map_err(|e| TxError::InvalidAddress(format!("platform: {}", e)))?;
 
     // Build inputs from UTXOs
+    // sig_op_count must equal the number of public keys in the redeem script
+    // because OP_CHECKMULTISIG counts N sigops (one per key), not M (the threshold).
+    // For a 2-of-3 multisig: 3 keys → sig_op_count = 3.
+    // Setting this to 2 (the threshold) causes node rejection:
+    // "sig op count exceeds passed limit of 2"
+    let sig_op_count: u8 = 3; // 2-of-3 multisig: 3 public keys in the redeem script
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
@@ -154,6 +160,8 @@ pub fn create_unsigned_refund_tx(
     let net = total_balance.saturating_sub(network_fee);
     let half = net / 2;
 
+    // sig_op_count = 3: OP_CHECKMULTISIG counts one sigop per public key in the
+    // redeem script (n, not m). For a 2-of-3 multisig there are 3 public keys.
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
@@ -167,23 +175,30 @@ pub fn create_unsigned_refund_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
-                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
-                sig_op_count: 3,
+                sig_op_count: 3, // 2-of-3 multisig: 3 keys → 3 sigops for OP_CHECKMULTISIG
             }
         })
         .collect();
 
-    let outputs = vec![
-        TransactionOutput {
+    let mut outputs = Vec::new();
+    if player_a_address == player_b_address {
+        // Single player refund (Player B never joined) -> send full balance in one output
+        // This prevents wallet UI bugs that fail to parse multiple outputs to the same address
+        outputs.push(TransactionOutput {
+            value: net,
+            script_public_key: pay_to_address_script(&addr_a),
+        });
+    } else {
+        // Two-player refund -> split 50/50
+        outputs.push(TransactionOutput {
             value: half,
             script_public_key: pay_to_address_script(&addr_a),
-        },
-        TransactionOutput {
+        });
+        outputs.push(TransactionOutput {
             value: net - half,
             script_public_key: pay_to_address_script(&addr_b),
-        },
-    ];
+        });
+    }
 
     let tx = Transaction::new(0, inputs, outputs, 0, SUBNETWORK_ID_NATIVE, 0, vec![]);
 

@@ -18,7 +18,9 @@ import { TournamentListPage } from './pages/TournamentListPage';
 import { TournamentDetailPage } from './pages/TournamentDetailPage';
 import { TournamentResultsPage } from './pages/TournamentResultsPage';
 import { TournamentAdminPage } from './pages/TournamentAdminPage';
-
+import { WhitepaperPage } from './pages/WhitepaperPage';
+import { TermsPage } from './pages/TermsPage';
+import { SupportPage } from './pages/SupportPage';
 import { useAuthStore } from './stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from './hooks/useWallet';
@@ -43,8 +45,8 @@ export default function App() {
       fetchUser()
         .then(() => {
           console.log('\u2705 [App] fetchUser succeeded after FaceIT login');
-          // Clean querystring and navigate to lobby without a full page reload.
-          // window.location.replace would lose the zustand in-memory state.
+          // Clean querystring and navigate to lobby ohne full page reload.
+          // window.location.replace würde den zustand in-memory verlieren.
           window.history.replaceState({}, document.title, '/lobby');
         })
         .catch((err) => {
@@ -52,7 +54,7 @@ export default function App() {
           window.history.replaceState({}, document.title, '/');
         });
     } else if (errorParam) {
-      console.error("FACEIT Auth Fehler:", errorParam);
+      console.error('FACEIT Auth Fehler:', errorParam);
       alert(`Authentication Error: ${errorParam}`);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (!useAuthStore.getState().isAuthenticated) {
@@ -66,7 +68,6 @@ export default function App() {
   if (wasmError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-kaspa-dark text-red-500 p-8 text-center">
-
         <div>
           <div className="text-5xl mb-6">{'\u26A0\uFE0F'}</div>
           <h1 className="text-2xl font-bold mb-2">{t('common.error_title')}</h1>
@@ -85,7 +86,6 @@ export default function App() {
   if (!isReady) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-kaspa-dark text-white">
-
         <div className="w-64 h-1.5 bg-kaspa-border rounded-full overflow-hidden mb-4 shadow-inner">
           <div className="h-full bg-kaspa-primary animate-[shimmer_2s_infinite] w-full origin-left" />
         </div>
@@ -104,7 +104,7 @@ export default function App() {
             <Route index element={<LandingPage />} />
             <Route path="auth/faceit/callback" element={<FaceitCallback />} />
 
-            {/* Oeffentliche Routen - sichtbar fuer alle */}
+            {/* Öffentliche Routen - sichtbar für alle */}
             <Route path="lobby" element={<LobbyPage />} />
             <Route path="lobby/create" element={<CreateMatchPage />} />
             <Route path="lobby/:lobbyId" element={<LobbyPage />} />
@@ -113,8 +113,11 @@ export default function App() {
             <Route path="tournaments/:id" element={<TournamentDetailPage />} />
             <Route path="tournaments/:id/results" element={<TournamentResultsPage />} />
             <Route path="admin/tournaments" element={<AuthGuard><TournamentAdminPage /></AuthGuard>} />
+            <Route path="whitepaper" element={<WhitepaperPage />} />
+            <Route path="terms" element={<TermsPage />} />
+            <Route path="support" element={<SupportPage />} />
 
-            {/* Geschuetzte Routen - AuthGuard zeigt Banner */}
+            {/* Geschützte Routen - AuthGuard zeigt Banner */}
             <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />
             <Route path="match/:matchId" element={<AuthGuard><MatchPage /></AuthGuard>} />
             <Route path="profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />

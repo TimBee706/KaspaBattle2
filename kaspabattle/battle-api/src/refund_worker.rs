@@ -224,3 +224,53 @@ async fn poll_refundable_matches(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::Row;
+
+    /// Debug helper to inspect refunded matches in a local dev database.
+    ///
+    /// This test connects to a local Postgres instance and prints rows,
+    /// so it is marked as `#[ignore]` and will **not** run in CI.
+    ///
+    /// Run manually (with local Postgres running) via:
+    /// ```
+    /// cargo test refund_worker::tests::debug_query_refunds -- --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore]
+    async fn debug_query_refunds() {
+        let pool = sqlx::PgPool::connect(
+            "postgres://postgres:postgres@localhost:5432/kaspabattle",
+        )
+        .await
+        .expect("Failed to connect to local debug database. Is Postgres running?");
+
+        let rows = sqlx::query(
+            "SELECT m.id, m.status::text as match_status, m.refund_status, m.refund_tx_hash, \
+                    ua.kaspa_address AS player_a_kas, \
+                    ub.kaspa_address AS player_b_kas \
+             FROM matches m \
+             LEFT JOIN users ua ON ua.id = m.creator_user_id \
+             LEFT JOIN users ub ON ub.id = m.opponent_user_id \
+             WHERE m.status = 'REFUNDED' OR m.refund_status IN ('success', 'failed')",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to fetch refund debug rows");
+
+        for row in rows {
+            let tx_hash: Option<String> = row.try_get("refund_tx_hash").ok();
+            let player_a: Option<String> = row.try_get("player_a_kas").ok();
+            let player_b: Option<String> = row.try_get("player_b_kas").ok();
+
+            if let Some(hash) = tx_hash {
+                println!(
+                    "TX: {:?} | Player A: {:?} | Player B: {:?}",
+                    hash, player_a, player_b
+                );
+            }
+        }
+    }
+}
