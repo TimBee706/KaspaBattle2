@@ -14,7 +14,7 @@ import { FEATURE_FLAGS } from '../../config/featureFlags';
 export function CreateChallengeForm() {
     const navigate = useNavigate();
     const { isConnected } = useWalletStore();
-    const { isFullyConnected } = useAuthStore();
+    const { isFullyConnected, isAuthLoading } = useAuthStore();
     const { createChallenge, isCreating } = useLobby();
 
     const [gameId, setGameId] = useState(SUPPORTED_GAMES[0].id);
@@ -29,8 +29,18 @@ export function CreateChallengeForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Solange der Auth-State noch geladen wird, zeigen wir keinen harten Fehler,
+        // sondern deaktivieren nur den Button.
+        if (isAuthLoading) {
+            return;
+        }
+
         const hasRequiredAuth = FEATURE_FLAGS.TEST_MODE ? isConnected : isFullyConnected;
-        if (!validation.valid || !hasRequiredAuth) return;
+        if (!validation.valid || !hasRequiredAuth) {
+            // Keine weiteren Seiteneffekte – die UI zeigt Hinweise unterhalb des Formulars.
+            return;
+        }
 
         setError(null);
 
@@ -127,7 +137,14 @@ export function CreateChallengeForm() {
                 </div>
 
                 {(!isConnected || (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected)) && (
-                    <p className="text-center text-xs text-orange-400 font-bold">⚠️ {(!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected) ? 'Bitte zuerst FaceIT verbinden' : t('challenge.wallet_needed')}</p>
+                    <p className="text-center text-xs text-orange-400 font-bold">
+                        ⚠️{' '}
+                        {isAuthLoading
+                            ? t('challenge.auth_loading')
+                            : (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected)
+                                ? 'Bitte zuerst FaceIT verbinden'
+                                : t('challenge.wallet_needed')}
+                    </p>
                 )}
 
                 {error && (
@@ -136,16 +153,27 @@ export function CreateChallengeForm() {
 
                 <button
                     type="submit"
-                    disabled={!validation.valid || isCreating || (!FEATURE_FLAGS.TEST_MODE ? !isFullyConnected : !isConnected)}
-                    title={(!FEATURE_FLAGS.TEST_MODE && !isFullyConnected) ? 'Bitte zuerst FaceIT und Wallet verbinden' : undefined}
-                    className="w-full btn-primary h-12 relative overflow-hidden group"
+                    disabled={
+                        isAuthLoading
+                        || !validation.valid
+                        || isCreating
+                        || (!FEATURE_FLAGS.TEST_MODE ? !isFullyConnected : !isConnected)
+                    }
+                    title={(!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && !isAuthLoading)
+                        ? 'Bitte zuerst FaceIT und Wallet verbinden'
+                        : undefined}
+                    className="w-full btn-primary h-12 relative overflow-hidden group disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                    {isCreating ? t('challenge.creating') : (
-                        <>
-                            <span className="relative z-10">{t('challenge.publish')}</span>
-                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                        </>
-                    )}
+                    {isCreating
+                        ? t('challenge.creating')
+                        : isAuthLoading
+                            ? t('challenge.auth_loading_button')
+                            : (
+                                <>
+                                    <span className="relative z-10">{t('challenge.publish')}</span>
+                                    <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                                </>
+                            )}
                 </button>
             </form>
         </div>
