@@ -201,7 +201,7 @@ export function MatchPlayersPanel({ match }: MatchPlayersPanelProps) {
     const isPlayerBCurrentUser = currentUserId === match.opponent_user_id;
 
     return (
-        <div className="card p-0 overflow-hidden bg-gradient-to-br from-kaspa-card via-kaspa-dark to-kaspa-card">
+        <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary p-0 overflow-hidden bg-gradient-to-br from-kaspa-card via-kaspa-dark to-kaspa-card">
             {/* Header strip */}
             <div className="px-6 pt-5 pb-3 border-b border-kaspa-border/50">
                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">

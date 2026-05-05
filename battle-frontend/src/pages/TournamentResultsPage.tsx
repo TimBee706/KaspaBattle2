@@ -31,7 +31,7 @@ function Podium({ results }: { results: TournamentResults }) {
             <circle cx="18" cy="22" r="7" stroke="currentColor" strokeWidth="1" fill="currentColor" fillOpacity="0.08"/>
             <path d="M13 6h10v4l-5 3-5-3V6Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round"/>
           </svg>
-          <div className="bg-gradient-to-b from-[#1a2535] to-[#0d1827] border border-[#9ca3af]/30 rounded-2xl p-5 w-36 text-center shadow-xl">
+          <div className="glass-panel border border-kaspa-primary/20 rounded-2xl p-5 w-36 text-center shadow-glow-primary">
             <div className="text-2xl font-black text-[#9ca3af] mb-1">2nd</div>
             <div className="font-bold text-white text-sm truncate">{runnerUp?.name ?? t('tournaments.detail.bracket.tbd')}</div>
             <div className="text-xs text-gray-500 mt-0.5">{runnerUp?.captain_display_name}</div>
@@ -53,7 +53,7 @@ function Podium({ results }: { results: TournamentResults }) {
               <rect x="10" y="23" width="10" height="2.5" rx="1.25" fill="white"/>
             </svg>
           </div>
-          <div className="bg-gradient-to-b from-[#1f2d1a] to-[#0d1a0f] border border-[#49EACB]/40 rounded-2xl p-6 w-44 text-center shadow-[0_0_48px_rgba(73,234,203,0.12)]">
+          <div className="glass-panel border border-kaspa-primary/30 rounded-2xl p-6 w-44 text-center shadow-glow-primary">
             <div className="text-3xl font-black text-[#49EACB] mb-1">1st</div>
             <div className="font-bold text-white text-base truncate">{winner?.name ?? t('tournaments.detail.bracket.tbd')}</div>
             <div className="text-xs text-gray-400 mt-0.5">{winner?.captain_display_name}</div>
@@ -75,7 +75,7 @@ function Podium({ results }: { results: TournamentResults }) {
             <rect x="27" y="16" width="3" height="16" fill="currentColor"/>
             <polygon points="18,4 2,13 34,13" fill="currentColor"/>
           </svg>
-          <div className="bg-[#0d1b2a] border border-white/5 rounded-2xl p-5 w-36 text-center">
+          <div className="glass-panel border border-white/5 rounded-2xl p-5 w-36 text-center shadow-glow-primary">
             <div className="text-2xl font-black text-gray-600 mb-1">Fee</div>
             <div className="font-bold text-gray-500 text-sm">Platform</div>
             <div className="text-gray-500 font-bold text-sm mt-3">
@@ -125,10 +125,10 @@ function ResultsBracket({ slots }: { slots: BracketSlot[] }) {
                 .map(slot => (
                   <div
                     key={slot.id}
-                    className={`rounded-xl border p-3 ${
+                    className={`glass-panel border p-3 rounded-2xl shadow-glow-primary ${
                       slot.status === 'COMPLETED'
-                        ? 'border-[#49EACB]/20 bg-[#49EACB]/3'
-                        : 'border-white/5 bg-[#0d1b2a]'
+                        ? 'border-kaspa-primary/20 bg-kaspa-primary/5'
+                        : 'border-white/5 bg-slate-900/60'
                     }`}
                   >
                     {[slot.team_a, slot.team_b].map((team, i) => (
