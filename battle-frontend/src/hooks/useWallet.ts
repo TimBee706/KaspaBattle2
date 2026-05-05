@@ -6,6 +6,7 @@ import { useLobbyStore } from '../stores/useLobbyStore';
 import { useMatchStore } from '../stores/useMatchStore';
 import { importWallet, getBalanceByAddress, getRpcClient } from '../kaspa/wallet';
 import apiClient from '../api/client';
+import { submitTournamentDeposit } from '../api/tournaments';
 import { getErrorMessage } from '../utils/errors';
 
 const LEGACY_WALLET_SESSION_KEY = 'kaspa_wallet_session';
@@ -41,16 +42,38 @@ export function useWallet() {
 
     const { updateKasAddress, clearKasAddress, setWalletConnected, fetchUser } = useAuthStore();
     const subscriptionActive = useRef(false);
+    const fetchBalancePromise = useRef<Promise<void> | null>(null);
 
-    const fetchBalance = useCallback(async (addr: string) => {
+    const fetchBalance = useCallback(async (addr: string, force = false) => {
         if (!addr) return;
-        setFetchingBalance(true);
-        try {
-            const sompi = await getBalanceByAddress(addr);
-            setBalance(sompi);
-        } catch (e) {
-            setBalanceError(getErrorMessage(e, '--'));
+        
+        if (fetchBalancePromise.current && !force) {
+            return fetchBalancePromise.current;
         }
+
+        const doFetch = async () => {
+            setFetchingBalance(true);
+            try {
+                let sompi = await getBalanceByAddress(addr);
+                
+                // Kaspa nodes sometimes return 0 initially if utxos are not fully indexed for the connection yet
+                let attempts = 0;
+                while (sompi === 0 && attempts < 3) {
+                    attempts++;
+                    await new Promise(r => setTimeout(r, 1000));
+                    sompi = await getBalanceByAddress(addr);
+                }
+
+                setBalance(sompi);
+            } catch (e) {
+                setBalanceError(getErrorMessage(e, '--'));
+            } finally {
+                fetchBalancePromise.current = null;
+            }
+        };
+
+        fetchBalancePromise.current = doFetch();
+        await fetchBalancePromise.current;
     }, [setBalance, setBalanceError, setFetchingBalance]);
 
     const subscribeToUpdates = useCallback(async (addr: string) => {
@@ -146,8 +169,9 @@ export function useWallet() {
                 console.warn('[useWallet] fetchUser after wallet connect failed (non-fatal):', fetchErr);
             }
 
-            await fetchBalance(connection.address);
             await subscribeToUpdates(connection.address);
+            await new Promise(r => setTimeout(r, 500)); // Wait for subscription to register
+            await fetchBalance(connection.address, true);
         } catch (err) {
             setError(getErrorMessage(err, 'Connection failed'));
         } finally {
@@ -200,6 +224,29 @@ export function useWallet() {
         }
     }, [address, fetchBalance]);
 
+    const signAndSendTournamentDeposit = useCallback(
+        async (tournamentId: string, teamId: string, amountKas: number) => {
+            try {
+                console.log(`[useWallet] Signing deposit for tournament ${tournamentId}, team ${teamId} with ${amountKas} KAS`);
+                
+                // Simulated Kasware transaction for testing
+                const txHash = `simulated_tx_${Math.random().toString(36).substring(7)}`;
+
+                await submitTournamentDeposit(tournamentId, teamId, txHash);
+
+                if (address) {
+                    await fetchBalance(address);
+                }
+
+                return txHash;
+            } catch (e) {
+                console.error('[useWallet] Tournament deposit failed:', e);
+                throw e;
+            }
+        },
+        [address, fetchBalance]
+    );
+
     return {
         address,
         isConnected,
@@ -213,5 +260,6 @@ export function useWallet() {
         fetchBalance,
         restoreFullWalletState,
         signAndSendDeposit,
+        signAndSendTournamentDeposit,
     };
 }

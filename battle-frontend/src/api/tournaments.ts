@@ -134,6 +134,17 @@ export const registerTeam = async (tournamentId: string, teamName: string): Prom
   return data;
 };
 
+export const submitTournamentDeposit = async (
+  tournamentId: string,
+  teamId: string,
+  txHash: string
+) => {
+  const res = await apiClient.post(`/tournaments/${tournamentId}/teams/${teamId}/deposit`, {
+    tx_hash: txHash,
+  });
+  return res.data;
+};
+
 export const addTeamMember = async (
   tournamentId: string,
   teamId: string,

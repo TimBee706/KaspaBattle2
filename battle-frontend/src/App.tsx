@@ -15,6 +15,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { EscrowPage } from './pages/EscrowPage';
 import { TournamentListPage } from './pages/TournamentListPage';
+import { CreateTournamentPage } from './pages/CreateTournamentPage';
 import { TournamentDetailPage } from './pages/TournamentDetailPage';
 import { TournamentResultsPage } from './pages/TournamentResultsPage';
 import { TournamentAdminPage } from './pages/TournamentAdminPage';
@@ -110,6 +111,7 @@ export default function App() {
             <Route path="lobby/:lobbyId" element={<LobbyPage />} />
             <Route path="history" element={<HistoryPage />} />
             <Route path="tournaments" element={<TournamentListPage />} />
+            <Route path="tournaments/create" element={<CreateTournamentPage />} />
             <Route path="tournaments/:id" element={<TournamentDetailPage />} />
             <Route path="tournaments/:id/results" element={<TournamentResultsPage />} />
             <Route path="admin/tournaments" element={<AuthGuard><TournamentAdminPage /></AuthGuard>} />

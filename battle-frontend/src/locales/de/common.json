@@ -1,7 +1,8 @@
 {
     "navigation": {
-        "lobby": "Lobby",
-        "create_challenge": "Challenge erstellen",
+        "lobby": "Lobbies",
+        "create_challenge": "Lobby erstellen",
+        "create_tournament": "Turnier erstellen",
         "history": "Historie",
         "wallet": "Wallet",
         "faceit_login": "Login mit FACEIT",
@@ -105,12 +106,13 @@
         "ready": "Bereit für dein Match?"
     },
     "lobby": {
-        "title": "Lobby-System",
+        "title": "Lobby Übersicht",
         "test_mode": "Test-Modus aktiv: Wallet-Integration wird priorisiert.",
         "my_lobbies": "Meine Lobbys",
         "available_challenges": "Verfügbare Herausforderungen",
         "active_matches": "Aktive Herausforderungen",
-        "create_challenge": "Challenge erstellen",
+        "create_challenge": "Lobby erstellen",
+        "refresh": "Aktualisieren",
         "mode": "Modus",
         "stake": "Einsatz",
         "players": "Spieler",
@@ -143,7 +145,7 @@
         "backup_title": "Secret Recovery Phrase (Backup)",
         "backup_text": "Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen. Mitarbeiter von KaspaBattle werden dich niemals danach fragen.",
         "hover_to_show": "HOVER ZUM ANZEIGEN",
-        "refresh": "Wallet aktualisieren",
+        "refresh": "Balance aktualisieren",
         "balance_loading_hint": "Wallet-Balance wird geladen..."
     },
     "profile": {
@@ -384,7 +386,7 @@
         "startGame": "Spiel starten"
     },
     "tournaments": {
-        "title": "Kaspa Turniere",
+        "title": "Turniere",
         "subtitle": "Spielen, siegen, KAS verdienen",
         "refresh": "Aktualisieren",
         "create_btn": "+ Turnier erstellen",
@@ -518,8 +520,7 @@
                 "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
                 "deposit_title": "Dein Team Buy-In einzahlen",
                 "stake_per_team": "Einsatz pro Team",
-                "deposit_now": "Jetzt zahlen",
-                "deposit_instruction": "Sende genau {{amount}} KAS aus deinem verbundenen Wallet an die untenstehende Escrow-Adresse. Das System markiert dein Team als 'Funded', sobald die Transaktion auf der Blockchain bestätigt wurde."
+                "deposit_now": "Jetzt zahlen"
             },
             "bracket": {
                 "grand_final": "Großes Finale",
