@@ -565,7 +565,7 @@ export function TournamentDetailPage() {
                 (!tournament.registration_deadline || new Date() < new Date(tournament.registration_deadline)) && (
                 <button
                   id="register-team-btn"
-                  onClick={() => setShowRegister(true)}
+                  onClick={() => { setActiveTab('teams'); setShowRegister(true); }}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all"
                 >
                   {t('tournaments.detail.actions.register')}
