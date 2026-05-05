@@ -397,7 +397,7 @@ pub async fn register_team(
 
     // Verify tournament exists and is in REGISTRATION status
     let tournament = sqlx::query(
-        "SELECT status, max_teams, registration_deadline FROM tournaments WHERE id = $1",
+        "SELECT status::text AS status, max_teams, registration_deadline FROM tournaments WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.pool)

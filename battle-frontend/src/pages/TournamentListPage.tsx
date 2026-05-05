@@ -273,89 +273,89 @@ export function TournamentListPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070d14] py-10 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">
-              {t('tournaments.title').split(' ').map((word, i) => i === 0 ? <span key={i} className="text-[#49EACB]">{word} </span> : word + ' ')}
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">{t('tournaments.subtitle')}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              id="refresh-tournaments-btn"
-              onClick={load}
-              className="p-2 rounded-lg border border-white/10 hover:border-[#49EACB]/30 text-gray-400 hover:text-[#49EACB] transition-all"
-              title={t('tournaments.refresh')}
-            >
-              ↻
-            </button>
-            <button
-              id="create-tournament-btn"
-              onClick={() => { void handleCreateClick(); }}
-              className="px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.3)]"
-            >
-              {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
-            </button>
-          </div>
+    <div className="container mx-auto px-4 py-8">
+      {/* Header – mirrors LobbyPage */}
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
+        <div>
+          <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">
+            {t('tournaments.title')}
+          </h1>
+          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+            {t('tournaments.subtitle')}
+          </p>
         </div>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button
+            id="refresh-tournaments-btn"
+            onClick={load}
+            className="p-2 rounded-lg border border-white/10 hover:border-kaspa-primary/30 text-gray-400 hover:text-kaspa-primary transition-all shrink-0"
+            title={t('tournaments.refresh')}
+          >
+            ↻
+          </button>
+          <button
+            id="create-tournament-btn"
+            onClick={() => { void handleCreateClick(); }}
+            className="w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95 text-center"
+          >
+            {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
+          </button>
+        </div>
+      </div>
 
-        {/* Filter */}
-        <div className="flex gap-2 mb-6">
-          {filterOptions.map(opt => (
-            <button
-              key={opt.value}
-              id={`filter-${opt.value.toLowerCase()}`}
-              onClick={() => setFilter(opt.value)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 ${
-                filter === opt.value
-                  ? 'bg-[#49EACB] text-[#070d14]'
-                  : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {opt.label}
-            </button>
+      {/* Filter pills */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {filterOptions.map(opt => (
+          <button
+            key={opt.value}
+            id={`filter-${opt.value.toLowerCase()}`}
+            onClick={() => setFilter(opt.value)}
+            className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest transition-all duration-200 ${
+              filter === opt.value
+                ? 'bg-kaspa-primary text-kaspa-dark'
+                : 'bg-white/5 text-slate-500 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-[#0d1b2a] rounded-2xl p-5 animate-pulse h-44" />
           ))}
         </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-[#0d1b2a] rounded-2xl p-5 animate-pulse h-44" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-24 text-gray-500">
-            <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
-              <path d="M18 7H38V26C38 32.627 32.627 38 26 38C19.373 38 14 32.627 14 26V7H18Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
-              <path d="M18 11H10C10 11 7 16 10 22C11.3 24.5 14 26 18 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-              <path d="M38 11H46C46 11 49 16 46 22C44.7 24.5 42 26 38 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-              <rect x="24" y="38" width="8" height="6" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-              <rect x="18" y="44" width="20" height="5" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            </svg>
-            <p className="text-lg font-semibold text-gray-400">{t('tournaments.empty.title')}</p>
-            <p className="text-sm mt-1">
-              {user ? t('tournaments.empty.subtitle_auth') : t('tournaments.empty.subtitle_guest')}
-            </p>
-            <button
-              id="empty-state-create-tournament-btn"
-              onClick={() => { void handleCreateClick(); }}
-              className="mt-6 px-5 py-2.5 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl transition-all duration-200 text-sm shadow-[0_0_16px_rgba(73,234,203,0.2)]"
-            >
-              {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
-            </button>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(t => (
-              <TournamentCard key={t.id} tournament={t} />
-            ))}
-          </div>
-        )}
-      </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-24 text-gray-500">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
+            <path d="M18 7H38V26C38 32.627 32.627 38 26 38C19.373 38 14 32.627 14 26V7H18Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
+            <path d="M18 11H10C10 11 7 16 10 22C11.3 24.5 14 26 18 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            <path d="M38 11H46C46 11 49 16 46 22C44.7 24.5 42 26 38 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            <rect x="24" y="38" width="8" height="6" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <rect x="18" y="44" width="20" height="5" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+          </svg>
+          <p className="text-lg font-semibold text-gray-400">{t('tournaments.empty.title')}</p>
+          <p className="text-sm mt-1">
+            {user ? t('tournaments.empty.subtitle_auth') : t('tournaments.empty.subtitle_guest')}
+          </p>
+          <button
+            id="empty-state-create-tournament-btn"
+            onClick={() => { void handleCreateClick(); }}
+            className="mt-6 w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95"
+          >
+            {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
+          </button>
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(t => (
+            <TournamentCard key={t.id} tournament={t} />
+          ))}
+        </div>
+      )}
 
       {showCreate && (
         <CreateTournamentModal
