@@ -393,17 +393,18 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
     try {
       await signAndSendTournamentDeposit(tournament.id, myTeam.id, amountKas);
       onDepositSuccess();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string; response?: { data?: { error?: string; message?: string } } };
       // Try to extract specific error code from backend response
-      const apiError = e?.response?.data?.error;
-      const apiMessage = e?.response?.data?.message;
+      const apiError = err?.response?.data?.error;
+      const apiMessage = err?.response?.data?.message;
       if (apiError === 'team_not_in_tournament') {
         setDepositError(
-          t('tournaments.detail.teams.error_team_not_found' as any) ||
+          t('tournaments.detail.teams.error_team_not_found') ||
           'Dein Team existiert in diesem Turnier nicht mehr. Bitte Seite neu laden oder Team neu registrieren.'
         );
       } else {
-        setDepositError(apiMessage || e.message || 'Tournament deposit failed');
+        setDepositError(apiMessage || err.message || 'Tournament deposit failed');
       }
 
     } finally {
@@ -466,7 +467,6 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
 
 export function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
   const { t } = useTranslation();
 
@@ -547,12 +547,12 @@ export function TournamentDetailPage() {
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
       const codeMap: Record<string, string> = {
-        registration_closed: t('tournaments.detail.teams.error_registration_closed' as any),
-        tournament_full: t('tournaments.detail.teams.error_tournament_full' as any),
-        team_name_taken: t('tournaments.detail.teams.error_name_taken' as any),
+        registration_closed: t('tournaments.detail.teams.error_registration_closed'),
+        tournament_full: t('tournaments.detail.teams.error_tournament_full'),
+        team_name_taken: t('tournaments.detail.teams.error_name_taken'),
       };
       const code = errData?.error ?? '';
-      setRegError(codeMap[code] ?? errData?.message ?? t('tournaments.detail.teams.error_generic' as any));
+      setRegError(codeMap[code] ?? errData?.message ?? t('tournaments.detail.teams.error_generic'));
     } finally {
       setRegLoading(false);
     }
@@ -743,7 +743,7 @@ export function TournamentDetailPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              {t(`tournaments.detail.tabs.${tab}` as any)}
+              {t(`tournaments.detail.tabs.${tab}`)}
             </button>
           ))}
         </div>

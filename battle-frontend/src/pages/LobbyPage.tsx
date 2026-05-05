@@ -49,7 +49,7 @@ export const LobbyPage: React.FC = () => {
 
     // myLobbies: matches where the current user is creator or opponent
     // NOTE: backend returns creator_user_id/opponent_user_id, NOT player_a_faceit_id
-    const currentUserId = user?.id ?? null;
+    
     
     const filteredMatches = lobbies.filter(lobby => {
         if (filter === 'ALL') return true;

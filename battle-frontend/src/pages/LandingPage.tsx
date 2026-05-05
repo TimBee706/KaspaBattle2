@@ -180,7 +180,7 @@ export function LandingPage() {
                         { iconName: 'blocks' as const, title: t('sections.features.blocks.title'),    text: t('sections.features.blocks.text') },
                         { iconName: 'coin'   as const, title: t('sections.features.fees.title'),      text: t('sections.features.fees.text') },
                         { iconName: 'shield' as const, title: t('sections.features.security.title'), text: t('sections.features.security.text') },
-                    ]).map((feature, i) => (
+                    ]).map((feature) => (
                         <div key={feature.title} className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all p-8 text-center hover:-translate-y-1 duration-300">
                             <div className="w-14 h-14 mb-6 mx-auto rounded-xl bg-kaspa-primary/10 border border-kaspa-primary/20 flex items-center justify-center">
                                 <Icon name={feature.iconName} className="w-7 h-7 text-kaspa-primary" />

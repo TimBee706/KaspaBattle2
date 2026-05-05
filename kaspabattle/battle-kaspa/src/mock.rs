@@ -80,6 +80,10 @@ impl MockKaspaClient {
     ///
     /// # Example
     /// ```
+    /// use battle_kaspa::mock::MockKaspaClient;
+    /// use battle_kaspa::rpc::TxInputInfo;
+    ///
+    /// let mock = MockKaspaClient::new();
     /// mock.register_transaction(
     ///     "abc123",
     ///     vec![TxInputInfo {

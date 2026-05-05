@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   listTournaments,
-  createTournament,
   sompiToKas,
   STATUS_LABELS,
   STATUS_COLORS,
@@ -13,7 +12,6 @@ import { startFaceitLogin } from '../api/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_GAMES } from '../config/constants';
-import { Icon } from '../components/Icon';
 
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────

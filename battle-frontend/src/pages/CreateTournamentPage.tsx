@@ -12,7 +12,7 @@ export function CreateTournamentPage() {
     const navigate = useNavigate();
     const { isConnected } = useWalletStore();
 
-    const cs2Game = SUPPORTED_GAMES[0];
+    const cs2Game = SUPPORTED_GAMES.find(g => g.id === 'cs2') || SUPPORTED_GAMES[0];
 
 
     const [form, setForm] = useState({
@@ -54,7 +54,7 @@ export function CreateTournamentPage() {
     return (
         <div className="container mx-auto px-4 py-8 animate-in fade-in slide-in-from-top-4 duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
+            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-8">
                 <div>
                     <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">{t('tournaments.create.title')}</h1>
                     <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">{t('tournaments.create.game_hint')}</p>
@@ -63,11 +63,12 @@ export function CreateTournamentPage() {
 
             <div className="max-w-lg mx-auto mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
                 <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">
-                    {t('navigation.create_tournament')}
+                    {t('tournaments.create.title')}
                 </h2>
 
                 <div className="glass-panel p-8">
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Name Input */}
                         <div>
                             <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.name')}</label>
                             <input
@@ -80,16 +81,21 @@ export function CreateTournamentPage() {
                             />
                         </div>
                         
+                        {/* Game Selection (Matching Lobby Style) */}
                         <div>
                             <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.game_label')}</label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-kaspa-primary bg-kaspa-primary/10 text-white transition-all">
+                                <button
+                                    type="button"
+                                    className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-kaspa-primary bg-kaspa-primary/10 text-white transition-all shadow-glow-primary"
+                                >
                                     <img src={cs2Game.icon} alt={cs2Game.name} className="w-8 h-8 mb-1 object-contain" />
                                     <span className="text-[10px] font-bold">{cs2Game.name}</span>
-                                </div>
+                                </button>
                             </div>
                         </div>
 
+                        {/* Teams & Buy-In */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.max_teams')}</label>
@@ -104,39 +110,67 @@ export function CreateTournamentPage() {
                             </div>
                             <div>
                                 <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.buy_in')}</label>
-                                <input
-                                    id="create-tournament-buyin"
-                                    type="number" min={0} step={0.01}
-                                    className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-kaspa-primary"
-                                    value={form.buy_in_sompi / 1e8}
-                                    onChange={e => setForm(f => ({ ...f, buy_in_sompi: Math.round(Number(e.target.value) * 1e8) }))}
-                                />
+                                <div className="relative">
+                                    <input
+                                        id="create-tournament-buyin"
+                                        type="number" min={0} step={0.01}
+                                        className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 pr-10 text-sm text-white focus:outline-none focus:border-kaspa-primary"
+                                        value={form.buy_in_sompi / 1e8}
+                                        onChange={e => setForm(f => ({ ...f, buy_in_sompi: Math.round(Number(e.target.value) * 1e8) }))}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-kaspa-primary">KAS</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.prize_split')}</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['prize_winner_pct', 'prize_runner_up_pct', 'platform_fee_pct'] as const).map((key, i) => (
-                                    <div key={key}>
-                                        <label className="block text-[10px] uppercase tracking-widest text-gray-500 mb-1 font-bold">
-                                            {[t('tournaments.create.winner_pct'), t('tournaments.create.runner_up_pct'), t('tournaments.create.fee_pct')][i]}
-                                        </label>
-                                        <input
-                                            type="number" min={0} max={100}
-                                            className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-kaspa-primary"
-                                            value={form[key]}
-                                            onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
-                                        />
-                                    </div>
-                                ))}
+                        {/* Prize Pool Preview (Matching Lobby Style) */}
+                        <div className="bg-kaspa-primary/5 border border-kaspa-primary/20 rounded-xl p-4 space-y-3">
+                            <div className="flex justify-between items-center pb-2 border-b border-kaspa-primary/10">
+                                <span className="text-xs text-gray-400 uppercase tracking-widest font-bold">{t('tournaments.card.prize_pool')}</span>
+                                <span className="text-lg font-black text-white">{(form.buy_in_sompi * form.max_teams / 1e8).toFixed(2)} KAS</span>
                             </div>
+                            
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold">{t('tournaments.detail.prize_banner.winner')} ({form.prize_winner_pct}%)</span>
+                                    <span className="text-xs font-bold text-emerald-400">{(form.buy_in_sompi * form.max_teams * form.prize_winner_pct / 100 / 1e8).toFixed(2)} KAS</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold">{t('tournaments.detail.prize_banner.runner_up')} ({form.prize_runner_up_pct}%)</span>
+                                    <span className="text-xs font-bold text-gray-300">{(form.buy_in_sompi * form.max_teams * form.prize_runner_up_pct / 100 / 1e8).toFixed(2)} KAS</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold">{t('tournaments.detail.prize_banner.fee')} ({form.platform_fee_pct}%)</span>
+                                    <span className="text-xs font-bold text-red-400">-{ (form.buy_in_sompi * form.max_teams * form.platform_fee_pct / 100 / 1e8).toFixed(2) } KAS</span>
+                                </div>
+                            </div>
+
                             {pct !== 100 && (
-                                <p className="text-orange-400 text-xs mt-2 font-bold flex items-center gap-1">
+                                <p className="text-orange-400 text-[10px] font-bold flex items-center gap-1 pt-1 border-t border-kaspa-primary/10">
                                     <Icon name="alert-triangle" className="w-3.5 h-3.5" />
                                     {t('tournaments.create.pct_warning', { pct })}
                                 </p>
                             )}
+                        </div>
+
+                        {/* Prize Split Configuration (Simplified) */}
+                        <div>
+                            <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.prize_split')}</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(['prize_winner_pct', 'prize_runner_up_pct', 'platform_fee_pct'] as const).map((key) => (
+                                    <div key={key}>
+                                        <div className="relative">
+                                            <input
+                                                type="number" min={0} max={100}
+                                                className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 pr-7 text-xs text-white focus:outline-none focus:border-kaspa-primary"
+                                                value={form[key]}
+                                                onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">%</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         <div>
@@ -149,15 +183,15 @@ export function CreateTournamentPage() {
                             />
                         </div>
 
-                        {!isConnected && (
-                            <p className="text-center text-xs text-orange-400 font-bold flex items-center justify-center gap-1.5 py-2">
+                        {(!isConnected) && (
+                            <p className="text-center text-xs text-orange-400 font-bold flex items-center justify-center gap-1.5">
                                 <Icon name="alert-triangle" className="w-3.5 h-3.5 shrink-0" />
                                 {t('challenge.wallet_needed')}
                             </p>
                         )}
 
                         {error && (
-                            <p className="text-red-400 text-xs font-bold flex items-center gap-1.5 justify-center mb-4">
+                            <p className="text-center text-xs text-red-500 font-bold flex items-center justify-center gap-1.5">
                                 <Icon name="x" className="w-3.5 h-3.5 shrink-0" /> {error}
                             </p>
                         )}

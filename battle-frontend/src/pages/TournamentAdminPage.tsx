@@ -5,7 +5,6 @@ import {
   adminTriggerPayout,
   adminCancelTournament,
   getPayoutInfo,
-  listTeams,
   getBracket,
   sompiToKas,
   STATUS_LABELS,
