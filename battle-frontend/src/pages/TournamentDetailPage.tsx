@@ -19,6 +19,7 @@ import {
   type BracketSlot,
   type TournamentStatus,
 } from '../api/tournaments';
+import { SUPPORTED_GAMES } from '../config/constants';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 
@@ -384,13 +385,24 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
 
   const handlePayNow = async () => {
     if (!myTeam) return;
+    console.log(`[DepositBlock] Paying for tournamentId=${tournament.id} teamId=${myTeam.id}`);
     setDepositError(null);
     setIsDepositing(true);
     try {
       await signAndSendTournamentDeposit(tournament.id, myTeam.id, amountKas);
       onDepositSuccess();
     } catch (e: any) {
-      setDepositError(e.message || 'Tournament deposit failed');
+      // Try to extract specific error code from backend response
+      const apiError = e?.response?.data?.error;
+      const apiMessage = e?.response?.data?.message;
+      if (apiError === 'team_not_in_tournament') {
+        setDepositError(
+          t('tournaments.detail.teams.error_team_not_found' as any) ||
+          'Dein Team existiert in diesem Turnier nicht mehr. Bitte Seite neu laden oder Team neu registrieren.'
+        );
+      } else {
+        setDepositError(apiMessage || e.message || 'Tournament deposit failed');
+      }
     } finally {
       setIsDepositing(false);
     }
@@ -739,19 +751,39 @@ export function TournamentDetailPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.info_title')}</h3>
-                <dl className="space-y-2 text-sm">
-                  {[
-                    [t('tournaments.detail.overview.status'), STATUS_LABELS[tournament.status]],
-                    [t('tournaments.detail.overview.game'), tournament.game_id.toUpperCase()],
-                    [t('tournaments.card.max_teams'), tournament.max_teams],
-                    [t('tournaments.detail.overview.buy_in'), `${sompiToKas(tournament.buy_in_sompi)} KAS`],
-                    [t('tournaments.detail.overview.prize_pool'), `${sompiToKas(['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status) ? tournament.total_prize_pool_sompi : tournament.buy_in_sompi * tournament.max_teams)} KAS`],
-                  ].map(([k, v]) => (
-                    <div key={k as string} className="flex justify-between">
-                      <dt className="text-gray-500">{k}</dt>
-                      <dd className="text-white font-semibold">{v}</dd>
-                    </div>
-                  ))}
+                <dl className="space-y-4 text-sm">
+                  <div className="flex justify-between items-center">
+                    <dt className="text-gray-500">{t('tournaments.detail.overview.status')}</dt>
+                    <dd className="text-white font-semibold">
+                      <StatusBadge status={tournament.status} />
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-gray-500">{t('tournaments.detail.overview.game')}</dt>
+                    <dd className="text-white font-semibold">
+                      <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10">
+                        {(() => {
+                          const game = SUPPORTED_GAMES.find(g => g.id === tournament.game_id);
+                          return game?.icon ? (
+                            <img src={game.icon} alt={game.name} className="w-5 h-5 object-contain" />
+                          ) : null;
+                        })()}
+                        <span className="uppercase tracking-wider">{tournament.game_id.toUpperCase()}</span>
+                      </div>
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                    <dt className="text-gray-500">{t('tournaments.card.max_teams')}</dt>
+                    <dd className="text-white font-black">{tournament.max_teams}</dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-gray-500">{t('tournaments.detail.overview.buy_in')}</dt>
+                    <dd className="text-emerald-400 font-black">{sompiToKas(tournament.buy_in_sompi)} KAS</dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-gray-500">{t('tournaments.detail.overview.prize_pool')}</dt>
+                    <dd className="text-kaspa-primary font-black">{sompiToKas(['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status) ? tournament.total_prize_pool_sompi : tournament.buy_in_sompi * tournament.max_teams)} KAS</dd>
+                  </div>
                 </dl>
               </div>
               <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
@@ -780,7 +812,8 @@ export function TournamentDetailPage() {
         )}
 
         {activeTab === 'teams' && (() => {
-          const showDepositBlock = myTeam && ['REGISTRATION', 'FUNDED', 'BRACKET_READY'].includes(tournament.status) && !!tournament.escrow_address;
+          const myTeamInList = myTeam && teams.some(t => t.id === myTeam.id);
+          const showDepositBlock = myTeamInList && ['REGISTRATION', 'FUNDED', 'BRACKET_READY'].includes(tournament.status) && !!tournament.escrow_address;
           return (
           <div>
             <TeamsList teams={teams} myTeamIds={myTeamIds} />

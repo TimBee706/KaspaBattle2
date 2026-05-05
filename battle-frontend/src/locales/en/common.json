@@ -520,6 +520,7 @@
                 "error_tournament_full": "This tournament is full.",
                 "error_name_taken": "This team name is already taken.",
                 "error_generic": "Registration failed. Please try again.",
+                "error_team_not_found": "Your team no longer exists in this tournament. Please reload the page or register again.",
                 "deposit_title": "Deposit your team buy-in",
                 "stake_per_team": "Stake per team",
                 "deposit_now": "Pay Now"

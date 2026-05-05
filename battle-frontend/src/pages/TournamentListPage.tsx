@@ -12,6 +12,8 @@ import {
 import { startFaceitLogin } from '../api/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
+import { SUPPORTED_GAMES } from '../config/constants';
+import { Icon } from '../components/Icon';
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -57,8 +59,16 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
           </h3>
           <StatusBadge status={tournament.status} />
         </div>
-        <div className="flex items-center gap-3 text-xs text-slate-500 font-bold">
-          <span className="uppercase tracking-wider">{tournament.game_id.toUpperCase()}</span>
+        <div className="flex items-center gap-3 text-xs text-slate-500 font-bold mt-1">
+          <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-lg border border-white/10">
+            {(() => {
+              const game = SUPPORTED_GAMES.find(g => g.id === tournament.game_id);
+              return game?.icon ? (
+                <img src={game.icon} alt={game.name} className="w-4 h-4 object-contain" />
+              ) : null;
+            })()}
+            <span className="uppercase tracking-wider">{tournament.game_id.toUpperCase()}</span>
+          </div>
           <span>•</span>
           <span>{tournament.max_teams} Teams</span>
           {tournament.registration_deadline && (

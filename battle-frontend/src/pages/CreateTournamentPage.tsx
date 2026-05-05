@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { createTournament } from '../api/tournaments';
 import { Icon } from '../components/Icon';
+import { useWalletStore } from '../stores/useWalletStore';
+import { SUPPORTED_GAMES } from '../config/constants';
 
 export function CreateTournamentPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const { isConnected } = useWalletStore();
+
+    const cs2Game = SUPPORTED_GAMES[0];
 
     const [form, setForm] = useState({
         name: '',
@@ -75,9 +80,11 @@ export function CreateTournamentPage() {
                         
                         <div>
                             <label className="block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">{t('tournaments.create.game_label')}</label>
-                            <div className="w-full bg-kaspa-dark/50 border border-kaspa-border rounded-lg px-3 py-2 text-gray-500 text-sm flex items-center justify-between cursor-not-allowed">
-                                <span>{t('tournaments.create.game_value')}</span>
-                                <span className="text-[10px] uppercase tracking-widest text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">Only option</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-kaspa-primary bg-kaspa-primary/10 text-white transition-all">
+                                    <img src={cs2Game.icon} alt={cs2Game.name} className="w-8 h-8 mb-1 object-contain" />
+                                    <span className="text-[10px] font-bold">{cs2Game.name}</span>
+                                </div>
                             </div>
                         </div>
 
@@ -140,8 +147,15 @@ export function CreateTournamentPage() {
                             />
                         </div>
 
+                        {!isConnected && (
+                            <p className="text-center text-xs text-orange-400 font-bold flex items-center justify-center gap-1.5 py-2">
+                                <Icon name="alert-triangle" className="w-3.5 h-3.5 shrink-0" />
+                                {t('challenge.wallet_needed')}
+                            </p>
+                        )}
+
                         {error && (
-                            <p className="text-red-400 text-xs font-bold flex items-center gap-1.5 justify-center">
+                            <p className="text-red-400 text-xs font-bold flex items-center gap-1.5 justify-center mb-4">
                                 <Icon name="x" className="w-3.5 h-3.5 shrink-0" /> {error}
                             </p>
                         )}
@@ -149,8 +163,8 @@ export function CreateTournamentPage() {
                         <button
                             id="create-tournament-submit"
                             type="submit"
-                            disabled={loading || pct !== 100 || !form.name}
-                            className="w-full btn-primary h-12 relative overflow-hidden group"
+                            disabled={loading || pct !== 100 || !form.name || !isConnected}
+                            className="w-full btn-primary h-12 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loading ? t('tournaments.create.creating') : (
                                 <>
