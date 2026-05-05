@@ -345,7 +345,8 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
 
 function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
   const { t } = useTranslation();
-  const total = tournament.total_prize_pool_sompi;
+  const isFinalPool = ['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status);
+  const total = isFinalPool ? tournament.total_prize_pool_sompi : (tournament.buy_in_sompi * tournament.max_teams);
   const winnerAmt = Math.floor(total * tournament.prize_winner_pct / 100);
   const runnerAmt = Math.floor(total * tournament.prize_runner_up_pct / 100);
   const feeAmt = total - winnerAmt - runnerAmt;
@@ -357,7 +358,7 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
         { label: t('tournaments.detail.prize_banner.runner_up'), amount: runnerAmt, pct: tournament.prize_runner_up_pct, color: '#9ca3af' },
         { label: t('tournaments.detail.prize_banner.fee'), amount: feeAmt, pct: tournament.platform_fee_pct, color: '#6b7280' },
       ].map(item => (
-        <div key={item.label} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center">
+        <div key={item.label} className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6 text-center">
           <div className="text-sm text-gray-400 mb-1">{item.label}</div>
           <div style={{ color: item.color }} className="text-xl font-black">
             {sompiToKas(item.amount)} KAS
@@ -365,6 +366,63 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
           <div className="text-xs text-gray-600 mt-1">{item.pct}%</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Team Deposit Block ─────────────────────────────────────────────────────────
+
+function DepositBlock({ tournament, myTeam }: { tournament: Tournament; myTeam: TournamentTeam }) {
+  const { t } = useTranslation();
+  const [showInstructions, setShowInstructions] = useState(false);
+  const buyInKas = sompiToKas(tournament.buy_in_sompi);
+
+  return (
+    <div className="mt-6 bg-slate-900/60 border border-kaspa-primary/30 rounded-2xl p-6">
+      <h3 className="text-lg font-bold text-white mb-4">{t('tournaments.detail.teams.deposit_title')}</h3>
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="flex-1 space-y-4">
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t('tournaments.detail.overview.escrow_address')}</p>
+            <code className="block text-xs text-kaspa-primary break-all bg-kaspa-dark/80 border border-slate-700/50 rounded-xl p-3">
+              {tournament.escrow_address}
+            </code>
+          </div>
+          <div className="flex justify-between items-center bg-kaspa-dark/50 border border-slate-700/50 rounded-xl p-3">
+            <span className="text-sm text-gray-400">{t('tournaments.detail.teams.stake_per_team')}</span>
+            <span className="font-bold text-emerald-400">{buyInKas} KAS</span>
+          </div>
+        </div>
+        <div className="w-full md:w-64 shrink-0 flex flex-col justify-between">
+          <div className="mb-4 md:mb-0 text-center md:text-right">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Status</p>
+            {myTeam.deposit_status === 'CONFIRMED' ? (
+              <span className="inline-flex items-center gap-1.5 text-kaspa-primary font-bold">
+                <span className="w-2 h-2 rounded-full bg-kaspa-primary animate-pulse" />
+                {t('tournaments.detail.teams.funded')}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-orange-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                {t('tournaments.detail.teams.awaiting_deposit')}
+              </span>
+            )}
+          </div>
+          {myTeam.deposit_status === 'PENDING' && (
+            <button
+              onClick={() => setShowInstructions(!showInstructions)}
+              className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark font-black uppercase tracking-wider py-3 rounded-xl transition-all"
+            >
+              {t('tournaments.detail.teams.deposit_now')}
+            </button>
+          )}
+        </div>
+      </div>
+      {showInstructions && myTeam.deposit_status === 'PENDING' && (
+        <div className="mt-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl p-4 text-sm text-kaspa-primary">
+          {t('tournaments.detail.teams.deposit_instruction', { amount: buyInKas })}
+        </div>
+      )}
     </div>
   );
 }
@@ -434,6 +492,7 @@ export function TournamentDetailPage() {
   const myTeamIds = teams
     .filter(t => t.captain_user_id === user?.id)
     .map(t => t.id);
+  const myTeam = teams.find(t => t.captain_user_id === user?.id);
   const isCaptain = myTeamIds.length > 0;
   const isOrganizer = tournament?.organizer_user_id === user?.id;
   const isLockable =
@@ -658,7 +717,7 @@ export function TournamentDetailPage() {
         {activeTab === 'overview' && (
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-5">
+              <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.info_title')}</h3>
                 <dl className="space-y-2 text-sm">
                   {[
@@ -666,7 +725,7 @@ export function TournamentDetailPage() {
                     [t('tournaments.detail.overview.game'), tournament.game_id.toUpperCase()],
                     [t('tournaments.card.max_teams'), tournament.max_teams],
                     [t('tournaments.detail.overview.buy_in'), `${sompiToKas(tournament.buy_in_sompi)} KAS`],
-                    [t('tournaments.detail.overview.prize_pool'), `${sompiToKas(tournament.total_prize_pool_sompi)} KAS`],
+                    [t('tournaments.detail.overview.prize_pool'), `${sompiToKas(['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status) ? tournament.total_prize_pool_sompi : tournament.buy_in_sompi * tournament.max_teams)} KAS`],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex justify-between">
                       <dt className="text-gray-500">{k}</dt>
@@ -675,7 +734,7 @@ export function TournamentDetailPage() {
                   ))}
                 </dl>
               </div>
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-5">
+              <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.escrow_title')}</h3>
                 {tournament.escrow_address ? (
                   <div className="space-y-2">
@@ -700,9 +759,12 @@ export function TournamentDetailPage() {
           </div>
         )}
 
-        {activeTab === 'teams' && (
+        {activeTab === 'teams' && (() => {
+          const showDepositBlock = myTeam && ['REGISTRATION', 'FUNDED', 'BRACKET_READY'].includes(tournament.status) && !!tournament.escrow_address;
+          return (
           <div>
             <TeamsList teams={teams} myTeamIds={myTeamIds} />
+            {showDepositBlock && <DepositBlock tournament={tournament} myTeam={myTeam} />}
             {showRegister && (
               <form onSubmit={handleRegister} className="mt-4 bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-3">
                 <p className="text-sm font-bold text-blue-300">{t('tournaments.detail.teams.register_title')}</p>
@@ -735,7 +797,8 @@ export function TournamentDetailPage() {
               </form>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'bracket' && (
           <BracketView

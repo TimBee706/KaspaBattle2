@@ -6,6 +6,7 @@ import { SUPPORTED_GAMES } from '../config/constants';
 import apiClient from '../api/client';
 import type { BattleMatch } from '../api/types';
 import { getApiErrorCode, getErrorMessage } from '../utils/errors';
+import { hasValidBalance, getBalanceKasSafe } from '../utils/walletBalance';
 
 export function useLobby() {
     const { lobbies, addOrUpdateLobby } = useLobbyStore();
@@ -31,8 +32,9 @@ export function useLobby() {
     const MIN_WAGER_KAS = 10;
 
     const canCreateChallenge = useMemo(() => {
-        const balanceKas = balanceSompi / 100_000_000;
-        return isConnected && balanceKas >= MIN_WAGER_KAS;
+        if (!isConnected || !hasValidBalance(balanceSompi)) return false;
+        const balanceKas = getBalanceKasSafe(balanceSompi);
+        return balanceKas >= MIN_WAGER_KAS;
     }, [balanceSompi, isConnected]);
 
     const createChallenge = useCallback(async (data: {

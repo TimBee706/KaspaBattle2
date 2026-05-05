@@ -17,6 +17,7 @@ import {
 } from '../domain/lobby';
 import { getMatchStakeSompi } from '../api/types';
 import { getErrorMessage } from '../utils/errors';
+import { hasValidBalance } from '../utils/walletBalance';
 
 interface DepositCardProps {
     label: string;
@@ -128,7 +129,8 @@ export const EscrowPage: React.FC = () => {
 
     const wagerAmountSompi = getMatchStakeSompi(currentMatch);
     const wagerKas = wagerAmountSompi / SOMPI_PER_KAS;
-    const hasEnoughBalance = (balanceSompi || 0) >= wagerAmountSompi;
+    const hasBalance = hasValidBalance(balanceSompi);
+    const hasEnoughBalance = hasBalance && balanceSompi >= wagerAmountSompi;
 
     const lobbyRole = getLobbyRole(currentMatch, user?.id ?? null);
     const playerRole = getPlayerRoleForLobby(currentMatch, user?.id ?? null);
@@ -232,7 +234,16 @@ export const EscrowPage: React.FC = () => {
                         )}
                     </div>
 
-                    {!hasEnoughBalance && !iHavePaid && !!playerRole && (
+                    {!hasBalance && !iHavePaid && !!playerRole && (
+                        <div className="p-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl flex gap-3 items-center">
+                            <span className="text-2xl animate-pulse">⏳</span>
+                            <p className="text-kaspa-primary text-xs font-bold">
+                                {t('wallet.balance_loading_hint')}
+                            </p>
+                        </div>
+                    )}
+
+                    {!hasEnoughBalance && hasBalance && !iHavePaid && !!playerRole && (
                         <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex gap-3 items-center">
                             <span className="text-2xl">!</span>
                             <p className="text-red-400 text-xs font-bold">
@@ -252,14 +263,16 @@ export const EscrowPage: React.FC = () => {
 
                     <button
                         onClick={handleDepositClick}
-                        disabled={!playerRole || !hasEnoughBalance || isDepositing || iHavePaid}
+                        disabled={!playerRole || !hasEnoughBalance || isDepositing || iHavePaid || !hasBalance}
                         className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark h-14 rounded-2xl font-black uppercase tracking-tight text-lg shadow-xl shadow-kaspa-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                     >
-                        {isDepositing
-                            ? t('deposit.signing')
-                            : iHavePaid
-                                ? t('deposit.success_title')
-                                : t('escrow.deposit_now')}
+                        {!hasBalance 
+                            ? t('wallet.balance_loading_hint') 
+                            : isDepositing
+                                ? t('deposit.signing')
+                                : iHavePaid
+                                    ? t('deposit.success_title')
+                                    : t('escrow.deposit_now')}
                     </button>
 
                     <div className="text-center">

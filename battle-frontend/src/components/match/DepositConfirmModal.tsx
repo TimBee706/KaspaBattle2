@@ -2,6 +2,7 @@ import { useEscrowDeposit } from '../../hooks/useEscrowDeposit';
 import { useWalletStore } from '../../stores/useWalletStore';
 import { formatKas, explorerTxUrl } from '../../utils/format';
 import { useTranslation } from 'react-i18next';
+import { hasValidBalance } from '../../utils/walletBalance';
 
 interface DepositConfirmModalProps {
     isOpen: boolean;
@@ -19,7 +20,9 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
     if (!isOpen) return null;
 
     console.log('[DepositModal] amountSompi:', amountSompi, 'balanceSompi:', balanceSompi);
-    const hasEnoughBalance = (balanceSompi || 0) >= (amountSompi || 0);
+    const hasBalance = hasValidBalance(balanceSompi);
+    const effectiveBalanceSompi = hasBalance ? balanceSompi : 0;
+    const hasEnoughBalance = effectiveBalanceSompi >= (amountSompi || 0);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -42,7 +45,7 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                             <div className="flex justify-between text-xs">
                                 <span className="text-gray-500 uppercase font-bold">{t('deposit.your_balance')}</span>
                                 <span className={`font-black ${hasEnoughBalance ? 'text-kaspa-primary' : 'text-red-500'}`}>
-                                    {formatKas(balanceSompi)} KAS
+                                    {hasBalance ? formatKas(balanceSompi) : '--'} KAS
                                 </span>
                             </div>
                         </div>

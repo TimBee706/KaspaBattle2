@@ -142,7 +142,9 @@
         "tx_history_empty": "Transaktionshistorie wird in Kürze verfügbar sein.",
         "backup_title": "Secret Recovery Phrase (Backup)",
         "backup_text": "Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen. Mitarbeiter von KaspaBattle werden dich niemals danach fragen.",
-        "hover_to_show": "HOVER ZUM ANZEIGEN"
+        "hover_to_show": "HOVER ZUM ANZEIGEN",
+        "refresh": "Wallet aktualisieren",
+        "balance_loading_hint": "Wallet-Balance wird geladen..."
     },
     "profile": {
         "level_unknown": "LVL UNBEKANNT",
@@ -513,7 +515,11 @@
                 "error_registration_closed": "Die Anmeldung ist geschlossen.",
                 "error_tournament_full": "Das Turnier ist bereits voll.",
                 "error_name_taken": "Dieser Teamname ist bereits vergeben.",
-                "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut."
+                "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+                "deposit_title": "Dein Team Buy-In einzahlen",
+                "stake_per_team": "Einsatz pro Team",
+                "deposit_now": "Jetzt zahlen",
+                "deposit_instruction": "Sende genau {{amount}} KAS aus deinem verbundenen Wallet an die untenstehende Escrow-Adresse. Das System markiert dein Team als 'Funded', sobald die Transaktion auf der Blockchain bestätigt wurde."
             },
             "bracket": {
                 "grand_final": "Großes Finale",
