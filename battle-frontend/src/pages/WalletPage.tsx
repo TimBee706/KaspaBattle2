@@ -40,17 +40,13 @@ export function WalletPage() {
                 </div>
 
                 {/* Section box — same style as LobbyTable */}
-                <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
-                    <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">{t('wallet.import_title')}</h2>
+                <div className="max-w-lg mx-auto mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
 
-                    <div className="max-w-md mx-auto p-8 glass-panel">
+                    <div className="max-w-md mx-auto p-8">
                         <div className="text-center mb-8">
                             <div className="w-14 h-14 rounded-2xl bg-kaspa-primary/10 border border-kaspa-primary/20 flex items-center justify-center mx-auto mb-4">
                                 <Icon name="wallet" className="w-7 h-7 text-kaspa-primary" />
                             </div>
-                            <p className="text-gray-400 text-sm mt-2">
-                                {t('wallet.import_subtitle')}
-                            </p>
                         </div>
 
                         <form onSubmit={handleImport} className="space-y-6">
@@ -122,11 +118,11 @@ export function WalletPage() {
             </div>
 
             {/* Section box — same style as LobbyTable */}
-            <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
+            <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
                 <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">{t('wallet.overview')}</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="glass-panel p-8 bg-gradient-to-br from-kaspa-surface to-kaspa-dark border-kaspa-primary/20 relative overflow-hidden">
+                    <div className="glass-panel p-8 bg-gradient-to-br from-kaspa-surface to-kaspa-dark border border-white/5 rounded-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-kaspa-primary/10 rounded-full blur-3xl" />
                         <h3 className="text-xs font-black text-kaspa-primary uppercase tracking-widest mb-2">{t('wallet.balance')}</h3>
                         <div className="text-5xl font-black mb-4 flex items-baseline gap-2">
@@ -143,7 +139,7 @@ export function WalletPage() {
                         </div>
                     </div>
 
-                    <div className="glass-panel p-8 flex flex-col justify-center">
+                    <div className="glass-panel p-8 flex flex-col justify-center border border-white/5 rounded-2xl">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">{t('wallet.address')}</h3>
                         <div className="bg-kaspa-dark p-4 rounded-lg border border-kaspa-border break-all font-mono text-sm text-kaspa-primary select-all mb-4">
                             {address}
@@ -157,7 +153,7 @@ export function WalletPage() {
                     </div>
                 </div>
 
-                <div className="glass-panel p-8 mt-4">
+                <div className="glass-panel p-8 mt-4 border border-white/5 rounded-2xl">
                     <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-kaspa-primary pl-4">{t('wallet.tx_history')}</h3>
                     <div className="flex justify-center items-center h-32 text-gray-500 text-sm italic bg-kaspa-dark/50 rounded-lg border border-kaspa-border/50">
                         {t('wallet.tx_history_empty')}

@@ -621,6 +621,101 @@ pub async fn add_team_member(
     })))
 }
 
+// ─── POST /tournaments/:id/teams/:team_id/deposit ───────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct TournamentDepositReq {
+    pub tx_hash: String,
+}
+
+pub async fn submit_team_deposit(
+    State(state): State<AppState>,
+    Path((tournament_id, team_id)): Path<(Uuid, Uuid)>,
+    SessionUser(user): SessionUser,
+    Json(req): Json<TournamentDepositReq>,
+) -> Result<(StatusCode, Json<TeamResponse>), ApiError> {
+    // 1) Verify caller is captain
+    let team = sqlx::query(
+        "SELECT captain_user_id, name, deposit_status, seed \
+         FROM tournament_teams WHERE id = $1 AND tournament_id = $2"
+    )
+    .bind(team_id)
+    .bind(tournament_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(db_err)?
+    .ok_or_else(not_found)?;
+
+    let captain_id: Uuid = team.try_get("captain_user_id").unwrap();
+    if captain_id != user.id {
+        return Err(forbidden());
+    }
+
+    // 2) Verify tournament status
+    let tournament_status: String = sqlx::query_scalar(
+        "SELECT status::text FROM tournaments WHERE id = $1"
+    )
+    .bind(tournament_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(db_err)?
+    .unwrap_or_default();
+
+    if tournament_status != "REGISTRATION" && tournament_status != "FUNDED" && tournament_status != "BRACKET_READY" {
+         return Err((
+            StatusCode::CONFLICT,
+            Json(ApiErrorResponse {
+                error: "invalid_tournament_status",
+                message: "Tournament is not open for deposits.",
+            }),
+        ));
+    }
+
+    // 3) Update team deposit status to PENDING
+    let row = sqlx::query(
+        "UPDATE tournament_teams \
+         SET deposit_tx_hash = $1, deposit_status = 'PENDING', updated_at = NOW() \
+         WHERE id = $2 \
+         RETURNING id, tournament_id, name, captain_user_id, deposit_status, deposit_tx_hash, deposit_confirmed_at, seed"
+    )
+    .bind(&req.tx_hash)
+    .bind(team_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(db_err)?;
+
+    let member_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM team_members WHERE team_id = $1"
+    )
+    .bind(team_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+
+    tracing::info!(
+        tournament_id = %tournament_id,
+        team_id = %team_id,
+        tx_hash = %req.tx_hash,
+        "💸 Tournament team deposit submitted (PENDING)"
+    );
+
+    Ok((
+        StatusCode::OK,
+        Json(TeamResponse {
+            id: row.try_get("id").unwrap(),
+            tournament_id: row.try_get("tournament_id").unwrap(),
+            name: row.try_get("name").unwrap(),
+            captain_user_id: row.try_get("captain_user_id").unwrap(),
+            captain_display_name: Some(user.display_name.clone()),
+            deposit_status: row.try_get("deposit_status").unwrap(),
+            deposit_tx_hash: row.try_get("deposit_tx_hash").unwrap_or(None),
+            deposit_confirmed_at: row.try_get("deposit_confirmed_at").unwrap_or(None),
+            seed: row.try_get("seed").unwrap_or(None),
+            member_count,
+        }),
+    ))
+}
+
 // ─── POST /tournaments/:id/lock ───────────────────────────────────────────────
 
 pub async fn lock_bracket(
@@ -1455,6 +1550,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/:id", get(get_tournament))
         .route("/:id/teams", get(list_teams).post(register_team))
         .route("/:id/teams/:team_id/members", post(add_team_member))
+        .route("/:id/teams/:team_id/deposit", post(submit_team_deposit))
         .route("/:id/lock", post(lock_bracket))
         .route("/:id/bracket", get(get_bracket))
         .route("/:id/bracket/:slot_id/match-id", post(submit_bracket_match_id))

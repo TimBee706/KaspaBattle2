@@ -26,10 +26,13 @@ export function Header() {
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6">
                         <Link to="/lobby" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
-                        {testMode && (
-                            <Link to="/tournaments" className="text-sm font-semibold text-gray-400 hover:text-kaspa-primary transition-colors">{t('tournaments.title')}</Link>
-                        )}
                         <Link to="/lobby/create" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
+                        {testMode && (
+                            <>
+                                <Link to="/tournaments" className="text-sm font-semibold text-gray-400 hover:text-kaspa-primary transition-colors">{t('tournaments.title')}</Link>
+                                <Link to="/tournaments/create" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.create_tournament')}</Link>
+                            </>
+                        )}
                         <Link to="/history" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.history')}</Link>
                     </nav>
                 </div>
@@ -91,6 +94,12 @@ export function Header() {
                         <nav className="flex flex-col gap-4 pb-4 border-b border-kaspa-border/50">
                             <Link to="/lobby" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.lobby')}</Link>
                             <Link to="/lobby/create" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.create_challenge')}</Link>
+                            {testMode && (
+                                <>
+                                    <Link to="/tournaments" onClick={closeMenu} className="text-kaspa-primary font-bold">{t('tournaments.title')}</Link>
+                                    <Link to="/tournaments/create" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.create_tournament')}</Link>
+                                </>
+                            )}
                             <Link to="/history" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.history')}</Link>
                         </nav>
                         

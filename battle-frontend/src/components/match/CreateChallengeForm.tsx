@@ -61,11 +61,7 @@ export function CreateChallengeForm() {
     };
 
     return (
-        <div className="glass-panel max-w-lg mx-auto p-8">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Icon name="trophy" className="w-5 h-5 text-kaspa-primary" />
-                {t('challenge.create_title')}
-            </h2>
+        <div className="glass-panel p-8">
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Spiel-Auswahl */}

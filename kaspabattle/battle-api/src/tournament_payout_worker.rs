@@ -153,6 +153,7 @@ async fn poll_tournament_deposits(pool: &PgPool, watcher: &BlockchainWatcher) ->
                      WHERE id = ( \
                          SELECT id FROM tournament_teams \
                          WHERE tournament_id = $1 AND deposit_status = 'PENDING' \
+                           AND (deposit_tx_hash IS NULL OR deposit_tx_hash = $2) \
                          ORDER BY seed ASC NULLS LAST, created_at ASC \
                          LIMIT 1 \
                          FOR UPDATE SKIP LOCKED \

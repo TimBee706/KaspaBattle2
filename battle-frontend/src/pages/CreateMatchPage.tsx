@@ -15,16 +15,22 @@ export function CreateMatchPage() {
                 </div>
             </div>
 
-            <CreateChallengeForm />
+            <div className="max-w-lg mx-auto mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
+                <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">
+                    {t('challenge.create_title')}
+                </h2>
+                
+                <CreateChallengeForm />
 
-            <div className="max-w-lg mx-auto mt-6 grid grid-cols-2 gap-4">
-                <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center hover:-translate-y-0.5 transition-transform">
-                    <Icon name="bolt" className="w-5 h-5 text-kaspa-primary mb-2" />
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold text-center">{t('create_match.instant')}</p>
-                </div>
-                <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center hover:-translate-y-0.5 transition-transform">
-                    <Icon name="lock" className="w-5 h-5 text-kaspa-primary mb-2" />
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold text-center">{t('create_match.escrow')}</p>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                    <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center hover:-translate-y-0.5 transition-transform">
+                        <Icon name="bolt" className="w-5 h-5 text-kaspa-primary mb-2" />
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold text-center">{t('create_match.instant')}</p>
+                    </div>
+                    <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center hover:-translate-y-0.5 transition-transform">
+                        <Icon name="lock" className="w-5 h-5 text-kaspa-primary mb-2" />
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold text-center">{t('create_match.escrow')}</p>
+                    </div>
                 </div>
             </div>
         </div>

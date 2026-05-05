@@ -1,7 +1,8 @@
 {
     "navigation": {
-        "lobby": "Lobby",
-        "create_challenge": "Create Challenge",
+        "lobby": "Lobbies",
+        "create_challenge": "Create Lobby",
+        "create_tournament": "Create Tournament",
         "history": "History",
         "wallet": "Wallet",
         "faceit_login": "Login with FACEIT",
@@ -105,12 +106,13 @@
         "ready": "Ready for your match?"
     },
     "lobby": {
-        "title": "Lobby System",
+        "title": "Lobby Overview",
         "test_mode": "Test mode active: Wallet integration prioritized.",
         "my_lobbies": "My Lobbies",
         "available_challenges": "Available challenges",
         "active_matches": "Active challenges",
-        "create_challenge": "Create Challenge",
+        "create_challenge": "Create Lobby",
+        "refresh": "Refresh",
         "mode": "Mode",
         "stake": "Stake",
         "players": "Players",
@@ -143,7 +145,7 @@
         "backup_title": "Secret Recovery Phrase (Backup)",
         "backup_text": "This phrase is the only way to restore your balance. NEVER share it with others. KaspaBattle employees will never ask you for it.",
         "hover_to_show": "HOVER TO SHOW",
-        "refresh": "Refresh wallet",
+        "refresh": "Update balance",
         "balance_loading_hint": "Fetching wallet balance..."
     },
     "profile": {
@@ -384,7 +386,7 @@
         "startGame": "Start Game"
     },
     "tournaments": {
-        "title": "Kaspa Tournaments",
+        "title": "Tournaments",
         "subtitle": "Compete, win, earn KAS",
         "refresh": "Refresh",
         "create_btn": "+ Create Tournament",
@@ -518,8 +520,7 @@
                 "error_generic": "Registration failed. Please try again.",
                 "deposit_title": "Deposit your team buy-in",
                 "stake_per_team": "Stake per team",
-                "deposit_now": "Pay Now",
-                "deposit_instruction": "Send exactly {{amount}} KAS from your connected wallet to the escrow address below. The system marks your team as funded once the transaction is confirmed on-chain."
+                "deposit_now": "Pay Now"
             },
             "bracket": {
                 "grand_final": "Grand Final",

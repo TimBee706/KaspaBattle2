@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useWallet } from '../hooks/useWallet';
 import {
   getTournament,
   listTeams,
@@ -372,10 +373,28 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
 
 // ─── Team Deposit Block ─────────────────────────────────────────────────────────
 
-function DepositBlock({ tournament, myTeam }: { tournament: Tournament; myTeam: TournamentTeam }) {
+function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: Tournament; myTeam: TournamentTeam; onDepositSuccess: () => void }) {
   const { t } = useTranslation();
-  const [showInstructions, setShowInstructions] = useState(false);
+  const { signAndSendTournamentDeposit } = useWallet();
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+
   const buyInKas = sompiToKas(tournament.buy_in_sompi);
+  const amountKas = tournament.buy_in_sompi / 100_000_000;
+
+  const handlePayNow = async () => {
+    if (!myTeam) return;
+    setDepositError(null);
+    setIsDepositing(true);
+    try {
+      await signAndSendTournamentDeposit(tournament.id, myTeam.id, amountKas);
+      onDepositSuccess();
+    } catch (e: any) {
+      setDepositError(e.message || 'Tournament deposit failed');
+    } finally {
+      setIsDepositing(false);
+    }
+  };
 
   return (
     <div className="mt-6 bg-slate-900/60 border border-kaspa-primary/30 rounded-2xl p-6">
@@ -392,6 +411,11 @@ function DepositBlock({ tournament, myTeam }: { tournament: Tournament; myTeam: 
             <span className="text-sm text-gray-400">{t('tournaments.detail.teams.stake_per_team')}</span>
             <span className="font-bold text-emerald-400">{buyInKas} KAS</span>
           </div>
+          {depositError && (
+            <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg">
+              <p className="text-red-400 text-xs font-medium">{depositError}</p>
+            </div>
+          )}
         </div>
         <div className="w-full md:w-64 shrink-0 flex flex-col justify-between">
           <div className="mb-4 md:mb-0 text-center md:text-right">
@@ -410,19 +434,15 @@ function DepositBlock({ tournament, myTeam }: { tournament: Tournament; myTeam: 
           </div>
           {myTeam.deposit_status === 'PENDING' && (
             <button
-              onClick={() => setShowInstructions(!showInstructions)}
-              className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark font-black uppercase tracking-wider py-3 rounded-xl transition-all"
+              onClick={handlePayNow}
+              disabled={isDepositing}
+              className="w-full bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark font-black uppercase tracking-wider py-3 rounded-xl transition-all disabled:opacity-50 disabled:grayscale"
             >
-              {t('tournaments.detail.teams.deposit_now')}
+              {isDepositing ? t('deposit.signing') || 'Signing...' : t('tournaments.detail.teams.deposit_now')}
             </button>
           )}
         </div>
       </div>
-      {showInstructions && myTeam.deposit_status === 'PENDING' && (
-        <div className="mt-4 bg-kaspa-primary/10 border border-kaspa-primary/30 rounded-xl p-4 text-sm text-kaspa-primary">
-          {t('tournaments.detail.teams.deposit_instruction', { amount: buyInKas })}
-        </div>
-      )}
     </div>
   );
 }
@@ -764,7 +784,7 @@ export function TournamentDetailPage() {
           return (
           <div>
             <TeamsList teams={teams} myTeamIds={myTeamIds} />
-            {showDepositBlock && <DepositBlock tournament={tournament} myTeam={myTeam} />}
+            {showDepositBlock && <DepositBlock tournament={tournament} myTeam={myTeam} onDepositSuccess={load} />}
             {showRegister && (
               <form onSubmit={handleRegister} className="mt-4 bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-3">
                 <p className="text-sm font-bold text-blue-300">{t('tournaments.detail.teams.register_title')}</p>
