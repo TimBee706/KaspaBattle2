@@ -38,7 +38,21 @@ function StatusBadge({ status }: { status: TournamentStatus }) {
   );
 }
 
-// ─── Bracket Match Card ───────────────────────────────────────────────────────
+// ─── Winner Star Badge ────────────────────────────────────────────────────────
+
+function WinnerBadge() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#49EACB] shrink-0">
+      <path
+        d="M7 1.5L8.545 4.656L12.04 5.163L9.52 7.618L10.09 11.099L7 9.475L3.91 11.099L4.48 7.618L1.96 5.163L5.455 4.656L7 1.5Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="0.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 interface BracketCardProps {
   slot: BracketSlot;
@@ -115,9 +129,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
             {teamA?.name ?? t('tournaments.detail.bracket.tbd')}
             {teamA?.seed != null && <span className="ml-1.5 text-gray-500 text-xs">#{teamA.seed}</span>}
           </span>
-          {winner === teamA?.id && (
-            <span className="text-[#49EACB] text-sm font-bold">🏆</span>
-          )}
+          {winner === teamA?.id && <WinnerBadge />}
         </div>
 
         {/* VS divider */}
@@ -135,9 +147,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
             {teamB?.name ?? t('tournaments.detail.bracket.tbd')}
             {teamB?.seed != null && <span className="ml-1.5 text-gray-500 text-xs">#{teamB.seed}</span>}
           </span>
-          {winner === teamB?.id && (
-            <span className="text-[#49EACB] text-sm font-bold">🏆</span>
-          )}
+          {winner === teamB?.id && <WinnerBadge />}
         </div>
 
         {/* Captain actions */}
@@ -238,7 +248,14 @@ function BracketView({ slots, tournamentId, isCaptain, myTeamIds, onRefresh }: B
   if (rounds.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500">
-        <div className="text-4xl mb-3">🗓️</div>
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-3 text-gray-700">
+          <rect x="4" y="8" width="32" height="28" rx="3" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+          <path d="M4 14H36" stroke="currentColor" strokeWidth="1.5"/>
+          <rect x="12" y="4" width="2" height="8" rx="1" fill="currentColor"/>
+          <rect x="26" y="4" width="2" height="8" rx="1" fill="currentColor"/>
+          <rect x="9" y="19" width="8" height="2" rx="1" fill="currentColor" opacity="0.6"/>
+          <rect x="23" y="19" width="8" height="2" rx="1" fill="currentColor" opacity="0.6"/>
+        </svg>
         <p>{t('tournaments.detail.bracket.empty_title')}</p>
       </div>
     );
@@ -434,8 +451,14 @@ export function TournamentDetailPage() {
       setTeamName('');
       await load();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Registration failed';
-      setRegError(msg);
+      const errData = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+      const codeMap: Record<string, string> = {
+        registration_closed: t('tournaments.detail.teams.error_registration_closed' as any),
+        tournament_full: t('tournaments.detail.teams.error_tournament_full' as any),
+        team_name_taken: t('tournaments.detail.teams.error_name_taken' as any),
+      };
+      const code = errData?.error ?? '';
+      setRegError(codeMap[code] ?? errData?.message ?? t('tournaments.detail.teams.error_generic' as any));
     } finally {
       setRegLoading(false);
     }
@@ -484,7 +507,10 @@ export function TournamentDetailPage() {
     return (
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center text-center">
         <div>
-          <div className="text-5xl mb-4">🔍</div>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
+            <circle cx="22" cy="22" r="14" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M32 32L42 42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
           <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.detail.not_found')}</h2>
           <Link to="/tournaments" className="text-[#49EACB] hover:underline text-sm">
             {t('tournaments.detail.navbar_back')}
@@ -534,7 +560,9 @@ export function TournamentDetailPage() {
                   {t('tournaments.detail.actions.results')}
                 </Link>
               )}
-              {user && tournament.status === 'REGISTRATION' && !isCaptain && (
+              {user && tournament.status === 'REGISTRATION' && !isCaptain &&
+                teams.length < tournament.max_teams &&
+                (!tournament.registration_deadline || new Date() < new Date(tournament.registration_deadline)) && (
                 <button
                   id="register-team-btn"
                   onClick={() => setShowRegister(true)}

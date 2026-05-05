@@ -390,10 +390,10 @@
         "filter": {
             "all": "Alle",
             "open": "Offen",
-            "live": "🔴 Live",
-            "completed": "✅ Beendet",
-            "disputed": "⚖️ Disput",
-            "cancelled": "🚫 Abgebrochen"
+            "live": "Live",
+            "completed": "Beendet",
+            "disputed": "Disput",
+            "cancelled": "Abgebrochen"
         },
         "empty": {
             "title": "Keine Turniere gefunden",
@@ -418,8 +418,11 @@
             "winner_pct": "Gewinner %",
             "runner_up_pct": "Zweitplatzierter %",
             "fee_pct": "Gebühr %",
-            "pct_warning": "⚠️ Prozentzahlen müssen 100 ergeben (aktuell {{pct}})",
+            "pct_warning": "Prozentzahlen müssen 100 ergeben (aktuell {{pct}})",
             "deadline": "Anmeldeschluss (optional)",
+            "game_label": "Spiel",
+            "game_value": "CS2 – Counter-Strike 2",
+            "game_hint": "Turniere sind derzeit nur für Counter-Strike 2 (CS2) verfügbar.",
             "submit": "Turnier erstellen",
             "creating": "Erstelle…",
             "error_fallback": "Erstellen des Turniers fehlgeschlagen"
@@ -445,16 +448,16 @@
                 "winner_address": "Gewinner-Adresse",
                 "not_set": "Nicht festgelegt",
                 "payout_tx": "Auszahlungs-TX (abgeschlossen)",
-                "trigger_btn": "💸 Auszahlung auslösen",
+                "trigger_btn": "Auszahlung auslösen",
                 "triggering": "Wird ausgelöst…",
                 "confirm_trigger": "Auszahlung für dieses Turnier auslösen?"
             },
             "disputes": {
-                "title": "⚖️ Umstrittene Slots ({{count}})",
+                "title": "Umstrittene Slots ({{count}})",
                 "round_slot": "Runde {{round}}, Slot {{slot}}",
                 "select_winner": "Gewinner wählen…",
                 "resolve_btn": "Lösen",
-                "resolved": "✓ Gelöst",
+                "resolved": "Gelöst",
                 "confirm_resolve": "Disput lösen und dieses Team zum Sieger erklären?"
             },
             "cancel": {
@@ -473,10 +476,10 @@
                 "bracket": "Bracket"
             },
             "actions": {
-                "results": "🏆 Ergebnisse",
+                "results": "Ergebnisse",
                 "register": "Team anmelden",
-                "lock_bracket": "🔒 Bracket sperren",
-                "dispute": "⚖️ Disput",
+                "lock_bracket": "Bracket sperren",
+                "dispute": "Disput",
                 "cancel": "Abbrechen"
             },
             "overview": {
@@ -491,22 +494,26 @@
                 "payout_tx": "Auszahlungs-TX"
             },
             "prize_banner": {
-                "winner": "🥇 Gewinner",
-                "runner_up": "🥈 Zweitplatzierter",
-                "fee": "🏛️ Plattform-Gebühr"
+                "winner": "Gewinner",
+                "runner_up": "Zweitplatzierter",
+                "fee": "Plattform-Gebühr"
             },
             "teams": {
                 "you_badge": "DU",
                 "seed": "Seed #{{seed}}",
                 "captain": "Captain: {{name}}",
                 "unknown": "Unbekannt",
-                "funded": "✓ Eingezahlt",
-                "awaiting_deposit": "⏳ Warte auf Einzahlung",
+                "funded": "Eingezahlt",
+                "awaiting_deposit": "Warte auf Einzahlung",
                 "register_title": "Dein Team anmelden",
                 "team_name": "Team-Name",
                 "register_btn": "Anmelden",
                 "registering": "Melde an…",
-                "cancel": "Abbrechen"
+                "cancel": "Abbrechen",
+                "error_registration_closed": "Die Anmeldung ist geschlossen.",
+                "error_tournament_full": "Das Turnier ist bereits voll.",
+                "error_name_taken": "Dieser Teamname ist bereits vergeben.",
+                "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut."
             },
             "bracket": {
                 "grand_final": "Großes Finale",
@@ -523,8 +530,8 @@
                 "submit_btn": "Senden",
                 "cancel": "Abbrechen",
                 "file_dispute": "Disput einreichen",
-                "under_dispute": "⚖️ Disput offen — Warten auf Admin-Entscheidung",
-                "finished": "✓ Beendet",
+                "under_dispute": "Disput offen — Warten auf Admin-Entscheidung",
+                "finished": "Beendet",
                 "placeholder_id": "FaceIT Match-ID",
                 "placeholder_dispute": "Problembeschreibung (min 10 Zeichen)"
             },
@@ -547,9 +554,9 @@
             "prize_pool": "Gesamt-Preispool",
             "payout_tx": "Auszahlungs-Transaktion",
             "placements": {
-                "winner": "🏆 Gewinner",
-                "runner_up": "🥈 Zweiter",
-                "platform": "🏛️ Plattform",
+                "winner": "Gewinner",
+                "runner_up": "Zweiter",
+                "platform": "Plattform",
                 "participant": "Teilnehmer",
                 "prize": "Preis: {{amount}} KAS"
             }

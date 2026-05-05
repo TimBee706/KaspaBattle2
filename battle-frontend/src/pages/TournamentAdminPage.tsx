@@ -105,7 +105,7 @@ function TournamentAdminRow({ tournament, expanded, onToggle, onRefresh }: Admin
           <StatusBadge status={tournament.status} />
           <span className="font-semibold text-white truncate">{tournament.name}</span>
           {tournament.status === 'DISPUTED' && (
-            <span className="text-orange-400 text-xs font-bold animate-pulse">⚠️ DISPUTED</span>
+            <span className="text-orange-400 text-xs font-bold animate-pulse">DISPUTED</span>
           )}
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-400 shrink-0">
@@ -287,7 +287,12 @@ export function TournamentAdminPage() {
     return (
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-5xl mb-4">🔒</div>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-600">
+            <rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M16 16h16M16 24h16M16 32h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="36" cy="36" r="8" fill="#070d14" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M33 36h6M36 33v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
           <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.admin.auth_required')}</h2>
           <p className="text-gray-500 text-sm">{t('tournaments.admin.auth_msg')}</p>
         </div>
@@ -360,7 +365,10 @@ export function TournamentAdminPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
-            <div className="text-4xl mb-3">📋</div>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-3 text-gray-600">
+              <rect x="5" y="5" width="30" height="30" rx="3" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+              <path d="M12 14h16M12 20h16M12 26h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
             <p>{t('tournaments.empty.admin_title')}</p>
           </div>
         ) : (

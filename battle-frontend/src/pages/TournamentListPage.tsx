@@ -81,7 +81,12 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-[#0f1923] border border-[#49EACB]/20 rounded-2xl w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-bold text-white">{t('tournaments.create.title')}</h2>
+          <div>
+            <h2 className="text-xl font-bold text-white">{t('tournaments.create.title')}</h2>
+            <p className="text-xs text-[#49EACB]/70 bg-[#49EACB]/5 border border-[#49EACB]/10 rounded-lg px-3 py-2 mt-2">
+              {t('tournaments.create.game_hint')}
+            </p>
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-2xl leading-none">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -95,6 +100,13 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder={t('tournaments.create.name_placeholder')}
             />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">{t('tournaments.create.game_label')}</label>
+            <div className="w-full bg-[#0f1720] border border-[#2a3a4a] rounded-lg px-3 py-2 text-gray-500 text-sm flex items-center justify-between cursor-not-allowed">
+              <span>{t('tournaments.create.game_value')}</span>
+              <span className="text-[10px] uppercase tracking-widest text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">Only option</span>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -154,7 +166,7 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
             id="create-tournament-submit"
             type="submit"
             disabled={loading || pct !== 100 || !form.name}
-            className="w-full py-3 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#0a0f14] font-bold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#0a0f14] font-black rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wide"
           >
             {loading ? t('tournaments.create.creating') : t('tournaments.create.submit')}
           </button>
@@ -182,7 +194,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
           <h3 className="font-bold text-white text-lg truncate group-hover:text-[#49EACB] transition-colors">
             {tournament.name}
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5 uppercase tracking-wider">{tournament.game_id}</p>
+          <p className="text-xs text-gray-500 mt-0.5 uppercase tracking-wider">{tournament.game_id.toUpperCase()}</p>
         </div>
         <StatusBadge status={tournament.status} />
       </div>
@@ -204,7 +216,10 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
 
       {tournament.registration_deadline && (
         <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5">
-          <span>⏰</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M6 3.5V6.5L8 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           <span>{t('tournaments.card.deadline')}: {new Date(tournament.registration_deadline).toLocaleString()}</span>
         </div>
       )}
@@ -314,7 +329,13 @@ export function TournamentListPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-24 text-gray-500">
-            <div className="text-5xl mb-4">🏆</div>
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
+              <path d="M18 7H38V26C38 32.627 32.627 38 26 38C19.373 38 14 32.627 14 26V7H18Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
+              <path d="M18 11H10C10 11 7 16 10 22C11.3 24.5 14 26 18 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+              <path d="M38 11H46C46 11 49 16 46 22C44.7 24.5 42 26 38 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+              <rect x="24" y="38" width="8" height="6" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+              <rect x="18" y="44" width="20" height="5" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            </svg>
             <p className="text-lg font-semibold text-gray-400">{t('tournaments.empty.title')}</p>
             <p className="text-sm mt-1">
               {user ? t('tournaments.empty.subtitle_auth') : t('tournaments.empty.subtitle_guest')}
