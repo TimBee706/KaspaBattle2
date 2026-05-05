@@ -8,6 +8,7 @@ import { SUPPORTED_GAMES } from '../config/constants';
 import { useTranslation } from 'react-i18next';
 import { startFaceitLogin, startFaceitLink } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
+import { Icon } from '../components/Icon';
 
 // ── Loading skeleton ──────────────────────────────────────────────────────
 function Skeleton({ className = '' }: { className?: string }) {
@@ -95,7 +96,9 @@ export function ProfilePage() {
     if (!isFaceitConnected) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="text-5xl mb-6">🔗</div>
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                    <Icon name="link" className="w-8 h-8 text-gray-400" />
+                </div>
                 <h2 className="text-2xl font-bold mb-2">{t('profile.not_connected_title')}</h2>
                 <p className="text-gray-400 max-w-md mb-8">{t('profile.not_connected_text')}</p>
                 <button
@@ -121,10 +124,10 @@ export function ProfilePage() {
     const gameRecentResults = lifetime?.['Recent Results'] || lifetime?.recent_results || [];
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-fade-in-up">
 
             {/* ── Profile Header ───────────────────────────────────── */}
-            <div className="card flex flex-col md:flex-row items-center gap-8 p-10 bg-gradient-to-br from-kaspa-card to-kaspa-dark">
+            <div className="glass-panel flex flex-col md:flex-row items-center gap-8 p-10 bg-gradient-to-br from-kaspa-surface to-kaspa-dark">
                 <div className="relative">
                     {loadingProfile ? (
                         <Skeleton className="w-32 h-32 rounded-full" />
@@ -311,11 +314,17 @@ export function ProfilePage() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-center p-6 bg-kaspa-dark rounded-2xl border border-kaspa-border border-dashed">
+                <div className="flex items-center justify-center p-6 bg-kaspa-surface rounded-2xl border border-kaspa-border border-dashed">
                     <div className="text-center">
-                        <p className="text-[10px] text-gray-500 font-black uppercase mb-2">{t('profile.rank')}</p>
-                        <div className="text-6xl mb-2">🥈</div>
-                        <p className="text-xl font-bold italic tracking-tighter">{t('profile.ranks.silver_commander')}</p>
+                        <p className="text-[10px] text-gray-500 font-black uppercase mb-3">{t('profile.rank')}</p>
+                        <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+                            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14 text-gray-500">
+                                <circle cx="24" cy="30" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                <circle cx="24" cy="30" r="9" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1"/>
+                                <path d="M17 10h14v5l-7 4-7-4V10Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
+                            </svg>
+                        </div>
+                        <p className="text-lg font-bold italic tracking-tighter">{t('profile.ranks.silver_commander')}</p>
                         <p className="text-[10px] text-gray-600 mt-2">{t('profile.next_level', { count: 10 })}</p>
                     </div>
                 </div>

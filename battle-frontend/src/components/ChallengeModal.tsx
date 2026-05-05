@@ -5,6 +5,7 @@ import { useWallet } from '../hooks/useWallet';
 import { useTranslation } from 'react-i18next';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import type { MatchMode } from '../api/types';
+import { Icon } from './Icon';
 
 export const ChallengeModal: React.FC = () => {
     const [open, setOpen] = useState(false);
@@ -56,8 +57,8 @@ export const ChallengeModal: React.FC = () => {
                     {t('challenge.create')}
                 </button>
                 {disabledReason && (
-                    <span className="text-[10px] font-black text-red-500/60 uppercase tracking-widest animate-pulse">
-                        ⚠️ {disabledReason}
+                    <span className="text-[10px] font-black text-red-500/60 uppercase tracking-widest flex items-center gap-1">
+                        <Icon name="alert-triangle" className="w-3 h-3 shrink-0" /> {disabledReason}
                     </span>
                 )}
             </div>

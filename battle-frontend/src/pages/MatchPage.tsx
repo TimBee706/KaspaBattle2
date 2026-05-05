@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { formatKas } from '../utils/format';
 import { getPaymentInfoForPlayer, getPlayerRoleForLobby } from '../domain/lobby';
+import { Icon } from '../components/Icon';
 
 // Compact deposit status badge shown inline on the match page during AWAITING_FUNDING
 function DepositStatusBanner({ matchId }: { matchId: string }) {
@@ -38,7 +39,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
                             {myPayment?.paid
                                 ? t('match.status.confirmed')
                                 : myPayment?.payment_count
-                                    ? `⏳ ${myPayment.min_confirmations}/${paymentStatus.min_confirmations_required} conf.`
+                                    ? <span className="flex items-center gap-1"><Icon name="clock" className="w-3 h-3" />{myPayment.min_confirmations}/{paymentStatus.min_confirmations_required} conf.</span>
                                     : t('match.status.not_deposited')}
                         </span>
                     </div>
@@ -49,7 +50,7 @@ function DepositStatusBanner({ matchId }: { matchId: string }) {
                             {opPayment?.paid
                                 ? t('match.status.confirmed')
                                 : opPayment?.payment_count
-                                    ? `⏳ ${opPayment.min_confirmations}/${paymentStatus.min_confirmations_required} conf.`
+                                    ? <span className="flex items-center gap-1"><Icon name="clock" className="w-3 h-3" />{opPayment.min_confirmations}/{paymentStatus.min_confirmations_required} conf.</span>
                                     : t('match.status.pending')}
                         </span>
                     </div>
@@ -87,7 +88,7 @@ export function MatchPage() {
     if (error) {
         return (
             <div className="py-20 text-center">
-                <div className="text-5xl mb-4">🔍</div>
+                <Icon name="search" className="w-12 h-12 text-gray-700 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-red-500">{t('match.load_error')}</h2>
                 <p className="text-gray-500 mt-2">{error}</p>
             </div>

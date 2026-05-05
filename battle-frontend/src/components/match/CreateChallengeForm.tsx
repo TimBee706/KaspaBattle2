@@ -10,6 +10,7 @@ import type { GameId } from '../../config/constants';
 import type { MatchMode } from '../../api/types';
 import { getErrorMessage } from '../../utils/errors';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
+import { Icon } from '../Icon';
 
 export function CreateChallengeForm() {
     const navigate = useNavigate();
@@ -60,9 +61,9 @@ export function CreateChallengeForm() {
     };
 
     return (
-        <div className="card max-w-lg mx-auto">
+        <div className="glass-panel max-w-lg mx-auto p-8">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <span className="text-kaspa-primary">🏆</span>
+                <Icon name="trophy" className="w-5 h-5 text-kaspa-primary" />
                 {t('challenge.create_title')}
             </h2>
 
@@ -84,7 +85,7 @@ export function CreateChallengeForm() {
                                 {game.icon ? (
                                     <img src={game.icon} alt={game.name} className="w-8 h-8 mb-1 object-contain" />
                                 ) : (
-                                    <span className="text-2xl mb-1">🎮</span>
+                                    <Icon name="list" className="w-6 h-6 text-kaspa-primary/50" />
                                 )}
                                 <span className="text-[10px] font-bold">{game.name}</span>
                             </button>
@@ -137,8 +138,8 @@ export function CreateChallengeForm() {
                 </div>
 
                 {(!isConnected || (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected)) && (
-                    <p className="text-center text-xs text-orange-400 font-bold">
-                        ⚠️{' '}
+                    <p className="text-center text-xs text-orange-400 font-bold flex items-center justify-center gap-1.5">
+                        <Icon name="alert-triangle" className="w-3.5 h-3.5 shrink-0" />
                         {isAuthLoading
                             ? t('challenge.auth_loading')
                             : (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected)
@@ -148,7 +149,9 @@ export function CreateChallengeForm() {
                 )}
 
                 {error && (
-                    <p className="text-center text-xs text-red-500 font-bold">❌ {error}</p>
+                    <p className="text-center text-xs text-red-500 font-bold flex items-center justify-center gap-1.5">
+                        <Icon name="x" className="w-3.5 h-3.5 shrink-0" /> {error}
+                    </p>
                 )}
 
                 <button

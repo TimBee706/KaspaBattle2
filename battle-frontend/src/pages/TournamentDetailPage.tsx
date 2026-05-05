@@ -42,7 +42,7 @@ function StatusBadge({ status }: { status: TournamentStatus }) {
 
 function WinnerBadge() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#49EACB] shrink-0">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-kaspa-primary shrink-0">
       <path
         d="M7 1.5L8.545 4.656L12.04 5.163L9.52 7.618L10.09 11.099L7 9.475L3.91 11.099L4.48 7.618L1.96 5.163L5.455 4.656L7 1.5Z"
         fill="currentColor"
@@ -107,15 +107,15 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
         slot.disputed
           ? 'border-orange-500/50 bg-orange-950/20'
           : isDone
-          ? 'border-[#49EACB]/30 bg-[#49EACB]/5'
+          ? 'border-kaspa-primary/30 bg-kaspa-primary/5'
           : isReady
           ? 'border-blue-500/30 bg-blue-950/10'
-          : 'border-white/8 bg-[#0d1b2a]'
+          : 'border-slate-700/50 bg-slate-900/60'
       }`}
     >
       {/* Round label */}
       <div className="absolute -top-3 left-3">
-        <span className="text-[10px] uppercase tracking-widest text-gray-500 bg-[#070d14] px-2 font-bold">
+        <span className="text-[10px] uppercase tracking-widest text-gray-500 bg-kaspa-dark px-2 font-bold">
           {slot.status === 'WAITING' ? t('tournaments.detail.bracket.waiting') : slot.faceit_match_id ? t('tournaments.detail.bracket.match', { id: slot.faceit_match_id.slice(0, 8) }) : t('tournaments.detail.bracket.slot', { num: slot.slot_index + 1 })}
         </span>
       </div>
@@ -123,7 +123,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
       <div className="p-4 pt-5">
         {/* Team A */}
         <div className={`flex items-center justify-between py-2 px-3 rounded-lg mb-1 ${
-          winner === teamA?.id ? 'bg-[#49EACB]/10 border border-[#49EACB]/30' : 'bg-[#0a0f14]'
+          winner === teamA?.id ? 'bg-kaspa-primary/10 border border-kaspa-primary/30' : 'bg-kaspa-dark/80'
         }`}>
           <span className={`font-semibold text-sm ${!teamA ? 'text-gray-600 italic' : 'text-white'}`}>
             {teamA?.name ?? t('tournaments.detail.bracket.tbd')}
@@ -141,7 +141,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
 
         {/* Team B */}
         <div className={`flex items-center justify-between py-2 px-3 rounded-lg ${
-          winner === teamB?.id ? 'bg-[#49EACB]/10 border border-[#49EACB]/30' : 'bg-[#0a0f14]'
+          winner === teamB?.id ? 'bg-kaspa-primary/10 border border-kaspa-primary/30' : 'bg-kaspa-dark/80'
         }`}>
           <span className={`font-semibold text-sm ${!teamB ? 'text-gray-600 italic' : 'text-white'}`}>
             {teamB?.name ?? t('tournaments.detail.bracket.tbd')}
@@ -176,7 +176,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
               <div className="space-y-2">
                 <input
                   id={`match-id-input-${slot.id}`}
-                  className="w-full bg-[#0a0f14] border border-blue-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400"
+                  className="w-full bg-kaspa-dark border border-blue-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400"
                   placeholder={t('tournaments.detail.bracket.placeholder_id')}
                   value={matchId}
                   onChange={e => setMatchId(e.target.value)}
@@ -196,7 +196,7 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
               <div className="space-y-2">
                 <textarea
                   id={`dispute-reason-${slot.id}`}
-                  className="w-full bg-[#0a0f14] border border-orange-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-orange-400 resize-none"
+                  className="w-full bg-kaspa-dark border border-orange-500/30 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-orange-400 resize-none"
                   rows={2}
                   placeholder={t('tournaments.detail.bracket.placeholder_dispute')}
                   value={disputeReason}
@@ -277,7 +277,7 @@ function BracketView({ slots, tournamentId, isCaptain, myTeamIds, onRefresh }: B
         {rounds.map(round => (
           <div key={round} className="flex flex-col">
             <div className="text-center mb-4">
-              <span className="text-sm font-bold text-[#49EACB] uppercase tracking-wider">
+              <span className="text-sm font-bold text-kaspa-primary uppercase tracking-wider">
                 {roundLabels[round]}
               </span>
             </div>
@@ -312,17 +312,17 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
       {teams.map(team => (
         <div
           key={team.id}
-          className={`flex items-center justify-between bg-[#0d1b2a] rounded-xl p-4 border ${
+          className={`flex items-center justify-between bg-slate-900/60 rounded-xl p-4 border ${
             myTeamIds.includes(team.id)
-              ? 'border-[#49EACB]/30'
-              : 'border-white/5'
+              ? 'border-kaspa-primary/30'
+              : 'border-slate-700/50'
           }`}
         >
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-white">{team.name}</span>
               {myTeamIds.includes(team.id) && (
-                <span className="text-[10px] bg-[#49EACB]/20 text-[#49EACB] px-1.5 py-0.5 rounded font-bold">{t('tournaments.detail.teams.you_badge')}</span>
+                <span className="text-[10px] bg-kaspa-primary/20 text-kaspa-primary px-1.5 py-0.5 rounded font-bold">{t('tournaments.detail.teams.you_badge')}</span>
               )}
               {team.seed != null && (
                 <span className="text-xs text-gray-500">{t('tournaments.detail.teams.seed', { seed: team.seed })}</span>
@@ -331,7 +331,7 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
             <div className="text-xs text-gray-500 mt-0.5">{t('tournaments.detail.teams.captain', { name: team.captain_display_name ?? t('tournaments.detail.teams.unknown') })}</div>
           </div>
           <div className={`flex items-center gap-1.5 text-xs font-semibold ${
-            team.deposit_status === 'CONFIRMED' ? 'text-[#49EACB]' : 'text-orange-400'
+            team.deposit_status === 'CONFIRMED' ? 'text-kaspa-primary' : 'text-orange-400'
           }`}>
             {team.deposit_status === 'CONFIRMED' ? t('tournaments.detail.teams.funded') : t('tournaments.detail.teams.awaiting_deposit')}
           </div>
@@ -357,7 +357,7 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
         { label: t('tournaments.detail.prize_banner.runner_up'), amount: runnerAmt, pct: tournament.prize_runner_up_pct, color: '#9ca3af' },
         { label: t('tournaments.detail.prize_banner.fee'), amount: feeAmt, pct: tournament.platform_fee_pct, color: '#6b7280' },
       ].map(item => (
-        <div key={item.label} className="bg-[#0d1b2a] rounded-xl p-4 border border-white/5 text-center">
+        <div key={item.label} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center">
           <div className="text-sm text-gray-400 mb-1">{item.label}</div>
           <div style={{ color: item.color }} className="text-xl font-black">
             {sompiToKas(item.amount)} KAS
@@ -495,9 +495,9 @@ export function TournamentDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#070d14] flex items-center justify-center">
-        <div className="w-48 h-1 bg-[#49EACB]/20 rounded-full overflow-hidden">
-          <div className="h-full bg-[#49EACB] animate-[shimmer_2s_infinite] w-full origin-left" />
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-48 h-1 bg-kaspa-primary/20 rounded-full overflow-hidden">
+          <div className="h-full bg-kaspa-primary animate-[shimmer_2s_infinite] w-full origin-left" />
         </div>
       </div>
     );
@@ -505,14 +505,14 @@ export function TournamentDetailPage() {
 
   if (!tournament) {
     return (
-      <div className="min-h-screen bg-[#070d14] flex items-center justify-center text-center">
+      <div className="min-h-[60vh] flex items-center justify-center text-center">
         <div>
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
             <circle cx="22" cy="22" r="14" stroke="currentColor" strokeWidth="1.5" fill="none"/>
             <path d="M32 32L42 42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
           <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.detail.not_found')}</h2>
-          <Link to="/tournaments" className="text-[#49EACB] hover:underline text-sm">
+          <Link to="/tournaments" className="text-kaspa-primary hover:underline text-sm">
             {t('tournaments.detail.navbar_back')}
           </Link>
         </div>
@@ -521,15 +521,15 @@ export function TournamentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070d14] py-8 px-4">
+    <div className="container mx-auto px-4 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        <Link to="/tournaments" className="text-gray-500 hover:text-[#49EACB] text-sm flex items-center gap-1.5 transition-colors w-fit">
+        <Link to="/tournaments" className="text-gray-500 hover:text-kaspa-primary text-sm flex items-center gap-1.5 transition-colors w-fit">
           {t('tournaments.detail.navbar_back')}
         </Link>
 
         {/* Header */}
-        <div className="bg-[#0d1b2a] border border-white/5 rounded-2xl p-6">
+        <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -555,7 +555,7 @@ export function TournamentDetailPage() {
                 <Link
                   to={`/tournaments/${id}/results`}
                   id="view-results-btn"
-                  className="px-4 py-2 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-xl text-sm transition-all"
+                  className="px-4 py-2 bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark font-bold rounded-xl text-sm transition-all"
                 >
                   {t('tournaments.detail.actions.results')}
                 </Link>
@@ -607,7 +607,7 @@ export function TournamentDetailPage() {
               <p className="text-sm text-orange-300 font-semibold">{t('tournaments.detail.dispute.title')}</p>
               <textarea
                 id="tournament-dispute-reason"
-                className="w-full bg-[#0a0f14] border border-orange-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none resize-none"
+                className="w-full bg-kaspa-dark border border-orange-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none resize-none"
                 rows={3}
                 placeholder={t('tournaments.detail.dispute.placeholder')}
                 value={disputeReason}
@@ -637,7 +637,7 @@ export function TournamentDetailPage() {
         <PrizePoolBanner tournament={tournament} />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-[#0d1b2a] p-1 rounded-xl border border-white/5 w-fit">
+        <div className="flex gap-1 bg-slate-800/40 p-1 rounded-xl border border-slate-700/50 w-fit">
           {(['overview', 'teams', 'bracket'] as const).map(tab => (
             <button
               key={tab}
@@ -645,7 +645,7 @@ export function TournamentDetailPage() {
               onClick={() => setActiveTab(tab)}
               className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
                 activeTab === tab
-                  ? 'bg-[#49EACB] text-[#070d14]'
+                  ? 'bg-kaspa-primary text-kaspa-dark'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -658,7 +658,7 @@ export function TournamentDetailPage() {
         {activeTab === 'overview' && (
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-[#0d1b2a] border border-white/5 rounded-xl p-5">
+              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-5">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.info_title')}</h3>
                 <dl className="space-y-2 text-sm">
                   {[
@@ -675,18 +675,18 @@ export function TournamentDetailPage() {
                   ))}
                 </dl>
               </div>
-              <div className="bg-[#0d1b2a] border border-white/5 rounded-xl p-5">
+              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-5">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.escrow_title')}</h3>
                 {tournament.escrow_address ? (
                   <div className="space-y-2">
                     <p className="text-xs text-gray-500">{t('tournaments.detail.overview.escrow_address')}</p>
-                    <code className="block text-xs text-[#49EACB] break-all bg-[#0a0f14] rounded-lg p-3">
+                    <code className="block text-xs text-kaspa-primary break-all bg-kaspa-dark/80 rounded-lg p-3">
                       {tournament.escrow_address}
                     </code>
                     {tournament.payout_tx_hash && (
                       <>
                         <p className="text-xs text-gray-500 mt-3">{t('tournaments.detail.overview.payout_tx')}</p>
-                        <code className="block text-xs text-green-400 break-all bg-[#0a0f14] rounded-lg p-3">
+                        <code className="block text-xs text-green-400 break-all bg-kaspa-dark/80 rounded-lg p-3">
                           {tournament.payout_tx_hash}
                         </code>
                       </>
@@ -704,11 +704,11 @@ export function TournamentDetailPage() {
           <div>
             <TeamsList teams={teams} myTeamIds={myTeamIds} />
             {showRegister && (
-              <form onSubmit={handleRegister} className="mt-4 bg-[#0d1b2a] border border-blue-500/20 rounded-xl p-5 space-y-3">
+              <form onSubmit={handleRegister} className="mt-4 bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-3">
                 <p className="text-sm font-bold text-blue-300">{t('tournaments.detail.teams.register_title')}</p>
                 <input
                   id="team-name-input"
-                  className="w-full bg-[#0a0f14] border border-[#2a3a4a] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#49EACB]"
+                  className="w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kaspa-primary"
                   placeholder={t('tournaments.detail.teams.team_name')}
                   value={teamName}
                   onChange={e => setTeamName(e.target.value)}
@@ -720,7 +720,7 @@ export function TournamentDetailPage() {
                     id="register-submit-btn"
                     type="submit"
                     disabled={regLoading || !teamName.trim()}
-                    className="px-5 py-2 bg-[#49EACB] hover:bg-[#3dd4b8] text-[#070d14] font-bold rounded-lg text-sm disabled:opacity-40 transition-all"
+                    className="px-5 py-2 bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark font-bold rounded-lg text-sm disabled:opacity-40 transition-all"
                   >
                     {regLoading ? t('tournaments.detail.teams.registering') : t('tournaments.detail.teams.register_btn')}
                   </button>

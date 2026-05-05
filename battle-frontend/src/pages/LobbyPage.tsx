@@ -8,6 +8,7 @@ import apiClient from '../api/client';
 import { WS_BASE_URL } from '../config/constants';
 import { useTranslation } from 'react-i18next';
 import { isAvailableChallenge, isMyLobby } from '../domain/lobby';
+import { Icon } from '../components/Icon';
 
 export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
@@ -63,8 +64,8 @@ export const LobbyPage: React.FC = () => {
                 </button>
             </div>
 
-            {testMode && <div className="p-4 bg-blue-900/20 border border-blue-500/20 rounded-xl text-blue-400 text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
-                <span className="bg-blue-500/20 p-2 rounded-lg animate-pulse">🧪</span>
+            {testMode && <div className="glass-panel p-4 border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
+                <Icon name="beaker" className="w-4 h-4 shrink-0 text-blue-400" />
                 {t('lobby.test_mode')}
             </div>}
 
