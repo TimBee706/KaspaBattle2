@@ -139,7 +139,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
     return (
         <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-kaspa-card p-4 md:p-6 rounded-2xl border border-kaspa-border relative overflow-hidden">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary p-4 md:p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                     {game?.icon && <img src={game.icon} alt={game.name} className="w-48 h-48 object-contain grayscale" />}
                 </div>
@@ -166,7 +166,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     <MatchPlayersPanel match={match} />
 
                     {/* Escrow Details */}
-                    <div className="card space-y-4">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary space-y-4">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.escrow_wallet')}</h3>
                         <div className="flex items-center justify-between bg-kaspa-dark p-4 rounded-xl border border-kaspa-border">
                             <div className="font-mono text-sm overflow-hidden text-ellipsis whitespace-nowrap mr-4">
@@ -195,7 +195,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="card space-y-4">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary space-y-4">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.status_actions')}</h3>
 
                         {match.status === 'OPEN' && !match.opponent_user_id && (
@@ -380,7 +380,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         )}
                     </div>
 
-                    <div className="card">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">{t('match.info')}</h3>
                         <div className="space-y-3">
                             <div className="flex justify-between text-[11px]">

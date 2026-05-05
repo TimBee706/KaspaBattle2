@@ -13,10 +13,12 @@
         "whitepaper": "Whitepaper",
         "terms": "Terms",
         "discord": "Twitter",
+        "instagram": "Instagram",
+        "reddit": "Reddit",
         "support": "Support"
     },
     "hero": {
-        "beta_tag": "ENTRY PHASE 1: OPEN BETA",
+        "beta_tag": "Open Beta",
         "title": "PLAY TO WIN <1>KASPA</1>",
         "subtitle": "The world's first decentralized gaming wager platform on Kaspa. Secure, lightning fast and 100% non-custodial."
     },

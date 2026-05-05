@@ -104,14 +104,14 @@ function BracketCard({ slot, tournamentId, isCaptain, myTeamIds, onRefresh }: Br
   return (
     <div
       id={`bracket-slot-${slot.id}`}
-      className={`relative rounded-xl border transition-all duration-300 ${
+      className={`relative glass-panel rounded-2xl border transition-all duration-300 shadow-glow-primary ${
         slot.disputed
           ? 'border-orange-500/50 bg-orange-950/20'
           : isDone
           ? 'border-kaspa-primary/30 bg-kaspa-primary/5'
           : isReady
           ? 'border-blue-500/30 bg-blue-950/10'
-          : 'border-slate-700/50 bg-slate-900/60'
+          : 'border-white/5 bg-slate-900/60'
       }`}
     >
       {/* Round label */}
@@ -313,10 +313,10 @@ function TeamsList({ teams, myTeamIds }: { teams: TournamentTeam[]; myTeamIds: s
       {teams.map(team => (
         <div
           key={team.id}
-          className={`flex items-center justify-between bg-slate-900/60 rounded-xl p-4 border ${
+          className={`flex items-center justify-between glass-panel rounded-2xl p-4 border shadow-glow-primary transition-all hover:bg-white/5 ${
             myTeamIds.includes(team.id)
               ? 'border-kaspa-primary/30'
-              : 'border-slate-700/50'
+              : 'border-white/5'
           }`}
         >
           <div>
@@ -359,7 +359,7 @@ function PrizePoolBanner({ tournament }: { tournament: Tournament }) {
         { label: t('tournaments.detail.prize_banner.runner_up'), amount: runnerAmt, pct: tournament.prize_runner_up_pct, color: '#9ca3af' },
         { label: t('tournaments.detail.prize_banner.fee'), amount: feeAmt, pct: tournament.platform_fee_pct, color: '#6b7280' },
       ].map(item => (
-        <div key={item.label} className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6 text-center">
+        <div key={item.label} className="glass-panel border border-kaspa-primary/20 rounded-2xl p-6 text-center shadow-glow-primary transition-all hover:bg-white/5">
           <div className="text-sm text-gray-400 mb-1">{item.label}</div>
           <div style={{ color: item.color }} className="text-xl font-black">
             {sompiToKas(item.amount)} KAS
@@ -397,7 +397,7 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
   };
 
   return (
-    <div className="mt-6 bg-slate-900/60 border border-kaspa-primary/30 rounded-2xl p-6">
+    <div className="mt-6 glass-panel border border-kaspa-primary/20 rounded-2xl p-6 shadow-glow-primary">
       <h3 className="text-lg font-bold text-white mb-4">{t('tournaments.detail.teams.deposit_title')}</h3>
       <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1 space-y-4">
@@ -608,7 +608,7 @@ export function TournamentDetailPage() {
         </Link>
 
         {/* Header */}
-        <div className="mb-8 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50">
+        <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -737,7 +737,7 @@ export function TournamentDetailPage() {
         {activeTab === 'overview' && (
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">
+              <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.info_title')}</h3>
                 <dl className="space-y-2 text-sm">
                   {[
@@ -754,7 +754,7 @@ export function TournamentDetailPage() {
                   ))}
                 </dl>
               </div>
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">
+              <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">{t('tournaments.detail.overview.escrow_title')}</h3>
                 {tournament.escrow_address ? (
                   <div className="space-y-2">
@@ -786,7 +786,7 @@ export function TournamentDetailPage() {
             <TeamsList teams={teams} myTeamIds={myTeamIds} />
             {showDepositBlock && <DepositBlock tournament={tournament} myTeam={myTeam} onDepositSuccess={load} />}
             {showRegister && (
-              <form onSubmit={handleRegister} className="mt-4 bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-3">
+              <form onSubmit={handleRegister} className="mt-4 glass-panel border border-kaspa-primary/20 rounded-2xl p-6 space-y-3">
                 <p className="text-sm font-bold text-blue-300">{t('tournaments.detail.teams.register_title')}</p>
                 <input
                   id="team-name-input"
