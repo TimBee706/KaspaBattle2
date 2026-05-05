@@ -14,14 +14,14 @@ import { MatchPage } from './pages/MatchPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { EscrowPage } from './pages/EscrowPage';
-import { WhitepaperPage } from './pages/WhitepaperPage';
-import { TermsPage } from './pages/TermsPage';
-import { SupportPage } from './pages/SupportPage';
 import { TournamentListPage } from './pages/TournamentListPage';
 import { CreateTournamentPage } from './pages/CreateTournamentPage';
 import { TournamentDetailPage } from './pages/TournamentDetailPage';
 import { TournamentResultsPage } from './pages/TournamentResultsPage';
 import { TournamentAdminPage } from './pages/TournamentAdminPage';
+import { WhitepaperPage } from './pages/WhitepaperPage';
+import { TermsPage } from './pages/TermsPage';
+import { SupportPage } from './pages/SupportPage';
 
 import { useAuthStore } from './stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
@@ -111,14 +111,14 @@ export default function App() {
             <Route path="lobby/create" element={<CreateMatchPage />} />
             <Route path="lobby/:lobbyId" element={<LobbyPage />} />
             <Route path="history" element={<HistoryPage />} />
-            <Route path="whitepaper" element={<WhitepaperPage />} />
-            <Route path="terms" element={<TermsPage />} />
-            <Route path="support" element={<SupportPage />} />
             <Route path="tournaments" element={<TournamentListPage />} />
             <Route path="tournaments/create" element={<CreateTournamentPage />} />
             <Route path="tournaments/:id" element={<TournamentDetailPage />} />
             <Route path="tournaments/:id/results" element={<TournamentResultsPage />} />
             <Route path="admin/tournaments" element={<AuthGuard><TournamentAdminPage /></AuthGuard>} />
+            <Route path="whitepaper" element={<WhitepaperPage />} />
+            <Route path="terms" element={<TermsPage />} />
+            <Route path="support" element={<SupportPage />} />
 
             {/* Geschützte Routen - AuthGuard zeigt Banner */}
             <Route path="escrow/:lobbyId" element={<AuthGuard><EscrowPage /></AuthGuard>} />

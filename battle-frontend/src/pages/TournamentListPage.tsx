@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_GAMES } from '../config/constants';
 import { Icon } from '../components/Icon';
 
+
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: TournamentStatus }) {
@@ -69,6 +70,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
             })()}
             <span className="uppercase tracking-wider">{tournament.game_id.toUpperCase()}</span>
           </div>
+
           <span>•</span>
           <span>{tournament.max_teams} Teams</span>
           {tournament.registration_deadline && (

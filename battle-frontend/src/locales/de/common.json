@@ -521,6 +521,7 @@
                 "error_name_taken": "Dieser Teamname ist bereits vergeben.",
                 "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
                 "error_team_not_found": "Dein Team existiert in diesem Turnier nicht mehr. Bitte lade die Seite neu oder registriere dein Team erneut.",
+
                 "deposit_title": "Dein Team Buy-In einzahlen",
                 "stake_per_team": "Einsatz pro Team",
                 "deposit_now": "Jetzt zahlen"

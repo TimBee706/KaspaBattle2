@@ -141,6 +141,7 @@ export function CreateChallengeForm() {
                             : (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected)
                                 ? 'Bitte zuerst FaceIT verbinden'
                                 : t('challenge.wallet_needed')}
+
                     </p>
                 )}
 

@@ -20,6 +20,7 @@ import {
   type TournamentStatus,
 } from '../api/tournaments';
 import { SUPPORTED_GAMES } from '../config/constants';
+
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 
@@ -386,6 +387,7 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
   const handlePayNow = async () => {
     if (!myTeam) return;
     console.log(`[DepositBlock] Paying for tournamentId=${tournament.id} teamId=${myTeam.id}`);
+
     setDepositError(null);
     setIsDepositing(true);
     try {
@@ -403,6 +405,7 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
       } else {
         setDepositError(apiMessage || e.message || 'Tournament deposit failed');
       }
+
     } finally {
       setIsDepositing(false);
     }
@@ -784,6 +787,7 @@ export function TournamentDetailPage() {
                     <dt className="text-gray-500">{t('tournaments.detail.overview.prize_pool')}</dt>
                     <dd className="text-kaspa-primary font-black">{sompiToKas(['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status) ? tournament.total_prize_pool_sompi : tournament.buy_in_sompi * tournament.max_teams)} KAS</dd>
                   </div>
+
                 </dl>
               </div>
               <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
@@ -814,6 +818,7 @@ export function TournamentDetailPage() {
         {activeTab === 'teams' && (() => {
           const myTeamInList = myTeam && teams.some(t => t.id === myTeam.id);
           const showDepositBlock = myTeamInList && ['REGISTRATION', 'FUNDED', 'BRACKET_READY'].includes(tournament.status) && !!tournament.escrow_address;
+
           return (
           <div>
             <TeamsList teams={teams} myTeamIds={myTeamIds} />

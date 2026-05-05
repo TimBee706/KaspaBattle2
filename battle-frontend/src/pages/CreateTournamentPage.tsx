@@ -6,12 +6,14 @@ import { Icon } from '../components/Icon';
 import { useWalletStore } from '../stores/useWalletStore';
 import { SUPPORTED_GAMES } from '../config/constants';
 
+
 export function CreateTournamentPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { isConnected } = useWalletStore();
 
     const cs2Game = SUPPORTED_GAMES[0];
+
 
     const [form, setForm] = useState({
         name: '',
