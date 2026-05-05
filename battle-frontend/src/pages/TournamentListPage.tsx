@@ -181,48 +181,46 @@ function CreateTournamentModal({ onClose, onCreated }: CreateModalProps) {
 function TournamentCard({ tournament }: { tournament: Tournament }) {
   const { t } = useTranslation();
   const kas = sompiToKas(tournament.buy_in_sompi);
-  const pool = sompiToKas(tournament.total_prize_pool_sompi);
+  const isFinalPool = ['COMPLETED', 'BRACKET_READY', 'IN_PROGRESS', 'FUNDED'].includes(tournament.status);
+  const poolSompi = isFinalPool ? tournament.total_prize_pool_sompi : (tournament.buy_in_sompi * tournament.max_teams);
+  const pool = sompiToKas(poolSompi);
 
   return (
     <Link
       to={`/tournaments/${tournament.id}`}
       id={`tournament-card-${tournament.id}`}
-      className="group block bg-slate-900/60 border border-slate-700/50 hover:border-kaspa-primary/30 rounded-2xl p-5 transition-all duration-300 hover:bg-slate-800/80 hover:-translate-y-0.5"
+      className="group bg-slate-900/60 border border-slate-700/50 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-kaspa-primary/40 hover:bg-slate-800/80 transition-all cursor-pointer active:scale-[0.99]"
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-white text-lg truncate group-hover:text-[#49EACB] transition-colors">
+      {/* Left side */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="font-bold text-white text-lg truncate group-hover:text-kaspa-primary transition-colors">
             {tournament.name}
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5 uppercase tracking-wider">{tournament.game_id.toUpperCase()}</p>
+          <StatusBadge status={tournament.status} />
         </div>
-        <StatusBadge status={tournament.status} />
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
-          <div className="text-kaspa-primary font-bold text-lg">{kas}</div>
-          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.buy_in')}</div>
-        </div>
-        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
-          <div className="text-white font-bold text-lg">{tournament.max_teams}</div>
-          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.max_teams')}</div>
-        </div>
-        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
-          <div className="text-kaspa-primary font-bold text-lg">{pool}</div>
-          <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.prize_pool')}</div>
+        <div className="flex items-center gap-3 text-xs text-slate-500 font-bold">
+          <span className="uppercase tracking-wider">{tournament.game_id.toUpperCase()}</span>
+          <span>•</span>
+          <span>{tournament.max_teams} Teams</span>
+          {tournament.registration_deadline && (
+            <>
+              <span>•</span>
+              <span>{t('tournaments.card.deadline')}: {new Date(tournament.registration_deadline).toLocaleString()}</span>
+            </>
+          )}
         </div>
       </div>
 
-      {tournament.registration_deadline && (
-        <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
-            <path d="M6 3.5V6.5L8 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span>{t('tournaments.card.deadline')}: {new Date(tournament.registration_deadline).toLocaleString()}</span>
+      {/* Right side */}
+      <div className="text-right shrink-0">
+        <div className="text-emerald-400 text-xl font-black flex items-baseline gap-1 justify-end">
+          {kas} <span className="text-sm font-bold text-emerald-400/80">KAS</span>
         </div>
-      )}
+        <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+          {t('tournaments.card.prize_pool')} {pool} KAS
+        </div>
+      </div>
     </Link>
   );
 }
@@ -323,9 +321,9 @@ export function TournamentListPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 animate-pulse h-44" />
+        <div className="flex flex-col gap-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 animate-pulse h-20" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -350,7 +348,7 @@ export function TournamentListPage() {
           </button>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-col gap-3">
           {filtered.map(t => (
             <TournamentCard key={t.id} tournament={t} />
           ))}
