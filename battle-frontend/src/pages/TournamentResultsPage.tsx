@@ -146,7 +146,7 @@ function ResultsBracket({ slots }: { slots: BracketSlot[] }) {
                           {team?.name ?? t('tournaments.detail.bracket.tbd')}
                         </span>
                         {slot.winner_team_id === team?.id && (
-                          <span className="text-[#49EACB] text-xs">✓</span>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#49EACB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                         )}
                       </div>
                     ))}
@@ -171,7 +171,7 @@ function PayoutSection({ results }: { results: TournamentResults }) {
     return (
       <div className="bg-[#0d1b2a] border border-orange-500/20 rounded-xl p-5">
         <div className="flex items-center gap-2 text-orange-400 mb-2">
-          <span className="text-lg">⏳</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" /></svg>
           <span className="font-bold text-sm">Payout Pending</span>
         </div>
         <p className="text-sm text-gray-400">
@@ -184,7 +184,7 @@ function PayoutSection({ results }: { results: TournamentResults }) {
   return (
     <div className="bg-[#0d1b2a] border border-[#49EACB]/20 rounded-xl p-5">
       <div className="flex items-center gap-2 text-[#49EACB] mb-3">
-        <span className="text-lg">✅</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         <span className="font-bold text-sm">Payout Completed</span>
         {results.payout_executed_at && (
           <span className="text-gray-500 text-xs ml-auto">
@@ -259,7 +259,7 @@ export function TournamentResultsPage() {
             {t('tournaments.results.navbar_back')}
           </Link>
           <span className="text-gray-700">/</span>
-          <span className="text-gray-400 text-sm">{t('tournaments.detail.actions.results').replace('🏆 ', '')}</span>
+          <span className="text-gray-400 text-sm">{t('tournaments.detail.actions.results')}</span>
         </div>
 
         {/* Title */}

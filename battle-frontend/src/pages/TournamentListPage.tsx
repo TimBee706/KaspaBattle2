@@ -187,7 +187,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
     <Link
       to={`/tournaments/${tournament.id}`}
       id={`tournament-card-${tournament.id}`}
-      className="group block bg-[#0d1b2a] border border-white/5 hover:border-[#49EACB]/30 rounded-2xl p-5 transition-all duration-300 hover:shadow-[0_0_24px_rgba(73,234,203,0.08)] hover:-translate-y-0.5"
+      className="group block bg-slate-900/60 border border-slate-700/50 hover:border-kaspa-primary/30 rounded-2xl p-5 transition-all duration-300 hover:bg-slate-800/80 hover:-translate-y-0.5"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
@@ -200,16 +200,16 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
       </div>
 
       <div className="grid grid-cols-3 gap-3 mt-4">
-        <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
-          <div className="text-[#49EACB] font-bold text-lg">{kas}</div>
+        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
+          <div className="text-kaspa-primary font-bold text-lg">{kas}</div>
           <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.buy_in')}</div>
         </div>
-        <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
+        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
           <div className="text-white font-bold text-lg">{tournament.max_teams}</div>
           <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.max_teams')}</div>
         </div>
-        <div className="bg-[#0a0f14] rounded-lg p-3 text-center">
-          <div className="text-[#49EACB] font-bold text-lg">{pool}</div>
+        <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-3 text-center">
+          <div className="text-kaspa-primary font-bold text-lg">{pool}</div>
           <div className="text-gray-500 text-xs mt-0.5">{t('tournaments.card.prize_pool')}</div>
         </div>
       </div>
@@ -325,7 +325,7 @@ export function TournamentListPage() {
       {loading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-[#0d1b2a] rounded-2xl p-5 animate-pulse h-44" />
+            <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 animate-pulse h-44" />
           ))}
         </div>
       ) : filtered.length === 0 ? (

@@ -14,6 +14,7 @@ import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../do
 import { validateFaceitMatchId } from '../../utils/validation';
 import { MatchPlayersPanel } from './MatchPlayersPanel';
 import { getApiErrorCode, getApiErrorMessage } from '../../utils/errors';
+import { Icon } from '../Icon';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -236,7 +237,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                         {match.status === 'LOCKED' && (
                             <div className="text-center py-6">
-                                <div className="text-4xl animate-pulse mb-4">🎮</div>
+                                <Icon name="bolt" className="w-10 h-10 text-kaspa-primary animate-pulse mb-4 mx-auto" />
                                 <h4 className="font-bold text-kaspa-primary">{t('match.running')}</h4>
                                 <p className="text-[10px] text-gray-500 mt-2">{t('match.running_info')}</p>
                             </div>
@@ -308,7 +309,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                         {match.status === 'PAID_OUT' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
-                                <div className="text-3xl mb-2">💎</div>
+                                <Icon name="trophy" className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                                 <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.paid_out')}</h4>
                                 <p className="text-xs text-white my-3 font-bold">{t('match.winner_message', { name: match.winner_faceit_nickname })}</p>
                                 <a href={explorerTxUrl(match.payout_tx_hash!)} target="_blank" className="text-[10px] text-emerald-400 underline font-mono">
@@ -320,7 +321,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         {/* Refund Status Display */}
                         {match.status === 'REFUNDED' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
-                                <div className="text-3xl mb-2">💸</div>
+                                <Icon name="coin" className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                                 <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.refunded')}</h4>
                                 <p className="text-xs text-gray-300 my-3">{t('match.refund_complete_info')}</p>
                                 {match.refund_tx_hash && (

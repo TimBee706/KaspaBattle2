@@ -84,7 +84,7 @@ export function FaceitLoginButton() {
                                 onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
-                                <span className="text-base">👤</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                 {t('navigation.profile')}
                             </button>
 
@@ -95,7 +95,7 @@ export function FaceitLoginButton() {
                                 onClick={() => setDropdownOpen(false)}
                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
-                                <span className="text-base">🔗</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                                 {t('profile.view_on_faceit')}
                             </a>
                         </div>
@@ -105,7 +105,7 @@ export function FaceitLoginButton() {
                                 onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-orange-400 hover:text-orange-300 hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
-                                <span className="text-base">⚡</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                 {t('profile.disconnect_faceit')}
                             </button>
 
@@ -117,7 +117,7 @@ export function FaceitLoginButton() {
                                 }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-kaspa-border/50 transition-colors flex items-center gap-3"
                             >
-                                <span className="text-base">🚪</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                                 {t('profile.logout')}
                             </button>
                         </div>

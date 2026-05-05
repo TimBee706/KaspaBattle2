@@ -4,6 +4,7 @@ import { FaceitLoginButton } from '../auth/FaceitLoginButton';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../LanguageToggle';
+import { Icon } from '../Icon';
 
 export function Header() {
     const navigate = useNavigate();
@@ -14,7 +15,7 @@ export function Header() {
     const closeMenu = () => setIsMobileMenuOpen(false);
 
     return (
-        <header className="bg-kaspa-card border-b border-kaspa-border sticky top-0 z-50">
+        <header className="bg-kaspa-dark/80 backdrop-blur-glass border-b border-white/5 sticky top-0 z-50">
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-8">
                     <Link to="/" className="text-xl font-bold text-kaspa-primary tracking-tighter flex items-center gap-2" onClick={closeMenu}>
@@ -24,12 +25,12 @@ export function Header() {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6">
-                        <Link to="/lobby" className="text-gray-300 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
+                        <Link to="/lobby" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
                         {testMode && (
-                            <Link to="/tournaments" className="text-gray-300 hover:text-[#49EACB] transition-colors">{t('tournaments.title')}</Link>
+                            <Link to="/tournaments" className="text-sm font-semibold text-gray-400 hover:text-kaspa-primary transition-colors">{t('tournaments.title')}</Link>
                         )}
-                        <Link to="/lobby/create" className="text-gray-300 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
-                        <Link to="/history" className="text-gray-300 hover:text-white transition-colors">{t('navigation.history')}</Link>
+                        <Link to="/lobby/create" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
+                        <Link to="/history" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.history')}</Link>
                     </nav>
                 </div>
 
@@ -37,7 +38,8 @@ export function Header() {
                 <div className="hidden md:flex items-center gap-4">
                     {/* DEV Test Mode Toggle */}
                     {import.meta.env.VITE_ENABLE_TEST_MODE === 'true' && (
-                        <div className="flex items-center gap-2 mr-2 bg-kaspa-dark/50 px-3 py-1.5 rounded-lg border border-kaspa-border">
+                        <div className="flex items-center gap-2 mr-2 bg-kaspa-surface/50 px-3 py-1.5 rounded-lg border border-kaspa-border">
+                            <Icon name="beaker" className="w-3.5 h-3.5 text-gray-400" />
                             <label className="text-xs text-gray-400 font-mono cursor-pointer" onClick={() => setTestMode(!testMode)}>
                                 {t('common.header.test_mode')}
                             </label>
@@ -54,8 +56,9 @@ export function Header() {
 
                     <button
                         onClick={() => navigate('/wallet/import')}
-                        className="px-6 py-2 bg-kaspa-primary/10 hover:bg-kaspa-primary/20 border border-kaspa-primary/30 text-kaspa-primary rounded-lg font-bold transition-all flex items-center gap-2"
+                        className="glass-button px-5 py-2 text-sm font-semibold flex items-center gap-2"
                     >
+                        <Icon name="wallet" className="w-4 h-4" />
                         {t('navigation.wallet')}
                     </button>
                     <div className="w-px h-6 bg-kaspa-border hidden sm:block" />
@@ -83,7 +86,7 @@ export function Header() {
 
             {/* Mobile Navigation Dropdown */}
             {isMobileMenuOpen && (
-                <div className="md:hidden bg-kaspa-card border-b border-kaspa-border absolute w-full left-0 top-16 shadow-2xl">
+                <div className="md:hidden bg-kaspa-dark/95 backdrop-blur-glass border-b border-white/5 absolute w-full left-0 top-16 shadow-glow-card">
                     <div className="flex flex-col p-4 gap-4">
                         <nav className="flex flex-col gap-4 pb-4 border-b border-kaspa-border/50">
                             <Link to="/lobby" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.lobby')}</Link>

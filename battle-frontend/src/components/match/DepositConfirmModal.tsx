@@ -49,7 +49,7 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
 
                         {!hasEnoughBalance && (
                             <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex gap-3">
-                                <span className="text-xl">⚠️</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
                                 <div>
                                     <p className="text-red-400 text-xs font-bold">{t('deposit.insufficient_funds')}</p>
                                     <p className="text-red-300/70 text-[10px]">{t('deposit.insufficient_funds_info')}</p>
@@ -81,7 +81,9 @@ export function DepositConfirmModal({ isOpen, onClose, amountSompi, playerRole }
                     </div>
                 ) : (
                     <div className="text-center py-6 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="w-16 h-16 bg-kaspa-primary/20 text-kaspa-primary rounded-full flex items-center justify-center text-3xl mx-auto mb-6">✓</div>
+                        <div className="w-16 h-16 bg-kaspa-primary/20 text-kaspa-primary rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </div>
                         <h4 className="text-lg font-bold mb-2 uppercase">{t('deposit.success_title')}</h4>
                         <p className="text-gray-400 text-xs mb-8">
                             {t('deposit.success_info')}
