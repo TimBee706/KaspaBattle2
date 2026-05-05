@@ -390,10 +390,10 @@
         "filter": {
             "all": "All",
             "open": "Open",
-            "live": "🔴 Live",
-            "completed": "✅ Done",
-            "disputed": "⚖️ Disputed",
-            "cancelled": "🚫 Cancelled"
+            "live": "Live",
+            "completed": "Done",
+            "disputed": "Disputed",
+            "cancelled": "Cancelled"
         },
         "empty": {
             "title": "No tournaments found",
@@ -418,8 +418,11 @@
             "winner_pct": "Winner %",
             "runner_up_pct": "Runner-up %",
             "fee_pct": "Fee %",
-            "pct_warning": "⚠️ Percentages must sum to 100 (currently {{pct}})",
+            "pct_warning": "Percentages must sum to 100 (currently {{pct}})",
             "deadline": "Registration Deadline (optional)",
+            "game_label": "Game",
+            "game_value": "CS2 – Counter-Strike 2",
+            "game_hint": "Tournaments are currently only available for Counter-Strike 2 (CS2).",
             "submit": "Create Tournament",
             "creating": "Creating…",
             "error_fallback": "Failed to create tournament"
@@ -445,16 +448,16 @@
                 "winner_address": "Winner Address",
                 "not_set": "Not set",
                 "payout_tx": "Payout TX (completed)",
-                "trigger_btn": "💸 Trigger Payout",
+                "trigger_btn": "Trigger Payout",
                 "triggering": "Triggering…",
                 "confirm_trigger": "Trigger payout for this tournament?"
             },
             "disputes": {
-                "title": "⚖️ Disputed Slots ({{count}})",
+                "title": "Disputed Slots ({{count}})",
                 "round_slot": "Round {{round}}, Slot {{slot}}",
                 "select_winner": "Select winner…",
                 "resolve_btn": "Resolve",
-                "resolved": "✓ Resolved",
+                "resolved": "Resolved",
                 "confirm_resolve": "Resolve dispute and declare this team the winner?"
             },
             "cancel": {
@@ -473,10 +476,10 @@
                 "bracket": "Bracket"
             },
             "actions": {
-                "results": "🏆 Results",
+                "results": "Results",
                 "register": "Register Team",
-                "lock_bracket": "🔒 Lock Bracket",
-                "dispute": "⚖️ Dispute",
+                "lock_bracket": "Lock Bracket",
+                "dispute": "Dispute",
                 "cancel": "Cancel"
             },
             "overview": {
@@ -491,22 +494,26 @@
                 "payout_tx": "Payout TX"
             },
             "prize_banner": {
-                "winner": "🥇 Winner",
-                "runner_up": "🥈 Runner-up",
-                "fee": "🏛️ Platform Fee"
+                "winner": "Winner",
+                "runner_up": "Runner-up",
+                "fee": "Platform Fee"
             },
             "teams": {
                 "you_badge": "YOU",
                 "seed": "Seed #{{seed}}",
                 "captain": "Captain: {{name}}",
                 "unknown": "Unknown",
-                "funded": "✓ Funded",
-                "awaiting_deposit": "⏳ Awaiting Deposit",
+                "funded": "Funded",
+                "awaiting_deposit": "Awaiting Deposit",
                 "register_title": "Register Your Team",
                 "team_name": "Team Name",
                 "register_btn": "Register",
                 "registering": "Registering…",
-                "cancel": "Cancel"
+                "cancel": "Cancel",
+                "error_registration_closed": "Registration is closed.",
+                "error_tournament_full": "This tournament is full.",
+                "error_name_taken": "This team name is already taken.",
+                "error_generic": "Registration failed. Please try again."
             },
             "bracket": {
                 "grand_final": "Grand Final",
@@ -523,8 +530,8 @@
                 "submit_btn": "Submit",
                 "cancel": "Cancel",
                 "file_dispute": "File Dispute",
-                "under_dispute": "⚖️ Under dispute — awaiting admin resolution",
-                "finished": "✓ Finished",
+                "under_dispute": "Under dispute — awaiting admin resolution",
+                "finished": "Finished",
                 "placeholder_id": "FaceIT Match ID",
                 "placeholder_dispute": "Describe the issue (min 10 chars)"
             },
@@ -547,9 +554,9 @@
             "prize_pool": "Total Prize Pool",
             "payout_tx": "Payout Transaction",
             "placements": {
-                "winner": "🏆 Winner",
-                "runner_up": "🥈 Runner-up",
-                "platform": "🏛️ Platform",
+                "winner": "Winner",
+                "runner_up": "Runner-up",
+                "platform": "Platform",
                 "participant": "Participant",
                 "prize": "Prize: {{amount}} KAS"
             }

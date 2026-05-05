@@ -26,7 +26,11 @@ function Podium({ results }: { results: TournamentResults }) {
       <div className="relative flex items-end justify-center gap-4 py-8">
         {/* Runner-up */}
         <div className="flex flex-col items-center gap-3">
-          <div className="text-3xl">🥈</div>
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#9ca3af]">
+            <circle cx="18" cy="22" r="11" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <circle cx="18" cy="22" r="7" stroke="currentColor" strokeWidth="1" fill="currentColor" fillOpacity="0.08"/>
+            <path d="M13 6h10v4l-5 3-5-3V6Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round"/>
+          </svg>
           <div className="bg-gradient-to-b from-[#1a2535] to-[#0d1827] border border-[#9ca3af]/30 rounded-2xl p-5 w-36 text-center shadow-xl">
             <div className="text-2xl font-black text-[#9ca3af] mb-1">2nd</div>
             <div className="font-bold text-white text-sm truncate">{runnerUp?.name ?? t('tournaments.detail.bracket.tbd')}</div>
@@ -40,8 +44,14 @@ function Podium({ results }: { results: TournamentResults }) {
 
         {/* Champion */}
         <div className="flex flex-col items-center gap-3 -mt-8">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] flex items-center justify-center text-3xl shadow-[0_0_32px_rgba(251,191,36,0.4)]">
-            🏆
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] flex items-center justify-center shadow-[0_0_32px_rgba(251,191,36,0.4)]">
+            <svg width="30" height="30" viewBox="0 0 30 30" fill="white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 4H20V14C20 17.314 17.761 20 15 20C12.239 20 10 17.314 10 14V4Z"/>
+              <path d="M10 6H6C6 6 4 9 6 13C6.9 14.6 8.5 15.5 10 15.5" stroke="white" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+              <path d="M20 6H24C24 6 26 9 24 13C23.1 14.6 21.5 15.5 20 15.5" stroke="white" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+              <rect x="13" y="20" width="4" height="3" fill="white"/>
+              <rect x="10" y="23" width="10" height="2.5" rx="1.25" fill="white"/>
+            </svg>
           </div>
           <div className="bg-gradient-to-b from-[#1f2d1a] to-[#0d1a0f] border border-[#49EACB]/40 rounded-2xl p-6 w-44 text-center shadow-[0_0_48px_rgba(73,234,203,0.12)]">
             <div className="text-3xl font-black text-[#49EACB] mb-1">1st</div>
@@ -56,7 +66,15 @@ function Podium({ results }: { results: TournamentResults }) {
 
         {/* Platform fee visual */}
         <div className="flex flex-col items-center gap-3">
-          <div className="text-3xl opacity-50">🏛️</div>
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-gray-600 opacity-60">
+            <rect x="2" y="32" width="32" height="2.5" rx="1.25" fill="currentColor"/>
+            <rect x="2" y="13" width="32" height="2.5" rx="1.25" fill="currentColor"/>
+            <rect x="8" y="16" width="3" height="16" fill="currentColor"/>
+            <rect x="14.5" y="16" width="3" height="16" fill="currentColor"/>
+            <rect x="21" y="16" width="3" height="16" fill="currentColor"/>
+            <rect x="27" y="16" width="3" height="16" fill="currentColor"/>
+            <polygon points="18,4 2,13 34,13" fill="currentColor"/>
+          </svg>
           <div className="bg-[#0d1b2a] border border-white/5 rounded-2xl p-5 w-36 text-center">
             <div className="text-2xl font-black text-gray-600 mb-1">Fee</div>
             <div className="font-bold text-gray-500 text-sm">Platform</div>
@@ -218,7 +236,10 @@ export function TournamentResultsPage() {
     return (
       <div className="min-h-screen bg-[#070d14] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-5xl mb-4">🔍</div>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-700">
+            <circle cx="22" cy="22" r="14" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M32 32L42 42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
           <h2 className="text-xl font-bold text-white mb-2">{t('tournaments.detail.not_found')}</h2>
           <Link to="/tournaments" className="text-[#49EACB] hover:underline text-sm">
             {t('tournaments.results.navbar_back')}
