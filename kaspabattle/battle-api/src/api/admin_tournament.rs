@@ -420,7 +420,7 @@ pub async fn admin_trigger_payout(
     .fetch_optional(&state.pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| (
+    .ok_or((
         StatusCode::NOT_FOUND,
         Json(ApiErrorResponse { error: "not_found", message: "Tournament not found." }),
     ))?;

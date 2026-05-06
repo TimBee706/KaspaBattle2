@@ -103,6 +103,7 @@ fn normalized_kaspa_node_url() -> Option<String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{explicit_kaspa_node_enabled, normalized_kaspa_node_url};
 

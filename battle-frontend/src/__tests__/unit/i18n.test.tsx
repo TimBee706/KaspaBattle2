@@ -27,12 +27,12 @@ describe('i18n configuration and Language Switcher', () => {
         const lobbyLink = await screen.findByText(/Lobby/i);
         expect(lobbyLink).toBeInTheDocument();
         
-        // Verify the create challenge text is in English instead of German
-        const createChallengeLink = await screen.findByText(/Create Challenge/i);
-        expect(createChallengeLink).toBeInTheDocument();
+        // Verify the create lobby text is in English instead of German
+        const createLobbyLink = await screen.findByText(/Create Lobby/i);
+        expect(createLobbyLink).toBeInTheDocument();
         
-        // Ensure "Challenge erstellen" is NOT in the document initially
-        expect(screen.queryByText(/Challenge erstellen/i)).not.toBeInTheDocument();
+        // Ensure "Lobby erstellen" is NOT in the document initially
+        expect(screen.queryByText(/Lobby erstellen/i)).not.toBeInTheDocument();
     });
 
     test('switches to German when selected', async () => {
@@ -45,7 +45,7 @@ describe('i18n configuration and Language Switcher', () => {
         );
         
         // Make sure it starts in English
-        expect(await screen.findByText(/Create Challenge/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Create Lobby/i)).toBeInTheDocument();
         
         // Find the language select component (take the first one as there are multi-view selectors)
         const languageSelects = await screen.findAllByRole('combobox', { name: /Language/i });
@@ -57,10 +57,10 @@ describe('i18n configuration and Language Switcher', () => {
         });
         
         // Verify it switched successfully to German
-        expect(await screen.findByText(/Challenge erstellen/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Lobby erstellen/i)).toBeInTheDocument();
         
-        // Verify "Create Challenge" is gone
-        expect(screen.queryByText(/Create Challenge/i)).not.toBeInTheDocument();
+        // Verify "Create Lobby" is gone
+        expect(screen.queryByText(/Create Lobby/i)).not.toBeInTheDocument();
         
         // Verify local storage saved the preference
         expect(localStorage.getItem('preferred_language')).toBe('de');
