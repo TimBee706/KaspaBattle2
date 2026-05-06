@@ -14,6 +14,7 @@ import { getLobbyRole, needsPlayerDeposit, isAvailableChallenge } from '../../do
 import { validateFaceitMatchId } from '../../utils/validation';
 import { MatchPlayersPanel } from './MatchPlayersPanel';
 import { getApiErrorCode, getApiErrorMessage } from '../../utils/errors';
+import { Icon } from '../Icon';
 
 export function MatchDetailView({ match }: { match: BattleMatch }) {
     const navigate = useNavigate();
@@ -138,7 +139,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
     return (
         <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-kaspa-card p-4 md:p-6 rounded-2xl border border-kaspa-border relative overflow-hidden">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary p-4 md:p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                     {game?.icon && <img src={game.icon} alt={game.name} className="w-48 h-48 object-contain grayscale" />}
                 </div>
@@ -165,7 +166,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                     <MatchPlayersPanel match={match} />
 
                     {/* Escrow Details */}
-                    <div className="card space-y-4">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary space-y-4">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.escrow_wallet')}</h3>
                         <div className="flex items-center justify-between bg-kaspa-dark p-4 rounded-xl border border-kaspa-border">
                             <div className="font-mono text-sm overflow-hidden text-ellipsis whitespace-nowrap mr-4">
@@ -194,7 +195,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="card space-y-4">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary space-y-4">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{t('match.status_actions')}</h3>
 
                         {match.status === 'OPEN' && !match.opponent_user_id && (
@@ -236,7 +237,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                         {match.status === 'LOCKED' && (
                             <div className="text-center py-6">
-                                <div className="text-4xl animate-pulse mb-4">🎮</div>
+                                <Icon name="bolt" className="w-10 h-10 text-kaspa-primary animate-pulse mb-4 mx-auto" />
                                 <h4 className="font-bold text-kaspa-primary">{t('match.running')}</h4>
                                 <p className="text-[10px] text-gray-500 mt-2">{t('match.running_info')}</p>
                             </div>
@@ -308,7 +309,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
 
                         {match.status === 'PAID_OUT' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
-                                <div className="text-3xl mb-2">💎</div>
+                                <Icon name="trophy" className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                                 <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.paid_out')}</h4>
                                 <p className="text-xs text-white my-3 font-bold">{t('match.winner_message', { name: match.winner_faceit_nickname })}</p>
                                 <a href={explorerTxUrl(match.payout_tx_hash!)} target="_blank" className="text-[10px] text-emerald-400 underline font-mono">
@@ -320,7 +321,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         {/* Refund Status Display */}
                         {match.status === 'REFUNDED' && (
                             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 text-center">
-                                <div className="text-3xl mb-2">💸</div>
+                                <Icon name="coin" className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                                 <h4 className="text-emerald-500 font-bold uppercase tracking-tighter">{t('match.refunded')}</h4>
                                 <p className="text-xs text-gray-300 my-3">{t('match.refund_complete_info')}</p>
                                 {match.refund_tx_hash && (
@@ -379,7 +380,7 @@ export function MatchDetailView({ match }: { match: BattleMatch }) {
                         )}
                     </div>
 
-                    <div className="card">
+                    <div className="glass-panel p-6 border border-kaspa-primary/20 rounded-2xl shadow-glow-primary">
                         <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">{t('match.info')}</h3>
                         <div className="space-y-3">
                             <div className="flex justify-between text-[11px]">

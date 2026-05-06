@@ -1,4 +1,4 @@
-﻿//! Script construction for multisig escrows.
+//! Script construction for multisig escrows.
 //!
 //! Builds P2SH redeem scripts and derives escrow addresses using
 //! `kaspa-txscript` primitives.
@@ -113,7 +113,10 @@ pub fn build_multisig_sig_script(
     signatures: &[Vec<u8>],
     redeem_script: &[u8],
 ) -> Result<Vec<u8>, ScriptError> {
-    // Concatenate all signature chunks
+    // Kaspa's OP_CHECKMULTISIG does NOT have the classic Bitcoin off-by-one bug,
+    // so NO OP_0 dummy element is needed. Simply concatenate the formatted
+    // signatures (each: OpData65 | 64-byte-sig | sighash_type) — this matches
+    // the pattern used in kaspa-txscript's own multisig tests.
     let all_sigs: Vec<u8> = signatures.iter().flat_map(|s| s.iter().copied()).collect();
 
     pay_to_script_hash_signature_script(redeem_script.to_vec(), all_sigs)

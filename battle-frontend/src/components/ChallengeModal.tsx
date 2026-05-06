@@ -5,6 +5,8 @@ import { useWallet } from '../hooks/useWallet';
 import { useTranslation } from 'react-i18next';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import type { MatchMode } from '../api/types';
+import { Icon } from './Icon';
+import { hasValidBalance, getBalanceKasSafe } from '../utils/walletBalance';
 
 export const ChallengeModal: React.FC = () => {
     const [open, setOpen] = useState(false);
@@ -16,11 +18,12 @@ export const ChallengeModal: React.FC = () => {
     const { t } = useTranslation();
 
     const faceitId = user?.faceit_id || null;
-    const balanceKas = balanceSompi / 100_000_000;
+    const hasBalance = hasValidBalance(balanceSompi);
+    const balanceKas = getBalanceKasSafe(balanceSompi);
 
     // Derived flags for cleaner JSX
     const isFaceIdMissing = !FEATURE_FLAGS.TEST_MODE && !faceitId;
-    const isBalanceLow = balanceKas < minWager;
+    const isBalanceLow = hasBalance && balanceKas < minWager;
     const canSubmit = canCreateChallenge && (!FEATURE_FLAGS.TEST_MODE ? !!faceitId : true);
 
     const submit = async (e: React.FormEvent) => {
@@ -39,11 +42,13 @@ export const ChallengeModal: React.FC = () => {
     if (!open) {
         const disabledReason = !isConnected
             ? t('challenge.connect_wallet_hint')
-            : isFaceIdMissing
-                ? t('challenge.connect_faceit_hint')
-                : isBalanceLow
-                    ? t('escrow.low_balance_hint', { amount: minWager })
-                    : null;
+            : !hasBalance
+                ? t('wallet.balance_loading_hint')
+                : isFaceIdMissing
+                    ? t('challenge.connect_faceit_hint')
+                    : isBalanceLow
+                        ? t('escrow.low_balance_hint', { amount: minWager })
+                        : null;
 
         return (
             <div className="flex flex-col items-end gap-2">
@@ -56,8 +61,8 @@ export const ChallengeModal: React.FC = () => {
                     {t('challenge.create')}
                 </button>
                 {disabledReason && (
-                    <span className="text-[10px] font-black text-red-500/60 uppercase tracking-widest animate-pulse">
-                        ⚠️ {disabledReason}
+                    <span className="text-[10px] font-black text-red-500/60 uppercase tracking-widest flex items-center gap-1">
+                        <Icon name="alert-triangle" className="w-3 h-3 shrink-0" /> {disabledReason}
                     </span>
                 )}
             </div>

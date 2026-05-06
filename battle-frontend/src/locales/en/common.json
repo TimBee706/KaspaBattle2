@@ -1,7 +1,8 @@
 {
     "navigation": {
-        "lobby": "Lobby",
-        "create_challenge": "Create Challenge",
+        "lobby": "Lobbies",
+        "create_challenge": "Create Lobby",
+        "create_tournament": "Create Tournament",
         "history": "History",
         "wallet": "Wallet",
         "faceit_login": "Login with FACEIT",
@@ -12,10 +13,12 @@
         "whitepaper": "Whitepaper",
         "terms": "Terms",
         "discord": "Twitter",
+        "instagram": "Instagram",
+        "reddit": "Reddit",
         "support": "Support"
     },
     "hero": {
-        "beta_tag": "ENTRY PHASE 1: OPEN BETA",
+        "beta_tag": "Open Beta",
         "title": "PLAY TO WIN <1>KASPA</1>",
         "subtitle": "The world's first decentralized gaming wager platform on Kaspa. Secure, lightning fast and 100% non-custodial."
     },
@@ -105,12 +108,13 @@
         "ready": "Ready for your match?"
     },
     "lobby": {
-        "title": "Lobby System",
+        "title": "Lobby Overview",
         "test_mode": "Test mode active: Wallet integration prioritized.",
         "my_lobbies": "My Lobbies",
         "available_challenges": "Available challenges",
         "active_matches": "Active challenges",
-        "create_challenge": "Create Challenge",
+        "create_challenge": "Create Lobby",
+        "refresh": "Refresh",
         "mode": "Mode",
         "stake": "Stake",
         "players": "Players",
@@ -142,7 +146,9 @@
         "tx_history_empty": "Transaction history will be available soon.",
         "backup_title": "Secret Recovery Phrase (Backup)",
         "backup_text": "This phrase is the only way to restore your balance. NEVER share it with others. KaspaBattle employees will never ask you for it.",
-        "hover_to_show": "HOVER TO SHOW"
+        "hover_to_show": "HOVER TO SHOW",
+        "refresh": "Update balance",
+        "balance_loading_hint": "Fetching wallet balance..."
     },
     "profile": {
         "level_unknown": "LVL UNKNOWN",
@@ -380,5 +386,191 @@
             }
         },
         "startGame": "Start Game"
+    },
+    "tournaments": {
+        "title": "Tournaments",
+        "subtitle": "Compete, win, earn KAS",
+        "refresh": "Refresh",
+        "create_btn": "+ Create Tournament",
+        "login_create_btn": "Login to Create",
+        "filter": {
+            "all": "All",
+            "open": "Open",
+            "live": "Live",
+            "completed": "Done",
+            "disputed": "Disputed",
+            "cancelled": "Cancelled"
+        },
+        "empty": {
+            "title": "No tournaments found",
+            "subtitle_auth": "Be the first to create one!",
+            "subtitle_guest": "Sign in to create a tournament",
+            "admin_title": "No tournaments in this category"
+        },
+        "card": {
+            "buy_in": "Buy-in (KAS)",
+            "max_teams": "Max Teams",
+            "prize_pool": "Prize Pool",
+            "deadline": "Deadline"
+        },
+        "create": {
+            "title": "Create Tournament",
+            "name": "Name",
+            "name_placeholder": "KaspaBattle Weekly #1",
+            "max_teams": "Max Teams",
+            "teams_count": "{{count}} Teams",
+            "buy_in": "Buy-In (KAS)",
+            "prize_split": "Prize Split",
+            "winner_pct": "Winner %",
+            "runner_up_pct": "Runner-up %",
+            "fee_pct": "Fee %",
+            "pct_warning": "Percentages must sum to 100 (currently {{pct}})",
+            "deadline": "Registration Deadline (optional)",
+            "game_label": "Game",
+            "game_value": "CS2 – Counter-Strike 2",
+            "game_hint": "Tournaments are currently only available for Counter-Strike 2 (CS2).",
+            "submit": "Create Tournament",
+            "creating": "Creating…",
+            "error_fallback": "Failed to create tournament"
+        },
+        "admin": {
+            "title": "Tournament Admin",
+            "subtitle": "Dispute resolution, payout management, oversight",
+            "auth_required": "Admin Access Required",
+            "auth_msg": "Please sign in with an admin account.",
+            "loading": "Loading details…",
+            "stats": {
+                "total": "Total",
+                "live": "Live",
+                "disputed": "Disputed",
+                "completed": "Completed",
+                "prize_pool": "Total Prize Pool"
+            },
+            "payout": {
+                "title": "Payout Status",
+                "winner_share": "Winner Share",
+                "runner_up_share": "Runner-up Share",
+                "platform_fee": "Platform Fee",
+                "winner_address": "Winner Address",
+                "not_set": "Not set",
+                "payout_tx": "Payout TX (completed)",
+                "trigger_btn": "Trigger Payout",
+                "triggering": "Triggering…",
+                "confirm_trigger": "Trigger payout for this tournament?"
+            },
+            "disputes": {
+                "title": "Disputed Slots ({{count}})",
+                "round_slot": "Round {{round}}, Slot {{slot}}",
+                "select_winner": "Select winner…",
+                "resolve_btn": "Resolve",
+                "resolved": "Resolved",
+                "confirm_resolve": "Resolve dispute and declare this team the winner?"
+            },
+            "cancel": {
+                "btn": "Force Cancel & Refund",
+                "cancelling": "Cancelling…",
+                "confirm_cancel": "Cancel this tournament and refund all deposits?"
+            }
+        },
+        "detail": {
+            "navbar_back": "← Back to Tournaments",
+            "not_found": "Tournament not found",
+            "teams_count": "teams",
+            "tabs": {
+                "overview": "Overview",
+                "teams": "Teams",
+                "bracket": "Bracket"
+            },
+            "actions": {
+                "results": "Results",
+                "register": "Register Team",
+                "lock_bracket": "Lock Bracket",
+                "dispute": "Dispute",
+                "cancel": "Cancel"
+            },
+            "overview": {
+                "info_title": "Tournament Info",
+                "escrow_title": "Escrow",
+                "status": "Status",
+                "game": "Game",
+                "buy_in": "Buy-in",
+                "prize_pool": "Prize Pool",
+                "no_escrow": "No escrow address assigned yet",
+                "escrow_address": "Escrow Address",
+                "payout_tx": "Payout TX"
+            },
+            "prize_banner": {
+                "winner": "Winner",
+                "runner_up": "Runner-up",
+                "fee": "Platform Fee"
+            },
+            "teams": {
+                "you_badge": "YOU",
+                "seed": "Seed #{{seed}}",
+                "captain": "Captain: {{name}}",
+                "unknown": "Unknown",
+                "funded": "Funded",
+                "awaiting_deposit": "Awaiting Deposit",
+                "register_title": "Register Your Team",
+                "team_name": "Team Name",
+                "register_btn": "Register",
+                "registering": "Registering…",
+                "cancel": "Cancel",
+                "error_registration_closed": "Registration is closed.",
+                "error_tournament_full": "This tournament is full.",
+                "error_name_taken": "This team name is already taken.",
+                "error_generic": "Registration failed. Please try again.",
+                "error_team_not_found": "Your team no longer exists in this tournament. Please reload the page or register again.",
+
+                "deposit_title": "Deposit your team buy-in",
+                "stake_per_team": "Stake per team",
+                "deposit_now": "Pay Now"
+            },
+            "bracket": {
+                "grand_final": "Grand Final",
+                "semifinals": "Semifinals",
+                "quarterfinals": "Quarterfinals",
+                "round": "Round {{num}}",
+                "empty_title": "Bracket will appear once the organizer locks it",
+                "waiting": "Waiting",
+                "match": "Match {{id}}…",
+                "slot": "Slot {{num}}",
+                "tbd": "TBD",
+                "submit_id": "Submit Match ID",
+                "dispute": "Dispute",
+                "submit_btn": "Submit",
+                "cancel": "Cancel",
+                "file_dispute": "File Dispute",
+                "under_dispute": "Under dispute — awaiting admin resolution",
+                "finished": "Finished",
+                "placeholder_id": "FaceIT Match ID",
+                "placeholder_dispute": "Describe the issue (min 10 chars)"
+            },
+            "dispute": {
+                "title": "File a Tournament Dispute",
+                "placeholder": "Describe the issue in detail (min 10 characters)",
+                "submit": "Submit Dispute",
+                "cancel": "Cancel"
+            },
+            "confirm": {
+                "lock": "Lock the bracket? This cannot be undone.",
+                "cancel": "Cancel this tournament? All confirmed deposits will be refunded."
+            }
+        },
+        "results": {
+            "title": "Tournament Results",
+            "subtitle": "Final standings & payouts",
+            "navbar_back": "← Back to Tournament",
+            "back_overview": "Back to Overview",
+            "prize_pool": "Total Prize Pool",
+            "payout_tx": "Payout Transaction",
+            "placements": {
+                "winner": "Winner",
+                "runner_up": "Runner-up",
+                "platform": "Platform",
+                "participant": "Participant",
+                "prize": "Prize: {{amount}} KAS"
+            }
+        }
     }
 }

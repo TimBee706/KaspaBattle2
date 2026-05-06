@@ -441,7 +441,7 @@ mod tests {
         let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
         let network = NetworkId::from_str("testnet-12").unwrap();
 
-        let addr1 = derive_escrow_address(&match_id, pk_a, pk_b, network.clone()).unwrap();
+        let addr1 = derive_escrow_address(&match_id, pk_a, pk_b, network).unwrap();
         let addr2 = derive_escrow_address(&match_id, pk_a, pk_b, network).unwrap();
 
         assert_eq!(
@@ -458,7 +458,7 @@ mod tests {
         let pk_b = "03565f41cb83af35bfed129cb01f600f738fe7cb1bc6e3bce7acbf10ffb6dfaf7b";
         let network = NetworkId::from_str("testnet-12").unwrap();
 
-        let addr1 = derive_escrow_address(&match_id1, pk_a, pk_b, network.clone()).unwrap();
+        let addr1 = derive_escrow_address(&match_id1, pk_a, pk_b, network).unwrap();
         let addr2 = derive_escrow_address(&match_id2, pk_a, pk_b, network).unwrap();
 
         assert_ne!(

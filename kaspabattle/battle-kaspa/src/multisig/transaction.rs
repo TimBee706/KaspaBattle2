@@ -82,7 +82,6 @@ pub fn create_unsigned_payout_tx(
     // For a 2-of-3 multisig: 3 keys → sig_op_count = 3.
     // Setting this to 2 (the threshold) causes node rejection:
     // "sig op count exceeds passed limit of 2"
-    let sig_op_count: u8 = 3; // 2-of-3 multisig: 3 public keys in the redeem script
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
@@ -96,7 +95,9 @@ pub fn create_unsigned_payout_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count,
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();
@@ -173,7 +174,9 @@ pub fn create_unsigned_refund_tx(
                 },
                 signature_script: vec![],
                 sequence: u64::MAX,
-                sig_op_count: 3, // 2-of-3 multisig: 3 keys → 3 sigops for OP_CHECKMULTISIG
+                // For P2SH multisig, Kaspa counts SigOps as N (total public keys),
+                // not M (threshold). A 2-of-3 multisig has N=3 → sig_op_count=3.
+                sig_op_count: 3,
             }
         })
         .collect();

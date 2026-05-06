@@ -27,6 +27,22 @@ export function Footer() {
                         >
                             {t('footer_links.discord')}
                         </a>
+                        <a
+                            href="https://www.instagram.com/kaspabattle/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-kaspa-primary transition-colors"
+                        >
+                            {t('footer_links.instagram')}
+                        </a>
+                        <a
+                            href="https://www.reddit.com/user/KaspaBattle/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-kaspa-primary transition-colors"
+                        >
+                            {t('footer_links.reddit')}
+                        </a>
                         <Link
                             to="/support"
                             className="hover:text-kaspa-primary transition-colors"

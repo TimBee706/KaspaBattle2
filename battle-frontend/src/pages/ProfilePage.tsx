@@ -8,6 +8,7 @@ import { SUPPORTED_GAMES } from '../config/constants';
 import { useTranslation } from 'react-i18next';
 import { startFaceitLogin, startFaceitLink } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
+import { Icon } from '../components/Icon';
 
 // ── Loading skeleton ──────────────────────────────────────────────────────
 function Skeleton({ className = '' }: { className?: string }) {
@@ -95,7 +96,9 @@ export function ProfilePage() {
     if (!isFaceitConnected) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="text-5xl mb-6">🔗</div>
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                    <Icon name="link" className="w-8 h-8 text-gray-400" />
+                </div>
                 <h2 className="text-2xl font-bold mb-2">{t('profile.not_connected_title')}</h2>
                 <p className="text-gray-400 max-w-md mb-8">{t('profile.not_connected_text')}</p>
                 <button
@@ -121,10 +124,10 @@ export function ProfilePage() {
     const gameRecentResults = lifetime?.['Recent Results'] || lifetime?.recent_results || [];
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-fade-in-up">
 
             {/* ── Profile Header ───────────────────────────────────── */}
-            <div className="card flex flex-col md:flex-row items-center gap-8 p-10 bg-gradient-to-br from-kaspa-card to-kaspa-dark">
+            <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary flex flex-col md:flex-row items-center gap-8 p-10 bg-gradient-to-br from-kaspa-surface to-kaspa-dark">
                 <div className="relative">
                     {loadingProfile ? (
                         <Skeleton className="w-32 h-32 rounded-full" />
@@ -204,7 +207,7 @@ export function ProfilePage() {
                 </h3>
 
                 {statsError ? (
-                    <div className="card p-6 text-center">
+                    <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary p-6 text-center">
                         <p className="text-red-400 text-sm mb-4">{statsError}</p>
                         <button
                             onClick={() => {
@@ -225,23 +228,23 @@ export function ProfilePage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div className="card text-center p-6">
+                        <div className="glass-panel text-center p-6 border border-white/5 rounded-2xl transition-all hover:bg-white/5">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.matches')}</span>
                             <span className="text-3xl font-black text-white">{gameMatches}</span>
                         </div>
-                        <div className="card text-center p-6 border-b-4 border-b-green-500">
+                        <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-6 border-b-4 border-b-green-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.win_rate')}</span>
                             <span className="text-3xl font-black text-green-400">{gameWinRate}%</span>
                         </div>
-                        <div className="card text-center p-6 border-b-4 border-b-blue-500">
+                        <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-6 border-b-4 border-b-blue-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.kd')}</span>
                             <span className="text-3xl font-black text-blue-400">{gameKD}</span>
                         </div>
-                        <div className="card text-center p-6 border-b-4 border-b-yellow-500">
+                        <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-6 border-b-4 border-b-yellow-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.hs')}</span>
                             <span className="text-3xl font-black text-yellow-400">{gameHS}%</span>
                         </div>
-                        <div className="card text-center p-6 border-b-4 border-b-emerald-500">
+                        <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-6 border-b-4 border-b-emerald-500">
                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats_labels.wins')}</span>
                             <span className="text-3xl font-black text-emerald-400">{gameWins}</span>
                         </div>
@@ -272,26 +275,26 @@ export function ProfilePage() {
 
             {/* ── KaspaBattle Stats Grid ──────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="card text-center p-8">
+                <div className="glass-panel text-center p-8 border border-white/5 rounded-2xl transition-all hover:bg-white/5">
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.total_matches')}</span>
                     <span className="text-4xl font-black text-white">{user.total_matches}</span>
                 </div>
-                <div className="card text-center p-8 border-b-4 border-b-green-500">
+                <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-8 border-b-4 border-b-green-500">
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.wins')}</span>
                     <span className="text-4xl font-black text-green-500">{user.wins}</span>
                 </div>
-                <div className="card text-center p-8 border-b-4 border-b-red-500">
+                <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-8 border-b-4 border-b-red-500">
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.losses')}</span>
                     <span className="text-4xl font-black text-red-500">{user.losses}</span>
                 </div>
-                <div className="card text-center p-8 border-b-4 border-b-kaspa-primary">
+                <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary text-center p-8 border-b-4 border-b-kaspa-primary">
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">{t('profile.stats.win_rate')}</span>
                     <span className="text-4xl font-black text-kaspa-primary">{winRate.toFixed(1)}%</span>
                 </div>
             </div>
 
             {/* ── Financials ──────────────────────────────────────── */}
-            <div className="card grid grid-cols-1 md:grid-cols-2 gap-8 p-10">
+            <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary grid grid-cols-1 md:grid-cols-2 gap-8 p-10">
                 <div>
                     <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-6 border-l-4 border-kaspa-primary pl-4">{t('profile.financials.title')}</h3>
                     <div className="space-y-4">
@@ -311,18 +314,24 @@ export function ProfilePage() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-center p-6 bg-kaspa-dark rounded-2xl border border-kaspa-border border-dashed">
+                <div className="flex items-center justify-center p-6 bg-kaspa-surface rounded-2xl border border-kaspa-border border-dashed">
                     <div className="text-center">
-                        <p className="text-[10px] text-gray-500 font-black uppercase mb-2">{t('profile.rank')}</p>
-                        <div className="text-6xl mb-2">🥈</div>
-                        <p className="text-xl font-bold italic tracking-tighter">{t('profile.ranks.silver_commander')}</p>
+                        <p className="text-[10px] text-gray-500 font-black uppercase mb-3">{t('profile.rank')}</p>
+                        <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+                            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14 text-gray-500">
+                                <circle cx="24" cy="30" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                <circle cx="24" cy="30" r="9" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1"/>
+                                <path d="M17 10h14v5l-7 4-7-4V10Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
+                            </svg>
+                        </div>
+                        <p className="text-lg font-bold italic tracking-tighter">{t('profile.ranks.silver_commander')}</p>
                         <p className="text-[10px] text-gray-600 mt-2">{t('profile.next_level', { count: 10 })}</p>
                     </div>
                 </div>
             </div>
 
             {/* ── FACEIT Disconnect ───────────────────────────────── */}
-            <div className="card p-6 border border-red-500/10">
+            <div className="glass-panel rounded-2xl border border-red-500/10 shadow-glow-primary p-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <h4 className="text-sm font-bold text-white mb-1">{t('profile.faceit_connection')}</h4>

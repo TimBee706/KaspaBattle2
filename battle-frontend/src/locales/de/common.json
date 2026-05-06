@@ -1,7 +1,8 @@
 {
     "navigation": {
-        "lobby": "Lobby",
-        "create_challenge": "Challenge erstellen",
+        "lobby": "Lobbies",
+        "create_challenge": "Lobby erstellen",
+        "create_tournament": "Turnier erstellen",
         "history": "Historie",
         "wallet": "Wallet",
         "faceit_login": "Login mit FACEIT",
@@ -12,10 +13,12 @@
         "whitepaper": "Whitepaper",
         "terms": "AGB",
         "discord": "Twitter",
+        "instagram": "Instagram",
+        "reddit": "Reddit",
         "support": "Support"
     },
     "hero": {
-        "beta_tag": "Beitritt Phase 1: OPEN BETA",
+        "beta_tag": "Open Beta",
         "title": "PLAY TO WIN <1>KASPA</1>",
         "subtitle": "Die weltweit erste dezentrale Gaming-Wager-Plattform auf Kaspa. Sicher, blitzschnell und 100% Non-Custodial."
     },
@@ -105,12 +108,13 @@
         "ready": "Bereit für dein Match?"
     },
     "lobby": {
-        "title": "Lobby-System",
+        "title": "Lobby Übersicht",
         "test_mode": "Test-Modus aktiv: Wallet-Integration wird priorisiert.",
         "my_lobbies": "Meine Lobbys",
         "available_challenges": "Verfügbare Herausforderungen",
         "active_matches": "Aktive Herausforderungen",
-        "create_challenge": "Challenge erstellen",
+        "create_challenge": "Lobby erstellen",
+        "refresh": "Aktualisieren",
         "mode": "Modus",
         "stake": "Einsatz",
         "players": "Spieler",
@@ -142,7 +146,9 @@
         "tx_history_empty": "Transaktionshistorie wird in Kürze verfügbar sein.",
         "backup_title": "Secret Recovery Phrase (Backup)",
         "backup_text": "Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen. Mitarbeiter von KaspaBattle werden dich niemals danach fragen.",
-        "hover_to_show": "HOVER ZUM ANZEIGEN"
+        "hover_to_show": "HOVER ZUM ANZEIGEN",
+        "refresh": "Balance aktualisieren",
+        "balance_loading_hint": "Wallet-Balance wird geladen..."
     },
     "profile": {
         "level_unknown": "LVL UNBEKANNT",
@@ -380,5 +386,191 @@
             }
         },
         "startGame": "Spiel starten"
+    },
+    "tournaments": {
+        "title": "Turniere",
+        "subtitle": "Spielen, siegen, KAS verdienen",
+        "refresh": "Aktualisieren",
+        "create_btn": "+ Turnier erstellen",
+        "login_create_btn": "Zum Erstellen anmelden",
+        "filter": {
+            "all": "Alle",
+            "open": "Offen",
+            "live": "Live",
+            "completed": "Beendet",
+            "disputed": "Disput",
+            "cancelled": "Abgebrochen"
+        },
+        "empty": {
+            "title": "Keine Turniere gefunden",
+            "subtitle_auth": "Erstelle als Erster ein Turnier!",
+            "subtitle_guest": "Melde dich an, um ein Turnier zu erstellen",
+            "admin_title": "Keine Turniere in dieser Kategorie"
+        },
+        "card": {
+            "buy_in": "Buy-in (KAS)",
+            "max_teams": "Max. Teams",
+            "prize_pool": "Preispool",
+            "deadline": "Anmeldeschluss"
+        },
+        "create": {
+            "title": "Turnier erstellen",
+            "name": "Name",
+            "name_placeholder": "KaspaBattle Weekly #1",
+            "max_teams": "Max. Teams",
+            "teams_count": "{{count}} Teams",
+            "buy_in": "Buy-In (KAS)",
+            "prize_split": "Preisaufteilung",
+            "winner_pct": "Gewinner %",
+            "runner_up_pct": "Zweitplatzierter %",
+            "fee_pct": "Gebühr %",
+            "pct_warning": "Prozentzahlen müssen 100 ergeben (aktuell {{pct}})",
+            "deadline": "Anmeldeschluss (optional)",
+            "game_label": "Spiel",
+            "game_value": "CS2 – Counter-Strike 2",
+            "game_hint": "Turniere sind derzeit nur für Counter-Strike 2 (CS2) verfügbar.",
+            "submit": "Turnier erstellen",
+            "creating": "Erstelle…",
+            "error_fallback": "Erstellen des Turniers fehlgeschlagen"
+        },
+        "admin": {
+            "title": "Turnier-Administration",
+            "subtitle": "Disput-Klärung, Payout-Management, Übersicht",
+            "auth_required": "Admin-Berechtigung erforderlich",
+            "auth_msg": "Bitte melde dich mit einem Admin-Account an.",
+            "loading": "Lade Details…",
+            "stats": {
+                "total": "Gesamt",
+                "live": "Live",
+                "disputed": "Disput",
+                "completed": "Beendet",
+                "prize_pool": "Gesamt-Preispool"
+            },
+            "payout": {
+                "title": "Auszahlungsstatus",
+                "winner_share": "Gewinner-Anteil",
+                "runner_up_share": "Zweitplatzierter-Anteil",
+                "platform_fee": "Plattform-Gebühr",
+                "winner_address": "Gewinner-Adresse",
+                "not_set": "Nicht festgelegt",
+                "payout_tx": "Auszahlungs-TX (abgeschlossen)",
+                "trigger_btn": "Auszahlung auslösen",
+                "triggering": "Wird ausgelöst…",
+                "confirm_trigger": "Auszahlung für dieses Turnier auslösen?"
+            },
+            "disputes": {
+                "title": "Umstrittene Slots ({{count}})",
+                "round_slot": "Runde {{round}}, Slot {{slot}}",
+                "select_winner": "Gewinner wählen…",
+                "resolve_btn": "Lösen",
+                "resolved": "Gelöst",
+                "confirm_resolve": "Disput lösen und dieses Team zum Sieger erklären?"
+            },
+            "cancel": {
+                "btn": "Abbruch erzwingen & Erstatten",
+                "cancelling": "Bricht ab…",
+                "confirm_cancel": "Dieses Turnier abbrechen und alle Einzahlungen zurückerstatten?"
+            }
+        },
+        "detail": {
+            "navbar_back": "← Zurück zu den Turnieren",
+            "not_found": "Turnier nicht gefunden",
+            "teams_count": "Teams",
+            "tabs": {
+                "overview": "Übersicht",
+                "teams": "Teams",
+                "bracket": "Bracket"
+            },
+            "actions": {
+                "results": "Ergebnisse",
+                "register": "Team anmelden",
+                "lock_bracket": "Bracket sperren",
+                "dispute": "Disput",
+                "cancel": "Abbrechen"
+            },
+            "overview": {
+                "info_title": "Turnier Info",
+                "escrow_title": "Escrow",
+                "status": "Status",
+                "game": "Spiel",
+                "buy_in": "Buy-in",
+                "prize_pool": "Preispool",
+                "no_escrow": "Noch keine Escrow-Adresse zugewiesen",
+                "escrow_address": "Escrow-Adresse",
+                "payout_tx": "Auszahlungs-TX"
+            },
+            "prize_banner": {
+                "winner": "Gewinner",
+                "runner_up": "Zweitplatzierter",
+                "fee": "Plattform-Gebühr"
+            },
+            "teams": {
+                "you_badge": "DU",
+                "seed": "Seed #{{seed}}",
+                "captain": "Captain: {{name}}",
+                "unknown": "Unbekannt",
+                "funded": "Eingezahlt",
+                "awaiting_deposit": "Warte auf Einzahlung",
+                "register_title": "Dein Team anmelden",
+                "team_name": "Team-Name",
+                "register_btn": "Anmelden",
+                "registering": "Melde an…",
+                "cancel": "Abbrechen",
+                "error_registration_closed": "Die Anmeldung ist geschlossen.",
+                "error_tournament_full": "Das Turnier ist bereits voll.",
+                "error_name_taken": "Dieser Teamname ist bereits vergeben.",
+                "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+                "error_team_not_found": "Dein Team existiert in diesem Turnier nicht mehr. Bitte lade die Seite neu oder registriere dein Team erneut.",
+
+                "deposit_title": "Dein Team Buy-In einzahlen",
+                "stake_per_team": "Einsatz pro Team",
+                "deposit_now": "Jetzt zahlen"
+            },
+            "bracket": {
+                "grand_final": "Großes Finale",
+                "semifinals": "Halbfinale",
+                "quarterfinals": "Viertelfinale",
+                "round": "Runde {{num}}",
+                "empty_title": "Das Bracket wird angezeigt, sobald der Organisator es freigibt",
+                "waiting": "Warten",
+                "match": "Match {{id}}…",
+                "slot": "Slot {{num}}",
+                "tbd": "Offen",
+                "submit_id": "Match-ID übermitteln",
+                "dispute": "Disput",
+                "submit_btn": "Senden",
+                "cancel": "Abbrechen",
+                "file_dispute": "Disput einreichen",
+                "under_dispute": "Disput offen — Warten auf Admin-Entscheidung",
+                "finished": "Beendet",
+                "placeholder_id": "FaceIT Match-ID",
+                "placeholder_dispute": "Problembeschreibung (min 10 Zeichen)"
+            },
+            "dispute": {
+                "title": "Turnier-Disput einreichen",
+                "placeholder": "Beschreibe das Problem im Detail (min 10 Zeichen)",
+                "submit": "Disput absenden",
+                "cancel": "Abbrechen"
+            },
+            "confirm": {
+                "lock": "Bracket sperren? Dies kann nicht rückgängig gemacht werden.",
+                "cancel": "Dieses Turnier abbrechen? Alle bestätigten Einzahlungen werden erstattet."
+            }
+        },
+        "results": {
+            "title": "Turnier Ergebnisse",
+            "subtitle": "Endplatzierungen & Auszahlungen",
+            "navbar_back": "← Zurück zum Turnier",
+            "back_overview": "Zurück zur Übersicht",
+            "prize_pool": "Gesamt-Preispool",
+            "payout_tx": "Auszahlungs-Transaktion",
+            "placements": {
+                "winner": "Gewinner",
+                "runner_up": "Zweiter",
+                "platform": "Plattform",
+                "participant": "Teilnehmer",
+                "prize": "Preis: {{amount}} KAS"
+            }
+        }
     }
 }

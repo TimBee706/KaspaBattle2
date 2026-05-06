@@ -1,5 +1,5 @@
 # ─── Stage 1: Install cargo-chef for dependency caching ───────────────────────
-FROM rust:1.88-bookworm AS chef
+FROM rust:bookworm AS chef
 ENV CARGO_BUILD_JOBS=1 \
     CARGO_INCREMENTAL=0
 # Install build deps + mold (fast linker — dramatically reduces RAM & link time)

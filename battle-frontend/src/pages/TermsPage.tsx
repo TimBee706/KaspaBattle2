@@ -6,10 +6,13 @@ export function TermsPage() {
   const isGerman = i18n.language.startsWith('de');
 
   return (
-    <div className="max-w-3xl mx-auto py-16 px-4 text-white">
-      <h1 className="text-3xl font-bold mb-4">
-        {t('footer_links.terms')}
-      </h1>
+    <div className="max-w-3xl mx-auto py-16 px-4">
+      <div className="mb-10">
+        <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">
+          {t('footer_links.terms')}
+        </h1>
+      </div>
+      <div className="glass-panel p-8 leading-relaxed">
 
       {isGerman ? (
         <>
@@ -47,6 +50,7 @@ export function TermsPage() {
           </p>
         </>
       )}
+      </div>
     </div>
   );
 }
