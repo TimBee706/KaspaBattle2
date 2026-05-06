@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { LobbyPage } from '../../pages/LobbyPage';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLobbyStore } from '../../stores/useLobbyStore';
