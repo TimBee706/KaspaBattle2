@@ -447,7 +447,7 @@ pub async fn admin_trigger_payout(
         ));
     }
 
-    let payout_service = state.payout_service.as_ref().ok_or_else(|| (
+    let payout_service = state.payout_service.as_ref().ok_or((
         StatusCode::SERVICE_UNAVAILABLE,
         Json(ApiErrorResponse {
             error: "payout_unavailable",
@@ -462,7 +462,7 @@ pub async fn admin_trigger_payout(
     let winner_team_id: Option<Uuid> = row.try_get("winner_team_id_ref").unwrap_or(None);
     let runner_up_team_id: Option<Uuid> = row.try_get("runner_up_team_id_ref").unwrap_or(None);
 
-    let escrow = escrow_address.ok_or_else(|| (
+    let escrow = escrow_address.ok_or((
         StatusCode::CONFLICT,
         Json(ApiErrorResponse {
             error: "no_escrow",

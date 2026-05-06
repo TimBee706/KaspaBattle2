@@ -221,7 +221,7 @@ impl TournamentEpisode {
     /// Each round-N slot at index `i` feeds into round-(N+1) slot at index `i/2`,
     /// as either team_a (if i is even) or team_b (if i is odd).
     pub fn advance_winner_to_next_round(
-        bracket: &mut Vec<BracketSlot>,
+        bracket: &mut [BracketSlot],
         completed_round: u8,
         completed_slot_index: u8,
         winner_team_idx: u8,
@@ -234,7 +234,7 @@ impl TournamentEpisode {
             .find(|s| s.round == next_round && s.slot_index == next_slot_idx)
         {
             // Even slot → team_a of next round; odd → team_b
-            if completed_slot_index % 2 == 0 {
+            if completed_slot_index.is_multiple_of(2) {
                 next_slot.team_a_idx = Some(winner_team_idx);
             } else {
                 next_slot.team_b_idx = Some(winner_team_idx);
@@ -329,7 +329,7 @@ impl Episode for TournamentEpisode {
 
                 // Validate team count is power of 2
                 let n = *max_teams as usize;
-                if n < 4 || n > MAX_TEAMS || (n & (n - 1)) != 0 {
+                if !(4..=MAX_TEAMS).contains(&n) || (n & (n - 1)) != 0 {
                     return Err(EpisodeError::InvalidCommand(TournamentError::InvalidTeamCount));
                 }
 

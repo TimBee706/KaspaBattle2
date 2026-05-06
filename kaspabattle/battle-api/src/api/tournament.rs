@@ -525,7 +525,6 @@ pub async fn list_teams(
         "SELECT tt.id, tt.tournament_id, tt.name, tt.captain_user_id, \
                 u.display_name AS captain_display_name, \
                 tt.deposit_status::text, tt.deposit_tx_hash, tt.deposit_confirmed_at, \
-
                 tt.seed, \
                 COUNT(tm.id) AS member_count \
          FROM tournament_teams tt \
@@ -970,7 +969,6 @@ pub async fn get_bracket(
 
     let rows = sqlx::query(
         "SELECT b.id, b.round, b.slot_index, b.status::text, \
-
                 b.team_a_id, ta.name AS team_a_name, ta.seed AS team_a_seed, \
                 b.team_b_id, tb.name AS team_b_name, tb.seed AS team_b_seed, \
                 b.winner_team_id, b.faceit_match_id, \
@@ -1037,7 +1035,6 @@ pub async fn submit_bracket_match_id(
     // Verify slot belongs to this tournament and is READY
     let slot = sqlx::query(
         "SELECT b.id, b.status::text, b.team_a_id, b.team_b_id \
-
          FROM tournament_bracket b \
          WHERE b.id = $1 AND b.tournament_id = $2",
     )
@@ -1369,7 +1366,6 @@ pub async fn file_bracket_dispute(
     // Caller must be captain of one of the teams in this slot
     let slot = sqlx::query(
         "SELECT team_a_id, team_b_id, status::text, disputed FROM tournament_bracket \
-
          WHERE id = $1 AND tournament_id = $2",
     )
     .bind(slot_id)
@@ -1518,7 +1514,6 @@ pub async fn get_tournament_results(
     // Load full bracket for results page
     let bracket_rows = sqlx::query(
         "SELECT b.id, b.round, b.slot_index, b.status::text, \
-
                 b.team_a_id, ta.name AS team_a_name, ta.seed AS team_a_seed, \
                 b.team_b_id, tb.name AS team_b_name, tb.seed AS team_b_seed, \
                 b.winner_team_id, b.faceit_match_id, \

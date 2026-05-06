@@ -467,22 +467,4 @@ mod tests {
         assert!(winner.is_none());
     }
 
-    #[test]
-    fn test_next_slot_index_calculation() {
-        // Round 1 slot 0 → Round 2 slot 0 (team_a side)
-        assert_eq!(0 / 2, 0);
-        assert_eq!(0 % 2 == 0, true);  // team_a
-
-        // Round 1 slot 1 → Round 2 slot 0 (team_b side)
-        assert_eq!(1 / 2, 0);
-        assert_eq!(1 % 2 == 0, false); // team_b
-
-        // Round 1 slot 2 → Round 2 slot 1 (team_a side)
-        assert_eq!(2 / 2, 1);
-        assert_eq!(2 % 2 == 0, true);  // team_a
-
-        // Round 1 slot 3 → Round 2 slot 1 (team_b side)
-        assert_eq!(3 / 2, 1);
-        assert_eq!(3 % 2 == 0, false); // team_b
-    }
 }

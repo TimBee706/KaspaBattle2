@@ -550,7 +550,7 @@ impl PayoutService {
             .map(|(i, (addr_str, amount))| {
                 let adjusted = if total_requested > 0 {
                     // Pro-rata fee deduction
-                    (*amount * total_after_fee) / total_requested
+                    (*amount * total_after_fee).checked_div(total_requested).unwrap_or(0)
                 } else {
                     *amount
                 };

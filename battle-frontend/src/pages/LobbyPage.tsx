@@ -14,7 +14,7 @@ export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
     const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LIVE' | 'COMPLETED'>('ALL');
     const { lobbies, setLobbies, addOrUpdateLobby } = useLobbyStore();
-    const { user, fetchUser, testMode, setTestMode } = useAuthStore();
+    const { fetchUser, testMode, setTestMode } = useAuthStore();
     const { t } = useTranslation();
     const { lobbyId } = useParams<{ lobbyId: string }>();
 

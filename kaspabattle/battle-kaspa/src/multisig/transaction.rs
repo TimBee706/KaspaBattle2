@@ -82,7 +82,6 @@ pub fn create_unsigned_payout_tx(
     // For a 2-of-3 multisig: 3 keys → sig_op_count = 3.
     // Setting this to 2 (the threshold) causes node rejection:
     // "sig op count exceeds passed limit of 2"
-    let sig_op_count: u8 = 3; // 2-of-3 multisig: 3 public keys in the redeem script
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
