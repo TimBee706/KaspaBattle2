@@ -727,7 +727,7 @@ pub async fn submit_team_deposit(
     let row = sqlx::query(
         "UPDATE tournament_teams \
          SET deposit_tx_hash = $1, deposit_status = 'PENDING', updated_at = NOW() \
-         WHERE id = $2 AND deposit_status = 'PENDING' \
+         WHERE id = $2 AND deposit_status != 'CONFIRMED' \
          RETURNING id, tournament_id, name, captain_user_id, deposit_status::text, deposit_tx_hash, deposit_confirmed_at, seed"
 
     )
@@ -748,7 +748,7 @@ pub async fn submit_team_deposit(
     tracing::info!(
         tournament_id = %tournament_id,
         team_id = %team_id,
-        tx_hash = %tx_hash,
+        tx_hash = %&tx_hash[..12.min(tx_hash.len())],
         "💸 Tournament team deposit submitted (PENDING)"
     );
 

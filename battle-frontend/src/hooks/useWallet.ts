@@ -4,7 +4,7 @@ import { useWalletStore } from '../stores/useWalletStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLobbyStore } from '../stores/useLobbyStore';
 import { useMatchStore } from '../stores/useMatchStore';
-import { importWallet, getBalanceByAddress, getRpcClient } from '../kaspa/wallet';
+import { importWallet, getBalanceByAddress, getRpcClient, sendKasFromWallet } from '../kaspa/wallet';
 import apiClient from '../api/client';
 import { submitTournamentDeposit } from '../api/tournaments';
 import { getErrorMessage } from '../utils/errors';
@@ -206,18 +206,26 @@ export function useWallet() {
         }
     }, [address, fetchBalance, isConnected]);
 
-    const signAndSendDeposit = useCallback(async (matchId: string, amountKas: number) => {
-        try {
-            console.log(`[useWallet] Signing deposit for match ${matchId} with ${amountKas} KAS`);
+    const signAndSendDeposit = useCallback(async (matchId: string, amountKas: number, escrowAddress: string) => {
+        if (!address) {
+            throw new Error('Bitte verbinde zuerst deine Kaspa Wallet.');
+        }
 
-            const txHash = `simulated_tx_${Math.random().toString(36).substring(7)}`;
+        try {
+            console.log(`[useWallet] Sending REAL deposit for match ${matchId} with ${amountKas} KAS`);
+
+            const amountSompi = BigInt(Math.round(amountKas * 100_000_000));
+            const { txId } = await sendKasFromWallet(address, escrowAddress, amountSompi);
 
             await apiClient.post('/matches/deposit', {
                 match_id: matchId,
-                tx_hash: txHash,
+                tx_hash: txId,
             });
 
-            if (address) await fetchBalance(address);
+            await new Promise(r => setTimeout(r, 1500));
+            await fetchBalance(address, true);
+            
+            return txId;
         } catch (e) {
             console.error('[useWallet] Deposit failed:', e);
             throw e;
@@ -225,20 +233,23 @@ export function useWallet() {
     }, [address, fetchBalance]);
 
     const signAndSendTournamentDeposit = useCallback(
-        async (tournamentId: string, teamId: string, amountKas: number) => {
+        async (tournamentId: string, teamId: string, amountKas: number, escrowAddress: string) => {
+            if (!address) {
+                throw new Error('Bitte verbinde zuerst deine Kaspa Wallet.');
+            }
+
             try {
-                console.log(`[useWallet] Signing deposit for tournament ${tournamentId}, team ${teamId} with ${amountKas} KAS`);
+                console.log(`[useWallet] Sending REAL deposit for tournament ${tournamentId}, team ${teamId} with ${amountKas} KAS`);
                 
-                // Simulated Kasware transaction for testing
-                const txHash = `simulated_tx_${Math.random().toString(36).substring(7)}`;
+                const amountSompi = BigInt(Math.round(amountKas * 100_000_000));
+                const { txId } = await sendKasFromWallet(address, escrowAddress, amountSompi);
 
-                await submitTournamentDeposit(tournamentId, teamId, txHash);
+                await submitTournamentDeposit(tournamentId, teamId, txId);
 
-                if (address) {
-                    await fetchBalance(address);
-                }
+                await new Promise(r => setTimeout(r, 1500));
+                await fetchBalance(address, true);
 
-                return txHash;
+                return txId;
             } catch (e) {
                 console.error('[useWallet] Tournament deposit failed:', e);
                 throw e;

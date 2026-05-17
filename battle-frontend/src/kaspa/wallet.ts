@@ -3,6 +3,7 @@ import { initKaspaWasm } from './init';
 import { getRpcClient } from './rpc';
 import { KASPA_NETWORK } from '../config/constants';
 import { getErrorMessage } from '../utils/errors';
+import { useWalletStore } from '../stores/useWalletStore';
 
 export { getRpcClient };
 
@@ -238,4 +239,25 @@ export function onBalanceChange(
             }
         });
     }).catch(console.error);
+}
+
+export async function sendKasFromWallet(
+    fromAddress: string,
+    toAddress: string,
+    amountSompi: bigint,
+): Promise<{ txId: string }> {
+    const { account } = useWalletStore.getState();
+    const mnemonicPhrase = account?.mnemonicPhrase;
+
+    if (!mnemonicPhrase) {
+        throw new Error('Kein Mnemonic gefunden. Bitte verbinde dein Wallet neu.');
+    }
+
+    try {
+        const txId = await sendDeposit(mnemonicPhrase, toAddress, Number(amountSompi));
+        return { txId };
+    } catch (e) {
+        console.error('[sendKasFromWallet] Transaction failed:', e);
+        throw e;
+    }
 }

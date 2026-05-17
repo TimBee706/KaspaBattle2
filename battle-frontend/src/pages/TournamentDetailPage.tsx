@@ -391,7 +391,10 @@ function DepositBlock({ tournament, myTeam, onDepositSuccess }: { tournament: To
     setDepositError(null);
     setIsDepositing(true);
     try {
-      await signAndSendTournamentDeposit(tournament.id, myTeam.id, amountKas);
+      if (!tournament.escrow_address) {
+        throw new Error("Turnier hat keine Escrow Adresse.");
+      }
+      await signAndSendTournamentDeposit(tournament.id, myTeam.id, amountKas, tournament.escrow_address);
       onDepositSuccess();
     } catch (e: unknown) {
       const err = e as { message?: string; response?: { data?: { error?: string; message?: string } } };
