@@ -679,6 +679,30 @@ pub async fn submit_team_deposit(
         return Err(forbidden());
     }
 
+    // Validate tx_hash length before touching the DB.
+    let tx_hash = req.tx_hash.trim().to_string();
+    if tx_hash.is_empty() || tx_hash.len() > 128 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiErrorResponse {
+                error: "invalid_tx_hash",
+                message: "tx_hash must be 1–128 characters.",
+            }),
+        ));
+    }
+
+    // Guard: do not overwrite a CONFIRMED deposit — it is immutable once set.
+    let deposit_status: String = team.try_get("deposit_status").unwrap_or_default();
+    if deposit_status == "CONFIRMED" {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ApiErrorResponse {
+                error: "deposit_already_confirmed",
+                message: "This team's deposit is already confirmed on-chain and cannot be changed.",
+            }),
+        ));
+    }
+
     // 2) Verify tournament status
     let tournament_status: String = sqlx::query_scalar(
         "SELECT status::text FROM tournaments WHERE id = $1"
@@ -703,11 +727,11 @@ pub async fn submit_team_deposit(
     let row = sqlx::query(
         "UPDATE tournament_teams \
          SET deposit_tx_hash = $1, deposit_status = 'PENDING', updated_at = NOW() \
-         WHERE id = $2 \
+         WHERE id = $2 AND deposit_status = 'PENDING' \
          RETURNING id, tournament_id, name, captain_user_id, deposit_status::text, deposit_tx_hash, deposit_confirmed_at, seed"
 
     )
-    .bind(&req.tx_hash)
+    .bind(&tx_hash)
     .bind(team_id)
     .fetch_one(&state.pool)
     .await
@@ -724,7 +748,7 @@ pub async fn submit_team_deposit(
     tracing::info!(
         tournament_id = %tournament_id,
         team_id = %team_id,
-        tx_hash = %req.tx_hash,
+        tx_hash = %tx_hash,
         "💸 Tournament team deposit submitted (PENDING)"
     );
 

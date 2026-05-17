@@ -1,4 +1,4 @@
-﻿/// Blockchain watcher — polls escrow addresses for deposits.
+/// Blockchain watcher — polls escrow addresses for deposits.
 ///
 /// **⚠️ DEPRECATED (v0.7):** This polling-based watcher is superseded by the
 /// kdapp Proxy/Engine in `battle-kdapp`. New code should use:
@@ -58,6 +58,11 @@ impl BlockchainWatcher {
             kaspa,
             poll_interval,
         }
+    }
+
+    /// Get the current DAA score of the network.
+    pub async fn get_current_daa_score(&self) -> Result<u64, KaspaError> {
+        self.kaspa.get_current_daa_score().await
     }
 
     /// Check the balance and UTXOs of an escrow address.

@@ -24,6 +24,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::api::{AppState, ApiErrorResponse, admin_guard::AdminApiKey};
+use crate::tournament_payout_worker::calculate_prize_shares;
 
 type ApiError = (StatusCode, Json<ApiErrorResponse>);
 
@@ -455,6 +456,29 @@ pub async fn admin_trigger_payout(
         }),
     ))?;
 
+    // B-02 / I-06: Race safety with atomic 'PROCESSING' marker.
+    // This avoids string-matching on Postgres lock errors and prevents the TOCTOU
+    // race condition since both the worker and admin claim the row before processing.
+    let claimed: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE tournaments SET payout_tx_hash = 'PROCESSING' \
+         WHERE id = $1 AND status = 'COMPLETED' AND payout_tx_hash IS NULL \
+         RETURNING id"
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(db_err)?;
+
+    if claimed.is_none() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ApiErrorResponse {
+                error: "already_paid_or_processing",
+                message: "Payout already executed, in progress, or tournament no longer COMPLETED.",
+            }),
+        ));
+    }
+
     let pool_sompi: i64 = row.try_get("total_prize_pool_sompi").unwrap_or(0);
     let winner_pct: i64 = row.try_get::<i16, _>("prize_winner_pct").unwrap_or(70) as i64;
     let runner_up_pct: i64 = row.try_get::<i16, _>("prize_runner_up_pct").unwrap_or(20) as i64;
@@ -488,9 +512,9 @@ pub async fn admin_trigger_payout(
         ));
     }
 
-    let winner_sompi = (pool_sompi * winner_pct / 100) as u64;
-    let runner_up_sompi = (pool_sompi * runner_up_pct / 100) as u64;
-    let fee_sompi = pool_sompi.saturating_sub((winner_sompi + runner_up_sompi) as i64) as u64;
+    // Use shared fee helper (consistent with execute_pending_payouts in the Worker).
+    let (winner_sompi, runner_up_sompi, fee_sompi) =
+        calculate_prize_shares(pool_sompi, winner_pct, runner_up_pct);
 
     let mut outputs = vec![
         (winner_addr.unwrap(), winner_sompi),
@@ -507,9 +531,10 @@ pub async fn admin_trigger_payout(
 
     match payout_service.execute_tournament_payout(&params).await {
         Ok(result) => {
-            // Record payout TX
+            // Commit the real TX hash over the PROCESSING marker.
             sqlx::query(
-                "UPDATE tournaments SET payout_tx_hash = $1, payout_executed_at = NOW(), updated_at = NOW() WHERE id = $2",
+                "UPDATE tournaments SET payout_tx_hash = $1, payout_executed_at = NOW(), updated_at = NOW() \
+                 WHERE id = $2 AND payout_tx_hash = 'PROCESSING'",
             )
             .bind(&result.tx_id)
             .bind(id)
@@ -552,6 +577,11 @@ pub async fn admin_trigger_payout(
             })))
         }
         Err(e) => {
+            // Rollback the PROCESSING marker on failure so it can be retried
+            let _ = sqlx::query(
+                "UPDATE tournaments SET payout_tx_hash = NULL WHERE id = $1 AND payout_tx_hash = 'PROCESSING'"
+            ).bind(id).execute(&state.pool).await;
+
             tracing::error!(tournament_id = %id, error = %e, "Admin: tournament payout failed");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
