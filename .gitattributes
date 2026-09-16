@@ -1,0 +1,10 @@
+# Force LF for anything that runs inside Linux containers or on a Linux server,
+# regardless of core.autocrlf on a given contributor's/deploy machine's Windows
+# checkout. Without this, `git archive`/checkout on Windows can silently turn
+# LF into CRLF for these files, which breaks shebang lines (`/usr/bin/env bash\r`
+# => "No such file or directory") when deployed to a Linux host.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+docker-compose*.yml text eol=lf
+Caddyfile*      text eol=lf
+*.rs            text eol=lf
