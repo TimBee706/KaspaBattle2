@@ -1,14 +1,25 @@
 # ─── KaspaBattle Production Reverse Proxy ─────────────────────────────────────
 # Caddy handles HTTPS (Let's Encrypt) automatically.
-# Canonical domain: www.kaspabattle.com (with www)
+#
+# Setup on the server:
+#   1. cp Caddyfile.example Caddyfile
+#   2. Set DOMAIN and TLS_EMAIL in .env (docker-compose's own ${VAR}-substitution
+#      file — NOT .env.production, which only feeds the backend container's own
+#      runtime env). Compose passes them into the `caddy` service's environment,
+#      see docker-compose.yml.
+#   3. Start with the proxy profile enabled: docker-compose --profile proxy up -d
+#
+# DOMAIN/TLS_EMAIL below are read from the container environment via Caddy's
+# {$VAR} placeholder syntax — nothing is hardcoded in this file.
 
-# Redirect non-www → www (single canonical origin for cookies & CORS)
-kaspabattle.com {
-	redir https://www.kaspabattle.com{uri} permanent
+# Redirect bare domain -> www (single canonical origin for cookies & CORS).
+# Remove this block if you don't use a www/non-www split for your domain.
+{$DOMAIN} {
+	redir https://www.{$DOMAIN}{uri} permanent
 }
 
-www.kaspabattle.com {
-	tls timo.beermann98@gmail.com
+www.{$DOMAIN} {
+	tls {$TLS_EMAIL}
 
 	# ── API: preserve full path, proxy to backend ──────────────────────────
 	handle /api/* {
@@ -24,11 +35,17 @@ www.kaspabattle.com {
 		reverse_proxy backend:8080
 	}
 
-	# ── Kaspa wRPC Proxy (Browser → Node) ───────────────────────────────────
-	# Browser-WASM kann kein ws:// über https:// nutzen (mixed content).
-	# Caddy terminiert TLS und leitet als plain WS weiter.
+	# ── OPTIONAL: Kaspa wRPC Proxy (Browser → externer Node) ────────────────
+	# Nur nötig, wenn das Frontend/WASM-SDK direkt (nicht über das Backend) mit
+	# einem externen Kaspa-Node spricht und dieser Node kein natives wss://
+	# anbietet: Browser-WASM kann kein ws:// über https:// nutzen (mixed
+	# content), Caddy terminiert hier TLS und leitet als plain WS weiter.
+	# KASPA_RPC_HTTP_TARGET z.B. "http://217.160.255.235:17110" — an den
+	# tatsächlich genutzten externen RPC-Provider anpassen, oder diesen
+	# gesamten Block entfernen, falls das Backend alle Kaspa-RPC-Aufrufe
+	# übernimmt (empfohlen, siehe Security-Hinweis in DEPLOYMENT_IONOS_DOCKER.md).
 	handle_path /kaspa-rpc {
-		reverse_proxy http://217.160.255.235:17110
+		reverse_proxy {$KASPA_RPC_HTTP_TARGET}
 	}
 
 	# ── Frontend SPA: everything else ──────────────────────────────────────

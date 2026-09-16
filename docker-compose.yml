@@ -51,12 +51,11 @@ services:
     env_file:
       - .env.production
     environment:
-      # Override to use Docker service names instead of localhost
+      # Override to use Docker service names instead of localhost.
+      # All Kaspa RPC settings (KASPA_NODE_URL, KASPA_USE_EXPLICIT_NODE, KASPA_NETWORK)
+      # come exclusively from .env.production — no node/IP is hardcoded here.
+      # Without an explicit node, battle-api falls back to the public Kaspa Resolver.
       DATABASE_URL: postgres://${POSTGRES_USER:-kaspabattle}:${POSTGRES_PASSWORD:?Database password required}@postgres:5432/${POSTGRES_DB:-kaspabattle}
-      # Kaspa RPC: Custom Node on 217.160.255.235 (Testnet-10, wRPC Borsh Port 17110)
-      KASPA_USE_EXPLICIT_NODE: "true"
-      KASPA_NODE_URL: "ws://217.160.255.235:17110"
-      KASPA_NETWORK: "testnet-10"
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,19 +69,35 @@ services:
       start_period: 45s
 
   # ── Vite / React Frontend ───────────────────────────────────────────────────
+  # build.target defaults to "dev" (Vite dev server) for local testing.
+  # Set FRONTEND_BUILD_TARGET=prod in .env for a real deployment (optimized
+  # static build served via `serve` instead of the Vite dev server).
   frontend:
     build:
       context: .
       dockerfile: battle-frontend/Dockerfile
-      target: dev
+      target: ${FRONTEND_BUILD_TARGET:-dev}
+      # Only consumed by the "prod" target's `npm run build` step — Vite bakes
+      # VITE_* into the static bundle at build time, so runtime `environment:`
+      # below is not enough for target=prod (it IS enough for target=dev, where
+      # the Vite dev server reads them live). Same values, kept in sync.
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8080/ws}
+        VITE_KASPA_NETWORK: ${KASPA_NETWORK:-testnet-10}
+        VITE_KASPA_NODE_URL: ${VITE_KASPA_NODE_URL:-}
     restart: unless-stopped
     ports:
       - "5173:5173"
     environment:
-      VITE_API_BASE_URL: /api/v1
-      VITE_WS_BASE_URL: wss://www.kaspabattle.com/ws
-      VITE_KASPA_NETWORK: testnet-10
-      VITE_KASPA_NODE_URL: wss://www.kaspabattle.com/kaspa-rpc
+      # Local-dev-friendly defaults; override in .env/.env.production for a real domain.
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+      VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8080/ws}
+      VITE_KASPA_NETWORK: ${KASPA_NETWORK:-testnet-10}
+      # Only relevant if the browser talks to the Kaspa node directly through the
+      # Caddy proxy (see Caddyfile.example, /kaspa-rpc). Leave unset to have the
+      # frontend rely on the backend for all Kaspa RPC instead.
+      VITE_KASPA_NODE_URL: ${VITE_KASPA_NODE_URL:-}
     depends_on:
       backend:
         condition: service_started
@@ -93,14 +108,29 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Caddy Reverse Proxy ─────────────────────────────────────────────────────
+  # ── Caddy Reverse Proxy (production only) ───────────────────────────────────
+  # Not started by a plain `docker-compose up` — needs a real domain + Caddyfile.
+  # Enable explicitly for IONOS/production: `docker-compose --profile proxy up -d`
+  # Setup: cp Caddyfile.example Caddyfile, then set DOMAIN/TLS_EMAIL in .env.
+  # (DOMAIN/TLS_EMAIL default to empty here — not `:?required` — so a profile-less
+  # `docker-compose up` for local testing never fails config parsing because of
+  # this service; Caddy itself will error clearly at container start if this
+  # profile is enabled without setting them.)
   caddy:
     image: caddy:2.7-alpine
     restart: unless-stopped
+    profiles: ["proxy"]
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"   # HTTP/3 (QUIC)
+    environment:
+      # Read by Caddyfile via {$DOMAIN} / {$TLS_EMAIL} / {$KASPA_RPC_HTTP_TARGET}.
+      DOMAIN: ${DOMAIN:-}
+      TLS_EMAIL: ${TLS_EMAIL:-}
+      # Optional: only needed if the browser talks to the Kaspa node directly
+      # through Caddy (mixed-content workaround for ws:// nodes behind https://).
+      KASPA_RPC_HTTP_TARGET: ${KASPA_RPC_HTTP_TARGET:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

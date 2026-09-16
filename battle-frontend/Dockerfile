@@ -31,7 +31,18 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
 CMD ["npx", "vite", "--host", "0.0.0.0"]
 
 # ─── Production build target ────────────────────────────────────────────────────
+# Vite inlines VITE_* into the static bundle at build time (not at container
+# start), so these must arrive as Docker build ARGs, not just runtime env vars.
+# docker-compose.yml passes them through frontend.build.args for the prod target.
 FROM deps AS build
+ARG VITE_API_BASE_URL
+ARG VITE_WS_BASE_URL
+ARG VITE_KASPA_NETWORK
+ARG VITE_KASPA_NODE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_WS_BASE_URL=$VITE_WS_BASE_URL \
+    VITE_KASPA_NETWORK=$VITE_KASPA_NETWORK \
+    VITE_KASPA_NODE_URL=$VITE_KASPA_NODE_URL
 COPY battle-frontend/ .
 COPY --from=deps /app/package.json ./package.json
 RUN npm run build
