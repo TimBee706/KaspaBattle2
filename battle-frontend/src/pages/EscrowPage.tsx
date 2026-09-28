@@ -106,7 +106,7 @@ export const EscrowPage: React.FC = () => {
 
     if (matchError || localError) {
         return (
-            <div className="container mx-auto px-4 py-12 max-w-2xl text-center">
+            <div className="max-w-2xl mx-auto text-center">
                 <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-500 font-bold mb-4">
                     x {localError || matchError}
                 </div>
@@ -150,7 +150,7 @@ export const EscrowPage: React.FC = () => {
     };
 
     return (
-        <div className="container mx-auto px-4 py-12 max-w-2xl">
+        <div className="max-w-2xl mx-auto">
             <div className="card border-2 border-kaspa-primary/30 p-8 animate-in fade-in zoom-in-95 duration-500">
                 <div className="text-center mb-8">
                     <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 transition-all duration-500 ${successState ? 'bg-green-500/20 text-green-400' : 'bg-kaspa-primary/20 text-kaspa-primary'}`}>

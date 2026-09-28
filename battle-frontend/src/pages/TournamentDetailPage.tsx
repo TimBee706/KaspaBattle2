@@ -618,7 +618,7 @@ export function TournamentDetailPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div>
       <div className="max-w-5xl mx-auto space-y-6">
 
         <Link to="/tournaments" className="text-gray-500 hover:text-kaspa-primary text-sm flex items-center gap-1.5 transition-colors w-fit">

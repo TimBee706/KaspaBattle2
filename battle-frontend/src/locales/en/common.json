@@ -109,22 +109,24 @@
             "tournament": "Tournament mode"
         },
         "why_kaspa": "WHY KASPA?",
+        "why_kaspa_eyebrow": "Technology",
+        "why_kaspa_intro": "KaspaBattle relies on a combination most blockchains can't offer at once: sub-second finality, fees low enough that a modest wager isn't eaten by transaction costs, and Proof-of-Work security that doesn't depend on trusting a small validator set. That combination is what makes on-chain escrow for individual matches — not just large tournaments — practical in the first place.",
         "features": {
             "finality": {
                 "title": "Fast finality ~1s",
-                "text": "Transactions are extremely fast and finally confirmed."
+                "text": "A match result can be settled and paid out almost as soon as it's confirmed — no multi-minute wait between game end and payout."
             },
             "blocks": {
-                "title": "10 blocks per second",
-                "text": "The power of the strongest blockDAG network."
+                "title": "High throughput",
+                "text": "Kaspa's BlockDAG processes many blocks per second, so deposits and payouts aren't stuck competing for scarce block space during busy periods."
             },
             "fees": {
-                "title": "Very low fees",
-                "text": "Minimal costs, ideal for nano-bets."
+                "title": "Low fees",
+                "text": "Transaction costs stay small relative to typical wagers, so even modest 1v1 stakes remain worthwhile."
             },
             "security": {
                 "title": "Proof-of-Work security",
-                "text": "Nakamoto consensus for maximum decentralization."
+                "text": "Consensus doesn't rely on a small validator set — the same security model protecting the network protects every escrow it holds."
             }
         },
         "future": "THE FUTURE OF ESPORTS",
@@ -271,14 +273,16 @@
         "preview": {
             "title": "Prize Preview",
             "your_wager": "Your Stake:",
-            "fees": "Pool Fees (5%):",
+            "fees": "Pool Fees ({{percent}}%):",
             "potential_win": "Potential Win:"
         },
         "publish": "PUBLISH CHALLENGE",
         "wallet_needed": "Please connect your wallet to proceed.",
         "creating": "Creating...",
         "connect_wallet_hint": "Please connect wallet",
-        "connect_faceit_hint": "Please connect with FaceID"
+        "connect_faceit_hint": "Please connect with FaceID",
+        "auth_loading": "Checking your session…",
+        "auth_loading_button": "Loading…"
     },
     "create_match": {
         "title": "CHALLENGE SOMEONE",

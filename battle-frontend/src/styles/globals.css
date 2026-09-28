@@ -6,6 +6,19 @@
   body {
     @apply bg-kaspa-dark text-white font-sans antialiased;
   }
+
+  /* Site-wide keyboard-focus ring. :focus-visible (not :focus) so it only
+     appears for keyboard/assistive-tech navigation, not every mouse click.
+     Deliberately generic (input/select/textarea/button/a/[role=button]) so
+     previously bare `outline-none` fields and elements like the Lobby row
+     (role="button", tabIndex=0, no prior focus style at all) all get a
+     consistent indicator without per-component overrides. */
+  input:focus-visible, select:focus-visible, textarea:focus-visible,
+  button:focus-visible, a:focus-visible,
+  [role="button"]:focus-visible, [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(73, 234, 203, 0.35);
+  }
 }
 
 @layer components {
@@ -19,6 +32,30 @@
 
   .card {
     @apply bg-kaspa-card border border-kaspa-border rounded-xl p-4 shadow-lg;
+  }
+
+  /* Shared form primitives — consolidates the label/input/select strings
+     that were previously hand-copied verbatim across CreateChallengeForm,
+     CreateTournamentPage, etc. Visual baseline is unchanged (same colors/
+     padding/radius as before), just centralized. */
+  .form-label {
+    @apply block text-xs uppercase tracking-widest text-gray-500 font-bold mb-2;
+  }
+
+  .form-input {
+    @apply w-full bg-kaspa-dark border border-kaspa-border rounded-lg px-3 py-2 text-sm text-white transition-colors focus:border-kaspa-primary outline-none;
+  }
+
+  .form-input-error {
+    @apply border-red-500/70;
+  }
+
+  .form-hint {
+    @apply text-xs text-gray-500 mt-1.5;
+  }
+
+  .form-error {
+    @apply text-xs text-red-400 mt-1.5 flex items-center gap-1.5;
   }
 
   /* Moved here from src/index.css, which is not imported anywhere (dead file) —

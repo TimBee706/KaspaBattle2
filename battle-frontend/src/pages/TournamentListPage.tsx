@@ -139,7 +139,7 @@ export function TournamentListPage() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div>
       {/* Header – mirrors LobbyPage */}
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
         <div>

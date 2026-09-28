@@ -30,7 +30,7 @@ export function WalletPage() {
 
     if (!isConnected || !address) {
         return (
-            <div className="container mx-auto px-4 py-8">
+            <div>
                 {/* Header — mirrors LobbyPage exactly */}
                 <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
                     <div>
@@ -93,7 +93,7 @@ export function WalletPage() {
     const balance = balanceSompi / 100_000_000;
 
     return (
-        <div className="container mx-auto px-4 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div>
             {/* Header — mirrors LobbyPage exactly */}
             <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
                 <div>

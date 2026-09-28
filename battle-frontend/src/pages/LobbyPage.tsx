@@ -9,6 +9,7 @@ import { WS_BASE_URL } from '../config/constants';
 import { useTranslation } from 'react-i18next';
 
 import { Icon } from '../components/Icon';
+import { PageHeader } from '../components/common/PageHeader';
 
 export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
@@ -67,28 +68,29 @@ export const LobbyPage: React.FC = () => {
     ];
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
-                <div>
-                    <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">{t('lobby.title')}</h1>
-                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">{t('lobby.active_matches')}</p>
-                </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <button
-                        onClick={() => apiClient.get('/lobbies').then(res => setLobbies(res.data || [])).catch(console.error)}
-                        className="p-2 rounded-lg border border-white/10 hover:border-kaspa-primary/30 text-gray-400 hover:text-kaspa-primary transition-all shrink-0"
-                        title={t('lobby.refresh')}
-                    >
-                        ↻
-                    </button>
-                    <button
-                        onClick={() => navigate('/lobby/create')}
-                        className="w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95 text-center"
-                    >
-                        {t('lobby.create_challenge')}
-                    </button>
-                </div>
-            </div>
+        <div>
+            <PageHeader
+                icon="list"
+                title={t('lobby.title')}
+                subtitle={t('lobby.active_matches')}
+                actions={
+                    <>
+                        <button
+                            onClick={() => apiClient.get('/lobbies').then(res => setLobbies(res.data || [])).catch(console.error)}
+                            className="p-2.5 rounded-lg border border-white/10 hover:border-kaspa-primary/30 text-gray-400 hover:text-kaspa-primary transition-all shrink-0"
+                            title={t('lobby.refresh')}
+                        >
+                            <Icon name="refresh" className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => navigate('/lobby/create')}
+                            className="w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-glow-subtle active:scale-95 text-center"
+                        >
+                            {t('lobby.create_challenge')}
+                        </button>
+                    </>
+                }
+            />
 
             {testMode && <div className="glass-panel p-4 border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
                 <Icon name="beaker" className="w-4 h-4 shrink-0 text-blue-400" />
@@ -104,7 +106,7 @@ export const LobbyPage: React.FC = () => {
                         className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest transition-all duration-200 ${
                             filter === opt.value
                                 ? 'bg-kaspa-primary text-kaspa-dark'
-                                : 'bg-white/5 text-slate-500 hover:text-white hover:bg-white/10'
+                                : 'bg-white/5 text-gray-500 hover:text-white hover:bg-white/10'
                         }`}
                     >
                         {opt.label}

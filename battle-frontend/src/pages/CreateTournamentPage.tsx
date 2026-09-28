@@ -52,7 +52,7 @@ export function CreateTournamentPage() {
     const pct = form.prize_winner_pct + form.prize_runner_up_pct + form.platform_fee_pct;
 
     return (
-        <div className="container mx-auto px-4 py-8 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div>
             {/* Header */}
             <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-8">
                 <div>

@@ -216,8 +216,16 @@ export function LandingPage() {
             </section>
 
             {/* Warum Kaspa? */}
-            <section className="py-20 border-t border-kaspa-border">
-                <h2 className="text-3xl md:text-4xl font-black text-center mb-16 underline decoration-kaspa-primary decoration-4 underline-offset-8">{t('sections.why_kaspa')}</h2>
+            <section className="py-20 border-t border-kaspa-border relative overflow-hidden">
+                {/* Subtle background light island, echoing the hero glow at a much lower key */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-kaspa-primary/5 blur-[140px] rounded-full -z-10" />
+
+                <SectionHeading
+                    eyebrow={t('sections.why_kaspa_eyebrow')}
+                    title={t('sections.why_kaspa')}
+                    subtitle={t('sections.why_kaspa_intro')}
+                />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {([
                         { iconName: 'bolt'   as const, title: t('sections.features.finality.title'),  text: t('sections.features.finality.text') },
@@ -225,7 +233,7 @@ export function LandingPage() {
                         { iconName: 'coin'   as const, title: t('sections.features.fees.title'),      text: t('sections.features.fees.text') },
                         { iconName: 'shield' as const, title: t('sections.features.security.title'), text: t('sections.features.security.text') },
                     ]).map((feature) => (
-                        <div key={feature.title} className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all p-8 text-center hover:-translate-y-1 duration-300">
+                        <div key={feature.title} className="glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle transition-all p-8 text-center hover:-translate-y-1 duration-300">
                             <div className="w-14 h-14 mb-6 mx-auto rounded-xl bg-kaspa-primary/10 border border-kaspa-primary/20 flex items-center justify-center">
                                 <Icon name={feature.iconName} className="w-7 h-7 text-kaspa-primary" />
                             </div>

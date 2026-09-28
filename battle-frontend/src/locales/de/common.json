@@ -109,22 +109,24 @@
             "tournament": "Turniermodus"
         },
         "why_kaspa": "WARUM KASPA?",
+        "why_kaspa_eyebrow": "Technologie",
+        "why_kaspa_intro": "KaspaBattle setzt auf eine Kombination, die kaum eine andere Blockchain gleichzeitig bietet: Finalität in unter einer Sekunde, Gebühren, die niedrig genug sind, dass ein moderater Einsatz nicht von den Transaktionskosten aufgefressen wird, und Proof-of-Work-Sicherheit, die nicht von einer kleinen Validator-Gruppe abhängt. Genau diese Kombination macht On-Chain-Escrow für einzelne Matches – nicht nur für große Turniere – überhaupt erst praktikabel.",
         "features": {
             "finality": {
                 "title": "Schnelle Finalität ~1s",
-                "text": "Transaktionen sind extrem schnell und final bestätigt."
+                "text": "Ein Match-Ergebnis kann fast so schnell abgewickelt und ausgezahlt werden, wie es bestätigt wird – kein minutenlanges Warten zwischen Spielende und Auszahlung."
             },
             "blocks": {
-                "title": "10 Blöcke pro Sekunde",
-                "text": "Die Power des stärksten BlockDAG-Netzwerks."
+                "title": "Hoher Durchsatz",
+                "text": "Kaspas BlockDAG verarbeitet viele Blöcke pro Sekunde, sodass Einzahlungen und Auszahlungen auch bei hoher Auslastung nicht um knappen Blockplatz konkurrieren."
             },
             "fees": {
-                "title": "Sehr niedrige Gebühren",
-                "text": "Minimalste Kosten, ideal für Nano-Wetten geeignet."
+                "title": "Niedrige Gebühren",
+                "text": "Die Transaktionskosten bleiben im Verhältnis zum Einsatz gering – auch moderate 1v1-Einsätze lohnen sich noch."
             },
             "security": {
-                "title": "Proof-of-Work Sicherheit",
-                "text": "Nakamoto-Konsens für maximale Dezentralität."
+                "title": "Proof-of-Work-Sicherheit",
+                "text": "Der Konsens hängt nicht von einer kleinen Validator-Gruppe ab – dasselbe Sicherheitsmodell, das das Netzwerk schützt, schützt auch jeden Escrow darauf."
             }
         },
         "future": "DIE ZUKUNFT DES ESPORTS",
@@ -271,14 +273,16 @@
         "preview": {
             "title": "Gewinn-Vorschau",
             "your_wager": "Dein Einsatz:",
-            "fees": "Protokoll-Fee (1%):",
+            "fees": "Protokoll-Fee ({{percent}}%):",
             "potential_win": "Möglicher Gewinn:"
         },
         "publish": "CHALLENGE VERÖFFENTLICHEN",
         "wallet_needed": "Bitte verbinde dein Wallet, um fortzufahren.",
         "creating": "Erstelle...",
         "connect_wallet_hint": "Bitte Wallet verbinden",
-        "connect_faceit_hint": "Bitte mit FaceID verbinden"
+        "connect_faceit_hint": "Bitte mit FaceID verbinden",
+        "auth_loading": "Session wird geprüft…",
+        "auth_loading_button": "Lädt…"
     },
     "create_match": {
         "title": "FORDERE JEMANDEN HERAUS",

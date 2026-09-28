@@ -124,7 +124,7 @@ export function ProfilePage() {
     const gameRecentResults = lifetime?.['Recent Results'] || lifetime?.recent_results || [];
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 animate-fade-in-up">
+        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up">
 
             {/* ── Profile Header ───────────────────────────────────── */}
             <div className="glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary flex flex-col md:flex-row items-center gap-8 p-10 bg-gradient-to-br from-kaspa-surface to-kaspa-dark">
