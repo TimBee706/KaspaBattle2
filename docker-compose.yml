@@ -86,6 +86,9 @@ services:
         VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8080/ws}
         VITE_KASPA_NETWORK: ${KASPA_NETWORK:-testnet-10}
         VITE_KASPA_NODE_URL: ${VITE_KASPA_NODE_URL:-}
+        # Public support/contact address shown on the landing page footer —
+        # never a private address, see battle-frontend/.env.example.
+        VITE_PUBLIC_CONTACT_EMAIL: ${VITE_PUBLIC_CONTACT_EMAIL:-}
     restart: unless-stopped
     ports:
       - "5173:5173"
@@ -98,6 +101,7 @@ services:
       # Caddy proxy (see Caddyfile.example, /kaspa-rpc). Leave unset to have the
       # frontend rely on the backend for all Kaspa RPC instead.
       VITE_KASPA_NODE_URL: ${VITE_KASPA_NODE_URL:-}
+      VITE_PUBLIC_CONTACT_EMAIL: ${VITE_PUBLIC_CONTACT_EMAIL:-}
     depends_on:
       backend:
         condition: service_started

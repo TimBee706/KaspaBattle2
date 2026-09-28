@@ -1,13 +1,19 @@
 // Central SVG icon component — all icons are outline-style, currentColor.
 // Usage: <Icon name="bolt" className="w-6 h-6 text-kaspa-primary" />
 
-type IconName =
+export type IconName =
   | 'bolt' | 'blocks' | 'coin' | 'shield'
   | 'trophy' | 'star' | 'lock' | 'search'
   | 'calendar' | 'list' | 'clock' | 'refresh'
   | 'chevron-right' | 'alert-triangle' | 'check' | 'x'
   | 'link' | 'copy' | 'beaker' | 'user' | 'wallet'
-  | 'speed' | 'dispute' | 'building';
+  | 'speed' | 'dispute' | 'building'
+  | 'mail' | 'external-link' | 'users' | 'code' | 'bug' | 'message-circle'
+  | 'github' | 'x-social' | 'instagram' | 'reddit';
+
+// Brand marks are conventionally solid glyphs, not thin-stroke outlines —
+// rendered with fill instead of stroke so they stay recognizable at small sizes.
+const FILLED_ICONS: ReadonlySet<IconName> = new Set(['github', 'x-social', 'instagram', 'reddit']);
 
 interface IconProps {
   name: IconName;
@@ -103,17 +109,67 @@ const paths: Record<IconName, JSX.Element> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
     </>
   ),
+  mail: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M22 6l-10 7L2 6" />
+    </>
+  ),
+  'external-link': (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 14L21 3" />
+    </>
+  ),
+  users: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 010 7.75" />
+    </>
+  ),
+  code: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 18l6-6-6-6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6l-6 6 6 6" />
+    </>
+  ),
+  bug: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13V6a3 3 0 116 0v1.13" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M17.47 9c1.93-.2 3.53-1.9 3.53-4M18 13h4" />
+    </>
+  ),
+  'message-circle': (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+  ),
+  github: (
+    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.833.092-.647.35-1.088.636-1.338-2.221-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.269 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.295 2.747-1.026 2.747-1.026.546 1.378.203 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .268.18.58.688.481A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+  ),
+  'x-social': (
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  ),
+  instagram: (
+    <path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.254 1.216.598 1.772 1.153.51.5.902 1.105 1.153 1.772.247.637.415 1.363.465 2.428.048 1.066.06 1.405.06 4.122s-.01 3.056-.06 4.122c-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 01-1.153 1.772c-.5.51-1.105.902-1.772 1.153-.637.247-1.363.415-2.428.465-1.066.048-1.405.06-4.122.06s-3.056-.01-4.122-.06c-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 01-1.772-1.153 4.904 4.904 0 01-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12s.01-3.056.06-4.122c.05-1.066.217-1.79.465-2.428a4.88 4.88 0 011.153-1.772A4.897 4.897 0 015.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.013 9.283 2 12 2zm0 1.802c-2.67 0-2.986.01-4.04.059-.976.045-1.505.207-1.858.344-.466.181-.8.398-1.15.748-.35.35-.566.684-.747 1.15-.137.353-.3.882-.344 1.858-.05 1.054-.06 1.37-.06 4.039s.01 2.985.06 4.04c.045.975.207 1.504.344 1.857.181.466.398.8.748 1.15.35.35.683.566 1.15.747.352.137.881.3 1.857.344 1.054.05 1.37.06 4.04.06s2.987-.01 4.04-.06c.977-.045 1.506-.207 1.858-.344.466-.181.8-.398 1.15-.748.35-.35.567-.683.748-1.15.137-.352.3-.881.344-1.857.05-1.054.06-1.37.06-4.04s-.01-2.985-.06-4.038c-.045-.977-.207-1.506-.344-1.858a3.09 3.09 0 00-.748-1.15 3.09 3.09 0 00-1.15-.748c-.352-.137-.881-.3-1.858-.344-1.053-.05-1.369-.06-4.039-.06zm0 4.594a5.605 5.605 0 110 11.21 5.605 5.605 0 010-11.21zm0 1.802a3.803 3.803 0 100 7.606 3.803 3.803 0 000-7.606zm5.834-1.997a1.31 1.31 0 11-2.618 0 1.31 1.31 0 012.618 0z" />
+  ),
+  reddit: (
+    <path d="M12 2C6.477 2 2 5.887 2 10.667c0 2.564 1.29 4.87 3.334 6.462-.107.396-.385 1.43-.44 1.652-.07.278.102.274.215.2.09-.06 1.427-.968 2.008-1.36a10.9 10.9 0 002.883.38c5.523 0 10-3.888 10-8.667C20 5.887 15.523 2 12 2zm-3.5 8.5a1.25 1.25 0 112.5 0 1.25 1.25 0 01-2.5 0zm7 2.75c-.933.933-2.325 1.375-3.5 1.375s-2.567-.442-3.5-1.375a.375.375 0 01.53-.53c.734.734 1.86 1.155 2.97 1.155s2.236-.421 2.97-1.155a.375.375 0 01.53.53zm-.25-1.5a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z" />
+  ),
 };
 
 export function Icon({ name, className = 'w-5 h-5' }: IconProps) {
+  const filled = FILLED_ICONS.has(name);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={1.75}
+      stroke={filled ? 'none' : 'currentColor'}
+      strokeWidth={filled ? undefined : 1.75}
       aria-hidden="true"
     >
       {paths[name]}

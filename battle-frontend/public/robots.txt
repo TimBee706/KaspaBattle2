@@ -1,0 +1,7 @@
+# No robots.txt previously existed in this repo (verified before adding this
+# file — see PR/analysis notes). This is a fresh, minimal default: allow
+# general crawling, keep the one internal admin route out of the index.
+
+User-agent: *
+Allow: /
+Disallow: /admin/

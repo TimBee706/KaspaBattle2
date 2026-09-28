@@ -3,6 +3,12 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { startFaceitLogin, startFaceitLink } from '../api/auth';
 import { useTranslation, Trans } from 'react-i18next';
 import { Icon } from '../components/Icon';
+import { PublicBetaBadge } from '../components/common/PublicBetaBadge';
+import { SectionHeading } from '../components/common/SectionHeading';
+import { SocialLinks } from '../components/common/SocialLinks';
+import { ContactCard } from '../components/common/ContactCard';
+import { RecruitmentSection } from '../components/landing/RecruitmentSection';
+import { publicLinks } from '../config/publicLinks';
 
 export function LandingPage() {
     const { isAuthenticated, isFullyConnected, testMode } = useAuthStore();
@@ -14,23 +20,61 @@ export function LandingPage() {
             <section className="py-20 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-kaspa-primary/10 blur-[120px] rounded-full -z-10" />
 
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-kaspa-primary/10 border border-kaspa-primary/20 rounded-full text-kaspa-primary text-[10px] font-black tracking-widest uppercase mb-8">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-kaspa-primary opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-kaspa-primary"></span>
-                    </span>
-                    {t('hero.beta_tag')}
-                </div>
+                <PublicBetaBadge className="mb-8" />
 
-                <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-[0.9] uppercase">
+                <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-[0.95] uppercase max-w-4xl mx-auto">
                     <Trans i18nKey="hero.title">
-                        PLAY TO WIN <span className="text-kaspa-primary">KASPA</span>
+                        Competitive gaming, settled on <span className="text-kaspa-primary">Kaspa</span>.
                     </Trans>
                 </h1>
 
                 <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 font-medium">
                     {t('hero.subtitle')}
                 </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
+                    <Link
+                        to="/lobby"
+                        className="btn-primary w-full sm:w-auto px-10 py-4 text-base shadow-glow-primary hover:shadow-glow-primary-lg transition-shadow text-kaspa-dark font-black inline-flex items-center justify-center gap-2"
+                    >
+                        {t('hero.cta_primary')}
+                        <Icon name="chevron-right" className="w-4 h-4" />
+                    </Link>
+                    <a
+                        href="#get-involved"
+                        className="glass-button w-full sm:w-auto px-10 py-4 text-base font-black inline-flex items-center justify-center gap-2"
+                    >
+                        {t('hero.cta_secondary')}
+                    </a>
+                    <a
+                        href={publicLinks.githubRepository}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-semibold text-gray-400 hover:text-kaspa-primary inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kaspa-primary rounded"
+                    >
+                        <Icon name="github" className="w-4 h-4" />
+                        {t('hero.cta_github')}
+                    </a>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-500 font-semibold">
+                    <span className="inline-flex items-center gap-1.5">
+                        <Icon name="shield" className="w-3.5 h-3.5 text-kaspa-primary/70" />
+                        {t('hero.status.testnet_only')}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                        <Icon name="bolt" className="w-3.5 h-3.5 text-kaspa-primary/70" />
+                        {t('hero.status.active_development')}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                        <Icon name="users" className="w-3.5 h-3.5 text-kaspa-primary/70" />
+                        {t('hero.status.open_for_testers')}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                        <Icon name="code" className="w-3.5 h-3.5 text-kaspa-primary/70" />
+                        {t('hero.status.contributors_welcome')}
+                    </span>
+                </div>
             </section>
 
             {/* Was ist KaspaBattle? */}
@@ -192,6 +236,18 @@ export function LandingPage() {
                 </div>
             </section>
 
+            {/* Help build KaspaBattle — Playtest / Contribute / Share feedback */}
+            <RecruitmentSection />
+
+            {/* Connect with KaspaBattle */}
+            <section className="py-20 border-t border-kaspa-border">
+                <SectionHeading title={t('sections.connect.heading')} subtitle={t('sections.connect.intro')} />
+                <div className="max-w-2xl mx-auto px-4 flex flex-col items-center gap-8">
+                    <SocialLinks iconClassName="w-5 h-5" />
+                    <ContactCard className="w-full" />
+                </div>
+            </section>
+
             {/* Future / CTA Section */}
             <section className="py-24 border-t border-kaspa-border text-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-t from-kaspa-primary/10 to-transparent -z-10" />
@@ -248,20 +304,20 @@ export function LandingPage() {
                         <div className="absolute top-0 right-0 w-64 h-64 bg-kaspa-primary/5 blur-3xl rounded-full -z-0" />
                         <div className="relative z-10">
                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-kaspa-primary/10 border border-kaspa-primary/20 rounded-full text-kaspa-primary text-xs font-bold tracking-widest uppercase mb-6">
-                                New — Tournament Mode
+                                {t('sections.tournament_callout.badge')}
                             </div>
                             <h2 className="text-3xl md:text-4xl font-black text-white mb-4 leading-tight">
-                                Compete in full <span className="text-kaspa-primary">Kaspa Tournaments</span>
+                                {t('sections.tournament_callout.title_prefix')}{' '}
+                                <span className="text-kaspa-primary">{t('sections.tournament_callout.title_highlight')}</span>
                             </h2>
                             <p className="text-gray-400 text-lg mb-8 max-w-xl">
-                                Run community tournaments with automated prize pools.
-                                Every buy-in goes into an on-chain escrow. The winner takes the pot — automatically.
+                                {t('sections.tournament_callout.text')}
                             </p>
                             <div className="grid sm:grid-cols-3 gap-4 mb-8">
                                 {[
-                                    { iconName: 'list'    as const, title: 'Bracket Format',   text: 'Single-elimination, auto-seeded' },
-                                    { iconName: 'coin'    as const, title: 'On-Chain Payouts', text: 'Automatic multi-output TX after finals' },
-                                    { iconName: 'dispute' as const, title: 'Dispute System',   text: 'File disputes, admin resolves on-chain' },
+                                    { iconName: 'list' as const, title: t('sections.tournament_callout.feature_bracket_title'), text: t('sections.tournament_callout.feature_bracket_text') },
+                                    { iconName: 'coin' as const, title: t('sections.tournament_callout.feature_payout_title'), text: t('sections.tournament_callout.feature_payout_text') },
+                                    { iconName: 'dispute' as const, title: t('sections.tournament_callout.feature_dispute_title'), text: t('sections.tournament_callout.feature_dispute_text') },
                                 ].map((f, i) => (
                                     <div key={i} className="bg-black/20 border border-white/5 rounded-xl p-4">
                                         <Icon name={f.iconName} className="w-5 h-5 text-kaspa-primary mb-2" />
@@ -275,7 +331,7 @@ export function LandingPage() {
                                 id="landing-tournaments-cta"
                                 className="btn-primary inline-flex items-center gap-2 px-8 py-4 text-kaspa-dark font-black"
                             >
-                                Browse Tournaments
+                                {t('sections.tournament_callout.cta')}
                                 <Icon name="chevron-right" className="w-4 h-4" />
                             </Link>
                         </div>

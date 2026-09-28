@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../LanguageToggle';
 import { Icon } from '../Icon';
+import { publicLinks } from '../../config/publicLinks';
 
 export function Header() {
     const navigate = useNavigate();
@@ -57,6 +58,17 @@ export function Header() {
 
                     <LanguageToggle />
 
+                    <a
+                        href={publicLinks.githubRepository}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={t('social.github')}
+                        title={t('social.github')}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-kaspa-primary hover:bg-kaspa-border/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kaspa-primary"
+                    >
+                        <Icon name="github" className="w-4 h-4" />
+                    </a>
+
                     <button
                         onClick={() => navigate('/wallet/import')}
                         className="glass-button px-5 py-2 text-sm font-semibold flex items-center gap-2"
@@ -101,6 +113,17 @@ export function Header() {
                                 </>
                             )}
                             <Link to="/history" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.history')}</Link>
+                            <Link to="/#get-involved" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('sections.recruit.heading')}</Link>
+                            <a
+                                href={publicLinks.githubRepository}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={closeMenu}
+                                className="text-gray-300 hover:text-white font-bold inline-flex items-center gap-2"
+                            >
+                                <Icon name="github" className="w-4 h-4" />
+                                GitHub
+                            </a>
                         </nav>
                         
                         {import.meta.env.VITE_ENABLE_TEST_MODE === 'true' && (

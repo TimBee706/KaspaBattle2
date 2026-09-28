@@ -1,4 +1,16 @@
 {
+    "testnet_banner": {
+        "badge": "TESTNET",
+        "status": "Öffentliche Testnet-Beta",
+        "message": "KaspaBattle befindet sich in aktiver Entwicklung. Verwende ausschließlich Testnet-KAS — Testnet-Guthaben besitzt keinen Geldwert.",
+        "details_link": "Beta-Details"
+    },
+    "social": {
+        "x": "Auf X folgen",
+        "instagram": "Auf Instagram folgen",
+        "reddit": "Auf Reddit folgen",
+        "github": "Auf GitHub ansehen"
+    },
     "navigation": {
         "lobby": "Lobbies",
         "create_challenge": "Lobby erstellen",
@@ -12,15 +24,27 @@
     "footer_links": {
         "whitepaper": "Whitepaper",
         "terms": "AGB",
-        "discord": "Twitter",
+        "x": "X (Twitter)",
         "instagram": "Instagram",
         "reddit": "Reddit",
-        "support": "Support"
+        "support": "Support",
+        "github_profile": "GitHub-Profil",
+        "github_repo": "Repository",
+        "github_issues": "Issues"
     },
     "hero": {
-        "beta_tag": "Open Beta",
-        "title": "PLAY TO WIN <1>KASPA</1>",
-        "subtitle": "Die weltweit erste dezentrale Gaming-Wager-Plattform auf Kaspa. Sicher, blitzschnell und 100% Non-Custodial."
+        "beta_tag": "Öffentliche Testnet-Beta",
+        "title": "Competitive Gaming, abgewickelt auf <1>Kaspa</1>.",
+        "subtitle": "KaspaBattle ist eine offene Testnet-Plattform für Peer-to-Peer-Matches und experimentelle Turniere. Verbinde eine Testnet-Wallet, spiele mit der Community und hilf dabei, die Plattform weiterzuentwickeln.",
+        "cta_primary": "Testnet öffnen",
+        "cta_secondary": "Tester werden",
+        "cta_github": "Auf GitHub ansehen",
+        "status": {
+            "testnet_only": "Nur Testnet",
+            "active_development": "Aktive Entwicklung",
+            "open_for_testers": "Offen für Tester",
+            "contributors_welcome": "Contributors willkommen"
+        }
     },
     "sections": {
         "what_is": "WAS IST KASPABATTLE?",
@@ -36,7 +60,7 @@
         },
         "how_1vs1": {
             "title": "So funktioniert dein <1>KaspaBattle 1vs1</1>",
-            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und Faceit spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – 100% vertrauenslos, transparent und ohne Bullshit.",
+            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und Faceit spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – on-chain verifiziert, transparent und angenehm unkompliziert.",
             "steps": {
                 "1": {
                     "title": "Faceit & Wallet verbinden",
@@ -104,8 +128,48 @@
             }
         },
         "future": "DIE ZUKUNFT DES ESPORTS",
-        "future_subtitle": "MISSE DICH AN DER SCHNELLSTEN BLOCKCHAIN DER WELT",
-        "ready": "Bereit für dein Match?"
+        "future_subtitle": "GEBAUT FÜR GESCHWINDIGKEIT AUF KASPAS BLOCKDAG",
+        "ready": "Bereit für dein Match?",
+        "recruit": {
+            "heading": "Entwickle KaspaBattle mit uns weiter",
+            "intro": "KaspaBattle wird offen und gemeinsam mit der Community entwickelt. Gesucht werden Testnet-Spieler, Turnier-Tester, Frontend- und Rust-Entwickler, Security-Reviewer, Designer und Community-Unterstützer. Für das Testen der Plattform ist keine Blockchain-Erfahrung erforderlich — wichtig ist vor allem strukturiertes Feedback.",
+            "playtest": {
+                "title": "Playtest",
+                "audience": "Spieler · FACEIT-/Competitive-Gaming-Nutzer · Wallet- und UX-Tester",
+                "text": "Verbinde eine Testnet-Wallet, erstelle oder tritt Matches bei und melde alles, was unklar, unzuverlässig oder unvollständig wirkt.",
+                "cta": "Jetzt testen"
+            },
+            "contribute": {
+                "title": "Mitwirken",
+                "audience": "Rust · React/TypeScript · Kaspa-/UTXO-Entwickler · Security-Reviewer · Designer",
+                "text": "Code reviewen, ein Issue öffnen, Verbesserungen vorschlagen oder per Pull Request beitragen.",
+                "cta": "GitHub öffnen"
+            },
+            "feedback": {
+                "title": "Feedback teilen",
+                "audience": "Jeder — keine Coding-Erfahrung nötig",
+                "text": "Bug gefunden oder eine Idee? Kontaktiere das Projekt direkt oder eröffne ein strukturiertes GitHub-Issue.",
+                "cta_issue": "Issue melden",
+                "cta_contact": "Projekt kontaktieren"
+            }
+        },
+        "connect": {
+            "heading": "Vernetze dich mit KaspaBattle",
+            "intro": "Verfolge die Entwicklung, werde Teil der Community oder melde dich direkt bei uns."
+        },
+        "tournament_callout": {
+            "badge": "Experimentell — Turniermodus",
+            "title_prefix": "Tritt an bei",
+            "title_highlight": "experimentellen Kaspa-Turnieren",
+            "text": "Community-Turniere mit On-Chain-Preispool. Auszahlung und Streitschlichtung befinden sich noch in Entwicklung und erfordern aktuell eine Admin-Prüfung — dieser Modus ist experimentell, im Unterschied zum ausgereifteren, non-custodial 1vs1-Escrow oben.",
+            "feature_bracket_title": "Bracket-Format",
+            "feature_bracket_text": "Single-Elimination, automatisch geseedet",
+            "feature_payout_title": "On-Chain-Preispool",
+            "feature_payout_text": "Multi-Output-Transaktion nach dem Finale",
+            "feature_dispute_title": "Dispute-System",
+            "feature_dispute_text": "Disput einreichen, Admin löst on-chain",
+            "cta": "Turniere ansehen"
+        }
     },
     "lobby": {
         "title": "Lobby Übersicht",
@@ -148,7 +212,8 @@
         "backup_text": "Diese Phrase ist der einzige Weg, dein Guthaben wiederherzustellen. Teile sie NIEMALS mit anderen. Mitarbeiter von KaspaBattle werden dich niemals danach fragen.",
         "hover_to_show": "HOVER ZUM ANZEIGEN",
         "refresh": "Balance aktualisieren",
-        "balance_loading_hint": "Wallet-Balance wird geladen..."
+        "balance_loading_hint": "Wallet-Balance wird geladen...",
+        "network_unreachable": "Kaspa-Testnet aktuell nicht erreichbar. Bitte erneut versuchen oder später einen anderen öffentlichen Node nutzen."
     },
     "profile": {
         "level_unknown": "LVL UNBEKANNT",
@@ -222,7 +287,15 @@
         "escrow": "100% Escrow Schutz"
     },
     "footer": {
-        "copyright": "© 2026 KaspaBattle. Dezentrales Gaming auf Kaspa."
+        "copyright": "© 2026 KaspaBattle. Dezentrales Gaming auf Kaspa.",
+        "description": "Eine offene Testnet-Plattform für Peer-to-Peer-Gaming und experimentelle Turniere auf Kaspa.",
+        "beta_status": "Öffentliche Testnet-Beta",
+        "disclaimer": "Experimentelle Software. Nur für das Testnet. Funktionen können sich ändern oder vorübergehend nicht verfügbar sein. Sende niemals Mainnet-KAS an eine Testnet-Adresse.",
+        "contact_heading": "Kontakt",
+        "contact_email_cta": "E-Mail schreiben",
+        "contact_github_fallback": "Keine E-Mail konfiguriert — bitte ein GitHub-Issue eröffnen.",
+        "nav_heading": "Projekt",
+        "social_heading": "Folgen"
     },
     "validation": {
         "wager_min_0": "Einsatz muss größer als 0 sein",

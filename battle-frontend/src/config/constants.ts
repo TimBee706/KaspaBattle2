@@ -2,8 +2,8 @@
 const rawKaspaNodeUrl = import.meta.env.VITE_KASPA_NODE_URL?.trim();
 
 export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-10';
-// KASPA_NODE_URL: set to empty string to use the Resolver (may have CORS issues in browser).
-// Set a direct WS(S) URL to bypass the Resolver's HTTP discovery step entirely.
+// KASPA_NODE_URL: leave empty to use the Kaspa Resolver / public node infrastructure (recommended,
+// no self-hosted node required). Set a direct WS(S) URL only to use your own/dedicated node.
 export const KASPA_NODE_URL = rawKaspaNodeUrl ?? '';
 export const KASPA_EXPLORER_URL = 'https://explorer-tn10.kaspa.org'; // Testnet-10 Explorer
 export const SOMPI_PER_KAS = 100_000_000; // 1 KAS = 10^8 Sompi
@@ -34,6 +34,9 @@ export const FEE_ORACLE_PERCENT = 0;    // Oracle-Reserve bis Phase 2 in Treasur
 // Polling
 export const MATCH_STATUS_POLL_INTERVAL_MS = 5_000;
 export const LOBBY_POLL_INTERVAL_MS = 10_000;
+
+// Public contact (landing page / footer) — only rendered when set.
+export const PUBLIC_CONTACT_EMAIL = import.meta.env.VITE_PUBLIC_CONTACT_EMAIL?.trim() || '';
 
 // Unterstützte Spiele
 export const SUPPORTED_GAMES = [
