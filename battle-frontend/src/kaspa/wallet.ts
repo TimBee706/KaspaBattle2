@@ -1,6 +1,7 @@
 import * as kaspa from 'kaspa-wasm';
 import { initKaspaWasm } from './init';
 import { getRpcClient } from './rpc';
+import { KaspaRpcError } from './errors';
 import { KASPA_NETWORK } from '../config/constants';
 import { getErrorMessage } from '../utils/errors';
 import { useWalletStore } from '../stores/useWalletStore';
@@ -43,8 +44,11 @@ export async function importWallet(mnemonicPhrase: string): Promise<ImportResult
 
     try {
         await getRpcClient();
-    } catch {
-        throw new Error('Fehler beim Verbinden mit dem Kaspa Netzwerk. Versuche es spaeter erneut.');
+    } catch (e) {
+        if (e instanceof KaspaRpcError) throw e;
+        throw new KaspaRpcError('KASPA_RPC_UNAVAILABLE', 'Fehler beim Verbinden mit dem Kaspa Netzwerk. Versuche es spaeter erneut.', {
+            technicalDetail: getErrorMessage(e),
+        });
     }
 
     let mnemonic: kaspa.Mnemonic;

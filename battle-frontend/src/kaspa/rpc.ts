@@ -1,6 +1,7 @@
 import * as kaspa from 'kaspa-wasm';
 import { initKaspaWasm } from './init';
 import { KASPA_NODE_URL, KASPA_NETWORK } from '../config/constants';
+import { KaspaRpcError } from './errors';
 
 let rpcClient: kaspa.RpcClient | null = null;
 
@@ -41,7 +42,7 @@ export async function getRpcClient(): Promise<kaspa.RpcClient> {
                     encoding: kaspa.Encoding.Borsh,
                     networkId: KASPA_NETWORK,
                 });
-                await client.connect({});
+                await client.connect({ strategy: kaspa.ConnectStrategy.Fallback, timeoutDuration: 8000 });
                 console.log(`[kaspa] ✅ Connected to ${KASPA_NODE_URL}`);
                 rpcClient = client;
                 return client;
@@ -60,16 +61,18 @@ export async function getRpcClient(): Promise<kaspa.RpcClient> {
                 encoding: kaspa.Encoding.Borsh,
                 networkId: KASPA_NETWORK,
             });
-            await client.connect({});
+            await client.connect({ strategy: kaspa.ConnectStrategy.Fallback, timeoutDuration: 10000 });
             console.log(`[kaspa] ✅ Connected via Resolver`);
             rpcClient = client;
             return client;
         } catch (resolverError) {
             console.error(`[kaspa] ❌ Resolver failed for ${KASPA_NETWORK}:`, resolverError);
-            throw new Error(
+            throw new KaspaRpcError(
+                'KASPA_RPC_UNAVAILABLE',
                 `Keine ${KASPA_NETWORK} Node erreichbar. ` +
                 `Der Kaspa Resolver konnte keine verfügbare Node finden. ` +
-                `Bitte später erneut versuchen oder eine direkte Node-URL konfigurieren.`
+                `Bitte später erneut versuchen oder eine direkte Node-URL konfigurieren.`,
+                { technicalDetail: `[${KASPA_NETWORK}] ${String(resolverError)}` }
             );
         }
     } catch (error) {

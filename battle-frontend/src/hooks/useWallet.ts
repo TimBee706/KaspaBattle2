@@ -5,9 +5,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLobbyStore } from '../stores/useLobbyStore';
 import { useMatchStore } from '../stores/useMatchStore';
 import { importWallet, getBalanceByAddress, getRpcClient, sendKasFromWallet } from '../kaspa/wallet';
+import { KaspaRpcError } from '../kaspa/errors';
 import apiClient from '../api/client';
 import { submitTournamentDeposit } from '../api/tournaments';
 import { getErrorMessage } from '../utils/errors';
+import i18n from '../i18n';
 
 const LEGACY_WALLET_SESSION_KEY = 'kaspa_wallet_session';
 const LEGACY_WALLET_PHRASE_KEY = 'kaspa_encrypted_phrase';
@@ -173,7 +175,12 @@ export function useWallet() {
             await new Promise(r => setTimeout(r, 500)); // Wait for subscription to register
             await fetchBalance(connection.address, true);
         } catch (err) {
-            setError(getErrorMessage(err, 'Connection failed'));
+            if (err instanceof KaspaRpcError) {
+                const detail = import.meta.env.DEV && err.technicalDetail ? ` [Debug] ${err.technicalDetail}` : '';
+                setError(`${i18n.t('wallet.network_unreachable')}${detail}`);
+            } else {
+                setError(getErrorMessage(err, 'Connection failed'));
+            }
         } finally {
             setConnecting(false);
         }
