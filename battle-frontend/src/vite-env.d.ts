@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
     readonly VITE_KASPA_NODE_URL: string;
     readonly VITE_KASPA_NETWORK: string;
+    readonly VITE_KASPA_PUBLIC_FALLBACK?: string;
     readonly VITE_API_BASE_URL: string;
     readonly VITE_WS_BASE_URL: string;
     readonly VITE_FACEIT_CLIENT_ID: string;

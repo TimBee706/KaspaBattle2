@@ -49,6 +49,7 @@ describe('kaspa/rpc getRpcClient', () => {
             RpcClient: vi.fn().mockImplementation((config: Record<string, unknown>) => ({
                 config,
                 connect: connectMock,
+                getServerInfo: vi.fn().mockResolvedValue({ networkId: 'testnet-10', isSynced: true, hasUtxoIndex: true }),
                 disconnect: vi.fn(),
             })),
         }));
@@ -119,4 +120,62 @@ describe('kaspa/wallet importWallet — RPC error propagation', () => {
         expect(caught).toBeInstanceOf(KaspaRpcError);
         expect((caught as InstanceType<typeof KaspaRpcError>).technicalDetail).toContain('resolver timed out');
     });
+});
+
+describe('kaspa/rpc own node configured', () => {
+    beforeEach(() => {
+        vi.doUnmock('../../kaspa/rpc'); // earlier describes mock the module for wallet tests
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+    {
+        function mockWasm(serverInfo: unknown, connect = vi.fn().mockResolvedValue(undefined)) {
+            const resolverCtor = vi.fn().mockImplementation(() => ({}));
+            vi.doMock('kaspa-wasm', () => ({
+                default: vi.fn().mockResolvedValue(undefined),
+                Encoding: { Borsh: 0 },
+                ConnectStrategy: { Retry: 0, Fallback: 1 },
+                Resolver: resolverCtor,
+                RpcClient: vi.fn().mockImplementation(() => ({
+                    connect,
+                    getServerInfo: vi.fn().mockResolvedValue(serverInfo),
+                    disconnect: vi.fn(),
+                })),
+            }));
+            return resolverCtor;
+        }
+        const cfg = (fallback: boolean) =>
+            vi.doMock('../../config/constants', () => ({
+                KASPA_NODE_URL: 'wss://app.example.test/kaspa-rpc',
+                KASPA_NETWORK: 'testnet-10',
+                KASPA_PUBLIC_FALLBACK: fallback,
+            }));
+
+        it.each([
+            [{ networkId: 'mainnet', isSynced: true, hasUtxoIndex: true }, 'KASPA_WRONG_NETWORK'],
+            [{ networkId: 'testnet-10', isSynced: false, hasUtxoIndex: true }, 'KASPA_NODE_NOT_SYNCED'],
+            [{ networkId: 'testnet-10', isSynced: true, hasUtxoIndex: false }, 'KASPA_NO_UTXO_INDEX'],
+        ])('reports %j as %s and does not silently use the public resolver', async (info, code) => {
+            cfg(false);
+            const resolverCtor = mockWasm(info);
+            const { getRpcClient } = await import('../../kaspa/rpc');
+            await expect(getRpcClient()).rejects.toMatchObject({ code });
+            expect(resolverCtor).not.toHaveBeenCalled();
+        });
+
+        it('classifies timeouts and TLS problems', async () => {
+            cfg(false);
+            mockWasm({}, vi.fn().mockRejectedValue(new Error('connection timeout')));
+            const { getRpcClient } = await import('../../kaspa/rpc');
+            await expect(getRpcClient()).rejects.toMatchObject({ code: 'KASPA_TIMEOUT' });
+        });
+
+        it('uses the public resolver only when the fallback is explicitly enabled', async () => {
+            cfg(true);
+            const resolverCtor = mockWasm({ networkId: 'mainnet', isSynced: true, hasUtxoIndex: true });
+            const { getRpcClient } = await import('../../kaspa/rpc');
+            await getRpcClient();
+            expect(resolverCtor).toHaveBeenCalled();
+        });
+    }
 });
