@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { type BattleMatch, getMatchMode, getMatchStakeSompi, getMatchCreatedAt } from '../api/types';
+import { type BattleMatch, getMatchMode, getMatchStakeSompi, getMatchCreatedAt, getMatchProvider } from '../api/types';
 import { useAuthStore } from '../stores/useAuthStore';
 import apiClient from '../api/client';
 import { useNavigate } from 'react-router-dom';
@@ -7,10 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { MatchStatusBadge } from './match/MatchStatusBadge';
 import { Icon } from './Icon';
 import { startFaceitLogin } from '../api/auth';
+import { ProviderBadge } from './match/ProviderBadge';
+import { useAccess } from '../hooks/useAccess';
+import { canPlayMatch } from '../domain/access';
 
 export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLobbyClick?: (id: string) => void }> = ({ matches, title, onLobbyClick }) => {
     const { user, testMode, isFaceitConnected } = useAuthStore();
     const kaspaAddress = user?.kaspa_address || null;
+    const access = useAccess();
     const [loading, setLoading] = useState<string | null>(null);
     const navigate = useNavigate();
     const { t } = useTranslation();
@@ -46,7 +50,10 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLo
                     </div>
                 )}
                 {matches.map((m, index) => {
-                    const matchTitle = `${m.player_a_faceit_nickname} vs ${m.player_b_faceit_nickname || 'TBD'}`;
+                    const isNative = getMatchProvider(m) === 'NATIVE';
+                    const matchTitle = isNative
+                        ? `${m.player_a_display_name || t('match.challenger')} vs ${m.player_b_display_name || 'TBD'}`
+                        : `${m.player_a_faceit_nickname} vs ${m.player_b_faceit_nickname || 'TBD'}`;
                     const createdAt = getMatchCreatedAt(m);
 
                     return (
@@ -66,10 +73,14 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLo
                                     </h3>
                                     <MatchStatusBadge status={m.status} />
                                 </div>
-                                <div className="flex items-center gap-3 text-2xs text-gray-500 font-bold">
-                                    <span className="uppercase tracking-wider">{(m.game_id || 'CS2').toUpperCase()}</span>
-                                    <span className="text-gray-700">•</span>
-                                    <span className="uppercase tracking-wider">{getMatchMode(m)}</span>
+                                <div className="flex flex-wrap items-center gap-3 text-2xs text-gray-500 font-bold">
+                                    <ProviderBadge match={m} />
+                                    {!isNative && (
+                                        <>
+                                            <span className="text-gray-700">•</span>
+                                            <span className="uppercase tracking-wider">{getMatchMode(m)}</span>
+                                        </>
+                                    )}
                                     {createdAt && (
                                         <>
                                             <span className="text-gray-700">•</span>
@@ -95,7 +106,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLo
                                             e.stopPropagation();
                                             join(m.id);
                                         }}
-                                        disabled={loading === m.id || !kaspaAddress || (!isFaceitConnected && !testMode)}
+                                        disabled={loading === m.id || !kaspaAddress || (isNative ? !canPlayMatch(access, m) : (!isFaceitConnected && !testMode))}
                                         className="bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-6 py-2.5 rounded-lg font-black uppercase tracking-tighter disabled:opacity-30 disabled:hover:bg-kaspa-primary transition-all shadow-glow-subtle active:scale-95"
                                     >
                                         {loading === m.id ? '...' : t('lobby.join')}

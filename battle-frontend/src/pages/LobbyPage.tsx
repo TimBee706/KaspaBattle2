@@ -10,10 +10,14 @@ import { useTranslation } from 'react-i18next';
 
 import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/common/PageHeader';
+import { getMatchProvider } from '../api/types';
+
+type ProviderFilter = 'ALL' | 'NATIVE' | 'FACEIT';
 
 export const LobbyPage: React.FC = () => {
     const navigate = useNavigate();
     const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LIVE' | 'COMPLETED'>('ALL');
+    const [providerFilter, setProviderFilter] = useState<ProviderFilter>('ALL');
     const { lobbies, setLobbies, addOrUpdateLobby } = useLobbyStore();
     const { fetchUser, testMode, setTestMode } = useAuthStore();
     const { t } = useTranslation();
@@ -53,10 +57,11 @@ export const LobbyPage: React.FC = () => {
     
     
     const filteredMatches = lobbies.filter(lobby => {
+        if (providerFilter !== 'ALL' && getMatchProvider(lobby) !== providerFilter) return false;
         if (filter === 'ALL') return true;
         if (filter === 'OPEN') return ['DRAFT', 'OPEN', 'WAITING_FOR_DEPOSITS', 'AWAITING_FUNDING'].includes(lobby.status);
-        if (filter === 'LIVE') return ['FUNDED', 'LOCKED', 'GAME_ID_INPUT', 'IN_GAME', 'READY_FOR_PAYOUT', 'RESOLVING', 'DISPUTED'].includes(lobby.status);
-        if (filter === 'COMPLETED') return ['FINISHED_FACEIT', 'RESOLVED', 'PAID_OUT', 'CANCELLED', 'REFUNDED'].includes(lobby.status);
+        if (filter === 'LIVE') return ['FUNDED', 'LOCKED', 'GAME_ID_INPUT', 'READY_TO_PLAY', 'IN_GAME', 'READY_FOR_PAYOUT', 'RESOLVING', 'DISPUTED'].includes(lobby.status);
+        if (filter === 'COMPLETED') return ['FINISHED_FACEIT', 'FINISHED_GAME', 'REFUND_PENDING', 'RESOLVED', 'PAID_OUT', 'CANCELLED', 'REFUNDED'].includes(lobby.status);
         return true;
     });
 
@@ -65,6 +70,12 @@ export const LobbyPage: React.FC = () => {
         { value: 'OPEN', label: t('tournaments.filter.open') },
         { value: 'LIVE', label: t('tournaments.filter.live') },
         { value: 'COMPLETED', label: t('tournaments.filter.completed') },
+    ];
+
+    const providerOptions: Array<{ value: ProviderFilter; label: string }> = [
+        { value: 'ALL', label: t('lobby.filter.all') },
+        { value: 'NATIVE', label: t('lobby.filter.browser') },
+        { value: 'FACEIT', label: t('lobby.filter.faceit') },
     ];
 
     return (
@@ -96,6 +107,25 @@ export const LobbyPage: React.FC = () => {
                 <Icon name="beaker" className="w-4 h-4 shrink-0 text-blue-400" />
                 {t('lobby.test_mode')}
             </div>}
+
+            <div role="group" aria-label={t('lobby.filter.provider_label')} className="flex gap-2 mb-3 flex-wrap">
+                {providerOptions.map(opt => (
+                    <button
+                        key={opt.value}
+                        id={`provider-filter-${opt.value.toLowerCase()}`}
+                        type="button"
+                        aria-pressed={providerFilter === opt.value}
+                        onClick={() => setProviderFilter(opt.value)}
+                        className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest border transition-all duration-200 ${
+                            providerFilter === opt.value
+                                ? 'border-kaspa-primary bg-kaspa-primary/15 text-kaspa-primary'
+                                : 'border-white/10 bg-transparent text-gray-500 hover:text-white hover:border-white/30'
+                        }`}
+                    >
+                        {opt.label}
+                    </button>
+                ))}
+            </div>
 
             <div className="flex gap-2 mb-6 flex-wrap">
                 {filterOptions.map(opt => (

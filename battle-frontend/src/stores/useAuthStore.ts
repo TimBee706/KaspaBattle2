@@ -4,6 +4,7 @@ import type { AuthTokens, PlayerAccount, UserProfile } from '../api/types';
 import { logout as logoutApi } from '../api/auth';
 import { useLobbyStore } from './useLobbyStore';
 import { useMatchStore } from './useMatchStore';
+import { deriveAccess } from '../domain/access';
 
 const PLAYER_ACCOUNT_STORAGE_KEY = 'kaspa_battle_player_account';
 
@@ -43,6 +44,12 @@ interface AuthState {
     testMode: boolean;
     isFaceitConnected: boolean;
     isFullyConnected: boolean;
+    // ── Access (derived, see domain/access.ts). FACEIT is an optional link: native browser
+    // games need login + wallet only, FACEIT games additionally need a linked FACEIT account.
+    hasWallet: boolean;
+    hasFaceit: boolean;
+    canPlayNative: boolean;
+    canPlayFaceit: boolean;
 
     setAuth: (user: UserProfile, _tokens?: AuthTokens | null) => void;
     fetchUser: () => Promise<void>;
@@ -60,6 +67,17 @@ const emptyPlayerAccount: PlayerAccount = {
     isFullyConnected: false,
 };
 
+/** Recomputes the derived access flags from the source-of-truth fields of the store. */
+function accessFields(state: Pick<AuthState, 'isAuthenticated' | 'walletConnected' | 'isFaceitConnected' | 'testMode'>) {
+    const access = deriveAccess(state);
+    return {
+        hasWallet: access.hasWallet,
+        hasFaceit: access.hasFaceit,
+        canPlayNative: access.canPlayNative,
+        canPlayFaceit: access.canPlayFaceit,
+    };
+}
+
 function applyUserState(set: (partial: Partial<AuthState>) => void, user: UserProfile) {
     const playerAccount = buildPlayerAccount(
         user,
@@ -74,6 +92,13 @@ function applyUserState(set: (partial: Partial<AuthState>) => void, user: UserPr
         isFaceitConnected: !!playerAccount.faceit,
         isFullyConnected: playerAccount.isFullyConnected,
     });
+    syncAccess(set);
+}
+
+/** Zustand's `set` only accepts partials, so read the fresh state through `syncAccess`'s store ref. */
+let storeRef: { getState: () => AuthState } | null = null;
+function syncAccess(set: (partial: Partial<AuthState>) => void) {
+    if (storeRef) set(accessFields(storeRef.getState()));
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -87,6 +112,10 @@ export const useAuthStore = create<AuthState>()(
             testMode: false,
             isFaceitConnected: false,
             isFullyConnected: false,
+            hasWallet: false,
+            hasFaceit: false,
+            canPlayNative: false,
+            canPlayFaceit: false,
 
             setAuth: (user) => {
                 useLobbyStore.getState().reset();
@@ -146,6 +175,7 @@ export const useAuthStore = create<AuthState>()(
                     isFaceitConnected: false,
                     isFullyConnected: false,
                 });
+                syncAccess(set);
                 sessionStorage.clear();
             },
 
@@ -164,6 +194,7 @@ export const useAuthStore = create<AuthState>()(
                     walletConnected: true,
                     isFullyConnected: nextPlayerAccount.isFullyConnected,
                 });
+                syncAccess(set);
             },
 
             clearKasAddress: () => {
@@ -180,6 +211,7 @@ export const useAuthStore = create<AuthState>()(
                     walletConnected: false,
                     isFullyConnected: false,
                 });
+                syncAccess(set);
             },
 
             setWalletConnected: (connected) => {
@@ -198,9 +230,13 @@ export const useAuthStore = create<AuthState>()(
                     walletConnected: connected && !!wallet,
                     isFullyConnected: nextPlayerAccount.isFullyConnected,
                 });
+                syncAccess(set);
             },
 
-            setTestMode: (enabled) => set({ testMode: enabled }),
+            setTestMode: (enabled) => {
+                set({ testMode: enabled });
+                syncAccess(set);
+            },
         }),
         {
             name: PLAYER_ACCOUNT_STORAGE_KEY,
@@ -211,3 +247,5 @@ export const useAuthStore = create<AuthState>()(
         },
     ),
 );
+
+storeRef = useAuthStore;

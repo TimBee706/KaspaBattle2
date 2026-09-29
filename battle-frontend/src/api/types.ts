@@ -14,7 +14,15 @@ export type MatchStatus =
     | 'PAID_OUT'
     | 'DISPUTED'
     | 'CANCELLED'
-    | 'REFUNDED';
+    | 'REFUNDED'
+    // Native (browser) games
+    | 'READY_TO_PLAY'
+    | 'FINISHED_GAME'
+    | 'REFUND_PENDING';
+
+/** Who runs the game: FACEIT (external, verified via FACEIT) or NATIVE (played on KaspaBattle). */
+export type MatchProvider = 'FACEIT' | 'NATIVE';
+export type NativeGameType = 'CONNECT_FOUR';
 
 // ── Payment Status Types ──
 export interface PlayerPaymentInfo {
@@ -78,6 +86,28 @@ export interface BattleMatch {
     refund_tx_hash?: string | null;
     refund_status?: string | null;       // 'none' | 'pending' | 'pending_manual' | 'success' | 'failed'
     cancelled_at?: string | null;        // ISO 8601
+
+    // ── v2.0 Provider snapshot (missing on responses from older backends → treat as FACEIT) ──
+    provider?: MatchProvider;
+    requires_faceit?: boolean;
+    native_game_type?: NativeGameType | null;
+    result_source?: 'FACEIT' | 'NATIVE_ENGINE' | null;
+    game_finished_at?: string | null;
+    result_hash?: string | null;
+    /** Wallet-user display names (set by the backend for both providers). */
+    player_a_display_name?: string | null;
+    player_b_display_name?: string | null;
+    winner_user_id?: string | null;
+    loser_user_id?: string | null;
+}
+
+/** Legacy rows and older backends have no provider field: they are FACEIT matches. */
+export function getMatchProvider(match: Pick<BattleMatch, 'provider'>): MatchProvider {
+    return match.provider === 'NATIVE' ? 'NATIVE' : 'FACEIT';
+}
+
+export function isNativeMatch(match: Pick<BattleMatch, 'provider'>): boolean {
+    return getMatchProvider(match) === 'NATIVE';
 }
 
 export function getMatchStakeSompi(match: BattleMatch): number {

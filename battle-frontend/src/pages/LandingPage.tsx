@@ -9,10 +9,13 @@ import { SocialLinks } from '../components/common/SocialLinks';
 import { ContactCard } from '../components/common/ContactCard';
 import { RecruitmentSection } from '../components/landing/RecruitmentSection';
 import { publicLinks } from '../config/publicLinks';
+import { KaspaCoin } from '../components/native/ConnectFourCell';
+import { useNativeGamesEnabled } from '../hooks/useNativeGamesEnabled';
 
 export function LandingPage() {
     const { isAuthenticated, isFullyConnected, testMode } = useAuthStore();
     const { t } = useTranslation();
+    const nativeEnabled = useNativeGamesEnabled();
 
     return (
         <div className="animate-fade-in-up">
@@ -25,6 +28,10 @@ export function LandingPage() {
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FF5500]/10 border border-[#FF5500]/25 text-[#FF5500] font-black uppercase tracking-widest px-3 py-1 text-[10px]">
                         <Icon name="link" className="w-3 h-3" />
                         {t('hero.faceit_badge')}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-kaspa-primary/10 border border-kaspa-primary/25 text-kaspa-primary font-black uppercase tracking-widest text-2xs px-3 py-1">
+                        <Icon name="bolt" className="w-3 h-3" />
+                        {t('hero.browser_badge')}
                     </span>
                 </div>
 
@@ -89,14 +96,78 @@ export function LandingPage() {
                 <div className="max-w-3xl mx-auto px-4 text-center">
                     <p className="text-lg md:text-xl text-gray-300 leading-relaxed font-medium mb-6">
                         <Trans i18nKey="sections.what_is_content">
-                            KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming, die <span className="text-[#FF5500] font-semibold">FACEIT-Matches</span> mit <span className="text-kaspa-primary font-semibold">Kaspa-basiertem Settlement</span> verbindet.
-                            Spieler erstellen oder betreten Challenges, treten über FACEIT gegeneinander an und wickeln ihre Testnet-Matcheinsätze direkt über Kaspa ab.
+                            KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming. Spiele Browser Games direkt auf KaspaBattle oder tritt in <span className="text-[#FF5500] font-semibold">FACEIT-Matches</span> an – beides wird mit <span className="text-kaspa-primary font-semibold">Kaspa-basiertem Escrow und Payout</span> abgewickelt.
                         </Trans>
                     </p>
                     <p className="text-base text-gray-400 leading-relaxed">
                         {t('sections.what_is_integration')}
                     </p>
                 </div>
+            </section>
+
+            {/* Two ways to play: Browser Games (native) and FACEIT Games */}
+            <section id="games" className="py-20 border-t border-kaspa-border">
+                <SectionHeading
+                    eyebrow={t('sections.two_ways.eyebrow')}
+                    title={t('sections.two_ways.title')}
+                    subtitle={t('sections.two_ways.subtitle')}
+                />
+                <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <article aria-labelledby="games-browser-title" data-testid="landing-browser-games" className="glass-panel rounded-2xl border border-kaspa-primary/25 p-6 md:p-8 flex flex-col">
+                        <div className="flex items-center gap-2 mb-4">
+                            <KaspaCoin color="blue" className="w-8 h-8" />
+                            <KaspaCoin color="red" className="w-8 h-8" />
+                        </div>
+                        <p className="text-xs text-kaspa-primary/80 font-semibold uppercase tracking-wide mb-2">{t('sections.two_ways.browser.tag')}</p>
+                        <h3 id="games-browser-title" className="text-2xl font-black text-white mb-3">{t('sections.two_ways.browser.title')}</h3>
+                        <p className="text-gray-400 text-sm leading-relaxed mb-4">{t('sections.two_ways.browser.text')}</p>
+                        <ul className="space-y-2 text-sm text-gray-300 mb-6">
+                            {(['p1', 'p2', 'p3'] as const).map((k) => (
+                                <li key={k} className="flex items-start gap-2">
+                                    <Icon name="check" className="w-4 h-4 mt-0.5 shrink-0 text-kaspa-primary" />
+                                    {t(`sections.two_ways.browser.${k}`)}
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="mt-auto">
+                            {nativeEnabled ? (
+                                <Link to="/lobby/create?provider=native" className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-kaspa-dark font-black">
+                                    {t('sections.two_ways.browser.cta')}
+                                    <Icon name="chevron-right" className="w-4 h-4" />
+                                </Link>
+                            ) : (
+                                <span className="text-2xs font-bold uppercase tracking-widest text-gray-500">{t('sections.two_ways.browser.soon')}</span>
+                            )}
+                        </div>
+                    </article>
+
+                    <article aria-labelledby="games-faceit-title" data-testid="landing-faceit-games" className="glass-panel rounded-2xl border border-[#FF5500]/25 p-6 md:p-8 flex flex-col">
+                        <div className="w-8 h-8 mb-4 rounded-lg bg-[#FF5500]/10 border border-[#FF5500]/25 flex items-center justify-center">
+                            <Icon name="link" className="w-4 h-4 text-[#FF5500]" />
+                        </div>
+                        <p className="text-xs text-[#FF5500]/90 font-semibold uppercase tracking-wide mb-2">{t('sections.two_ways.faceit.tag')}</p>
+                        <h3 id="games-faceit-title" className="text-2xl font-black text-white mb-3">{t('sections.two_ways.faceit.title')}</h3>
+                        <p className="text-gray-400 text-sm leading-relaxed mb-4">{t('sections.two_ways.faceit.text')}</p>
+                        <ul className="space-y-2 text-sm text-gray-300 mb-6">
+                            {(['p1', 'p2', 'p3'] as const).map((k) => (
+                                <li key={k} className="flex items-start gap-2">
+                                    <Icon name="check" className="w-4 h-4 mt-0.5 shrink-0 text-[#FF5500]" />
+                                    {t(`sections.two_ways.faceit.${k}`)}
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="mt-auto">
+                            <Link to="/lobby" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#FF5500]/40 text-[#FF5500] hover:bg-[#FF5500]/10 font-black transition-colors">
+                                {t('sections.two_ways.faceit.cta')}
+                                <Icon name="chevron-right" className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    </article>
+                </div>
+                <p className="mt-8 text-center text-sm font-semibold text-gray-400 px-4">
+                    <Icon name="lock" className="inline w-4 h-4 mr-1.5 -mt-0.5 text-kaspa-primary" />
+                    {t('sections.two_ways.shared')}
+                </p>
             </section>
 
             {/* 2. Schritt-für-Schritt Anleitung CS2 1vs1 */}

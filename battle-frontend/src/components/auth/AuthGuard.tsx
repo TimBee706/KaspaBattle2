@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useWalletStore } from '../../stores/useWalletStore';
+import { useMatchStore } from '../../stores/useMatchStore';
+import { getMatchProvider } from '../../api/types';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { isAuthLoading, testMode, isFaceitConnected } = useAuthStore();
     const { isConnected: isWalletConnected } = useWalletStore();
+    // FACEIT is only an optional link for browser games: don't nag native-match players about it.
+    const currentMatch = useMatchStore((s) => s.currentMatch);
+    const isNativeMatch = !!currentMatch && getMatchProvider(currentMatch) === 'NATIVE';
 
     // Wait for initial auth check to complete before deciding
     if (isAuthLoading && !testMode) {
@@ -15,7 +20,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    const needsFaceit = !testMode && !isFaceitConnected;
+    const needsFaceit = !testMode && !isFaceitConnected && !isNativeMatch;
     const needsWallet = !isWalletConnected;
     const showBanner = !testMode && (needsFaceit || needsWallet);
 

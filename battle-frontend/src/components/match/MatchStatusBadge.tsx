@@ -17,6 +17,9 @@ const STATUS_CONFIG: Record<MatchStatus, { key: string; color: string; pulse?: b
     DISPUTED: { key: 'status.DISPUTED', color: 'bg-red-600', pulse: true },
     CANCELLED: { key: 'status.CANCELLED', color: 'bg-gray-600' },
     REFUNDED: { key: 'status.REFUNDED', color: 'bg-emerald-600' },
+    READY_TO_PLAY: { key: 'status.READY_TO_PLAY', color: 'bg-cyan-600', pulse: true },
+    FINISHED_GAME: { key: 'status.FINISHED_GAME', color: 'bg-teal-600' },
+    REFUND_PENDING: { key: 'status.REFUND_PENDING', color: 'bg-yellow-600', pulse: true },
 };
 
 const FALLBACK_STATUS_CONFIG = { key: 'status.UNKNOWN', color: 'bg-slate-600' } as const;
