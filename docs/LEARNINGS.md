@@ -6,6 +6,18 @@ Laufendes, geteiltes Protokoll nicht-offensichtlicher Erkenntnisse und Entscheid
 
 ---
 
+### 2026-09-29 — Gate 2 freigegeben + erste kompilierende MatchEscrow-Contract (Gate 3 gestartet)  [silverscript]
+
+- **Gate 2 (Contract-Spec + Threat Model) von Timo freigegeben**, inkl. zweier bestätigter Entscheidungen: kein Dispute-Entry-Point im MVP (nur die 5 vorgegebenen Entries), `mutual_settle` erhebt keine Plattform-Fee (nur `oracle_settle`).
+- Vollständiger Entwurf in `docs/SILVERSCRIPT-INTEGRATION-PLAN.md` §7–11: State-Layout, 5 Entry-Points, `KASPABATTLE_RESULT_V1`-Attestation, Threat-Model, `MatchSettlement`-Trait/Manifest-Skizze.
+- **Zwei durch echte Verifikation (nicht Annahme) korrigierte Design-Fehler, bevor Code entstand:**
+  1. `int as byte[N]` in SilverScript lowert zu `OpNum2Bin`/`serialize_i64` — **Bitcoin-Style Little-Endian mit Vorzeichenbit im letzten Byte**, nicht big-endian wie zunächst angenommen. Rust-/TS-Referenzimplementierungen der Attestation müssen `serialize_i64` exakt nachbauen, kein naives `to_le_bytes()`.
+  2. `this.ageDaa` ist keine normale vergleichbare Variable, sondern eine Grammatik-Sonderform, die **nur** `require(this.ageDaa >= expr)` zulässt (kein `<`, kein `&&`). Damit ist ein „Beitritt nur vor Ablauf"-Check (`join_timeout_daa` in `join`) **nicht ausdrückbar** — das Feld bleibt im MVP unenforced/reserviert.
+- **`contracts/silverscript/match_escrow.sil` kompiliert erfolgreich** gegen den echten, lokal gebauten `silverc` (SilverScript `v1.0.0`@`3ed9733…`, rusty-kaspa @`a41a333b…`, lokal `rustc 1.95.0` — erfüllt die geforderte `rust-version = 1.94.0`). Bytecode 1213 Bytes, Template-Hash und 5 kollisionsfreie Dispatch-Tags dokumentiert in `contracts/artifacts/match_escrow.abi.json` + `match_escrow.manifest.json`.
+- P2PK-`scriptPubKey` für Auszahlungsziele verifiziert gegen `kaspa-txscript::standard` @ gepinntem Rev: `OpData32 (0x20) || <32-Byte-Pubkey> || OpCheckSig (0xac)` — im Contract erfolgreich als `byte[1](0x20) + byte[](pk) + byte[1](0xac)` verwendet und kompiliert.
+- **Noch offen (verbleibender Gate-3-Umfang):** kein Lauf gegen den echten Interpreter (`cli-debugger`/`TxScriptEngine`, `covenants_enabled: true`) für irgendeinen Entry-Point — die Kompilierung beweist nur Syntax/Typkorrektheit, nicht Laufzeitverhalten (vgl. Issue #252, das genau so einen Fehler nur zur Laufzeit zeigt). Rust-/TypeScript-Attestation-Referenzimplementierung mit Testvektoren (§8.3) ebenfalls noch nicht geschrieben.
+- Werkzeug-Notiz: SilverScript-Compiler wurde lokal aus dem geklonten Repo gebaut (`cargo build -p silverscript-lang --bin silverc`, ~1:40 Min, zieht `kaspa-txscript`/`kaspa-consensus-core` etc. direkt per Git-Dependency vom gepinnten Rev).
+
 ### 2026-09-29 — Phase 2+3 (SilverScript-Quellen & Chess-Referenz) abgeschlossen  [silverscript]
 
 Vollständiges Ergebnis in [SILVERSCRIPT-INTEGRATION-PLAN.md](SILVERSCRIPT-INTEGRATION-PLAN.md) (Abschnitte 3–6). Kernpunkte, alle direkt am geklonten/ausgecheckten Quellcode verifiziert (nicht aus Erinnerung):
