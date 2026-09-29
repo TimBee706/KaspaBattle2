@@ -26,6 +26,8 @@ import { SupportPage } from './pages/SupportPage';
 import { useAuthStore } from './stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from './hooks/useWallet';
+import { handleAuthRedirect } from './auth/authRedirect';
+import { faceitApi } from './api/faceit';
 
 // Fallback for unknown routes goes to LandingPage
 
@@ -38,33 +40,19 @@ export default function App() {
   useBalance(); // Balance-Tracking im Hintergrund starten
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const linked = params.get('linked');
-    const errorParam = params.get('error');
-
-    if (linked) {
-      console.log('\u{1F517} [App] ?linked=1 detected, calling fetchUser...');
-      fetchUser()
-        .then(() => {
-          console.log('\u2705 [App] fetchUser succeeded after FaceIT login');
-          // Clean querystring and navigate to lobby ohne full page reload.
-          // window.location.replace würde den zustand in-memory verlieren.
-          window.history.replaceState({}, document.title, '/lobby');
-        })
-        .catch((err) => {
-          console.error('\u274C [App] fetchUser failed after FaceIT login:', err);
-          window.history.replaceState({}, document.title, '/');
+    handleAuthRedirect(window.location.search, window.location.pathname, {
+      fetchUser,
+      fetchFaceitStatus: () => faceitApi.getStatus(),
+      replaceUrl: (path) => window.history.replaceState({}, document.title, path),
+      notifyError: (code) => alert(`Authentication Error: ${code}`),
+    }).then((result) => {
+      if (result === 'none' && !useAuthStore.getState().isAuthenticated) {
+        // Cookie-based fallback: try to hydrate auth from HttpOnly cookie
+        fetchUser().catch(() => {
+          // Silently fail — user simply isn't logged in
         });
-    } else if (errorParam) {
-      console.error('FACEIT Auth Fehler:', errorParam);
-      alert(`Authentication Error: ${errorParam}`);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (!useAuthStore.getState().isAuthenticated) {
-      // Cookie-based fallback: try to hydrate auth from HttpOnly cookie
-      fetchUser().catch(() => {
-        // Silently fail — user simply isn't logged in
-      });
-    }
+      }
+    });
   }, [fetchUser]);
 
   if (wasmError) {

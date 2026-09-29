@@ -1,7 +1,7 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, HeaderValue},
-    response::Redirect,
+    response::{IntoResponse, Redirect},
     routing::{get, post},
     Json, Router,
 };
@@ -50,7 +50,6 @@ pub fn router() -> Router<AppState> {
         .route("/auth-url", get(auth_url_faceit))
         .route("/link", get(link_faceit))
         .route("/callback", get(faceit_callback))
-        .route("/session-bounce", get(session_bounce))
         .route("/status", get(faceit_status))
         .route("/profile", get(faceit_profile))
         .route("/stats", get(faceit_stats))
@@ -64,54 +63,51 @@ fn default_frontend_url() -> String {
     std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string())
 }
 
-#[allow(dead_code)]
-fn sanitize_return_to(candidate: &str) -> Option<String> {
-    let trimmed = candidate.trim();
-    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
-        return None;
-    }
-
-    let without_fragment = trimmed.split('#').next()?.trim_end_matches('/');
-
-    Some(without_fragment.to_string())
+/// Derives the post-login route from a `return_to` hint. Only relative in-app routes are
+/// honoured (see `sanitize_return_path`); the origin always comes from `FRONTEND_URL`, never
+/// from request headers, so a forged Origin/Referer cannot redirect users elsewhere.
+fn requested_return_path(headers: &HeaderMap) -> String {
+    headers
+        .get("referer")
+        .and_then(|v| v.to_str().ok())
+        .and_then(referer_path)
+        .and_then(|p| battle_core::faceit_oauth::sanitize_return_path(&p))
+        .unwrap_or_else(|| "/lobby".to_string())
 }
 
-#[allow(dead_code)]
-fn infer_return_to(headers: &HeaderMap) -> String {
-    let header_candidates = [
-        headers.get("origin"),
-        headers.get("referer"),
-        headers.get("x-forwarded-origin"),
-    ];
-
-    for value in header_candidates.into_iter().flatten() {
-        if let Ok(raw) = value.to_str() {
-            if let Some(url) = sanitize_return_to(raw) {
-                return url;
-            }
-        }
-    }
-
-    if let (Some(proto), Some(host)) = (
-        headers
-            .get("x-forwarded-proto")
-            .and_then(|v| v.to_str().ok()),
-        headers
-            .get("x-forwarded-host")
-            .and_then(|v| v.to_str().ok()),
-    ) {
-        let forwarded = format!("{}://{}", proto, host);
-        if let Some(url) = sanitize_return_to(&forwarded) {
-            return url;
-        }
-    }
-
-    default_frontend_url()
+/// Path + query of an absolute http(s) referer URL.
+fn referer_path(referer: &str) -> Option<String> {
+    let rest = referer
+        .strip_prefix("https://")
+        .or_else(|| referer.strip_prefix("http://"))?;
+    Some(match rest.find('/') {
+        Some(i) => rest[i..].to_string(),
+        None => "/".to_string(),
+    })
 }
 
-fn append_query_param(base: &str, key: &str, value: &str) -> String {
-    let separator = if base.contains('?') { '&' } else { '?' };
-    format!("{}{}{}={}", base, separator, key, value)
+/// Final redirect target after a successful login: canonical origin + safe relative path
+/// + `linked=1` so the SPA reloads `/auth/me` and `/faceit/status`.
+fn post_login_url(return_path: Option<&str>) -> String {
+    post_login_url_for(&default_frontend_url(), return_path)
+}
+
+fn post_login_url_for(origin: &str, return_path: Option<&str>) -> String {
+    let origin = origin.trim_end_matches('/');
+    let mut path = return_path
+        .and_then(battle_core::faceit_oauth::sanitize_return_path)
+        .unwrap_or_else(|| "/lobby".to_string());
+    // Landing on the login page or the callback itself would loop; go to the lobby instead.
+    if path == "/" || path.starts_with("/auth/") {
+        path = "/lobby".to_string();
+    }
+    let sep = if path.contains('?') { '&' } else { '?' };
+    format!("{}{}{}linked=1", origin, path, sep)
+}
+
+fn error_redirect(code: &str) -> axum::response::Response {
+    let url = format!("{}/?error={}", default_frontend_url().trim_end_matches('/'), code);
+    Redirect::to(&url).into_response()
 }
 
 // ── /faceit/auth-url (JSON — für Frontend-navigierten OAuth-Flow) ───────────
@@ -125,8 +121,7 @@ async fn auth_url_faceit(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<AuthUrlResponse>, axum::http::StatusCode> {
-    let return_to = infer_return_to(&headers);
-    tracing::info!("🔐 FACEIT auth-url: return_to={}", return_to);
+    let return_to = requested_return_path(&headers);
 
     match state
         .faceit_service
@@ -134,7 +129,7 @@ async fn auth_url_faceit(
         .await
     {
         Ok((url, _)) => {
-            tracing::info!("🔐 FACEIT auth URL (JSON): {}", url);
+            tracing::info!("🔐 FACEIT auth URL generated");
             Ok(Json(AuthUrlResponse { url }))
         }
         Err(e) => {
@@ -148,8 +143,7 @@ async fn login_faceit(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
-    let return_to = infer_return_to(&headers);
-    tracing::info!("🔐 FACEIT login: return_to={}", return_to);
+    let return_to = requested_return_path(&headers);
 
     match state
         .faceit_service
@@ -157,7 +151,7 @@ async fn login_faceit(
         .await
     {
         Ok((url, _)) => {
-            tracing::info!("🔐 FACEIT auth URL: {}", url);
+            tracing::info!("🔐 FACEIT auth URL generated");
             Ok(Redirect::temporary(&url))
         }
         Err(e) => {
@@ -174,7 +168,7 @@ async fn link_faceit(
     headers: HeaderMap,
 ) -> Result<Redirect, axum::http::StatusCode> {
     let crate::api::auth_guard::SessionUserNoWallet(u) = user;
-    let return_to = infer_return_to(&headers);
+    let return_to = requested_return_path(&headers);
 
     match state
         .faceit_service
@@ -197,111 +191,78 @@ async fn link_faceit(
 
 #[derive(Deserialize)]
 pub struct FaceitCallbackQuery {
-    pub code: String,
-    pub state: String,
+    pub code: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
 }
 
+/// Server-side OAuth callback on the canonical origin. On success it sets the session cookie
+/// and answers `303 See Other` to `/lobby?linked=1`; the session token never appears in a URL.
 async fn faceit_callback(
     State(state): State<AppState>,
     Query(query): Query<FaceitCallbackQuery>,
-) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
-    // 1. Token Exchange -> User Info & Tokens holen
-    let (info, tokens, existing_user_id, return_to) = state
-        .faceit_service
-        .handle_callback(&query.code, &query.state)
-        .await
-        .map_err(|e| {
-            tracing::error!("❌ FACEIT callback error: {}", e);
-            axum::http::StatusCode::BAD_REQUEST
-        })?;
+) -> axum::response::Response {
+    if let Some(err) = query.error.as_deref() {
+        tracing::warn!("FACEIT callback returned an OAuth error");
+        let _ = err;
+        return error_redirect("faceit_denied");
+    }
+    let (Some(code), Some(oauth_state)) = (query.code.as_deref(), query.state.as_deref()) else {
+        return error_redirect("faceit_invalid_callback");
+    };
 
-    tracing::info!(
-        "✅ FACEIT callback: user {} linked",
-        mask_faceit_id(&info.guid)
-    );
+    // 1. Redeem state (single use) + token exchange + userinfo
+    let (info, tokens, existing_user_id, return_to) =
+        match state.faceit_service.handle_callback(code, oauth_state).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("❌ FACEIT callback failed: {}", e);
+                return error_redirect("faceit_login_failed");
+            }
+        };
 
-    // 2. Auth Session Generieren / Faceit Link speichern
-    let (uid, session_token) = state
+    let masked = mask_faceit_id(&info.guid);
+
+    // 2. Resolve / create the local user and issue a session
+    let (uid, session_token) = match state
         .auth_service
         .handle_faceit_sso(&info, existing_user_id.as_deref())
         .await
-        .map_err(|e| {
-            tracing::error!(
-                "❌ Auth SSO Error for FACEIT user {}",
-                mask_faceit_id(&info.guid)
-            );
-            tracing::info!("  Detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    let _ = state
-        .faceit_service
-        .save_faceit_link(&uid, &info, &tokens)
-        .await;
-
-    // 3. Redirect through session-bounce to set the cookie on the SAME origin the
-    //    frontend uses for API requests.  When the frontend talks through the Vite
-    //    proxy (localhost:5173/api/v1/…) the cookie must be set on that origin — not
-    //    on localhost:8080 which the browser treats as a different origin.
-    let frontend_url = return_to.unwrap_or_else(default_frontend_url);
-
-    // Extract origin to avoid appending /api/v1 to a specific route like /lobby
-    let origin = if let Some(pos) = frontend_url.find("://") {
-        let rest = &frontend_url[pos + 3..];
-        if let Some(slash) = rest.find('/') {
-            &frontend_url[..pos + 3 + slash]
-        } else {
-            &frontend_url
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("❌ Auth SSO error for FACEIT user {}: {}", masked, e);
+            return error_redirect("faceit_login_failed");
         }
-    } else {
-        &frontend_url
     };
 
-    // Derive bounce base from the frontend origin
-    let bounce_base = format!(
-        "{}/api/v1/faceit/session-bounce",
-        origin.trim_end_matches('/')
+    // 3. Persist the link. A failure must NOT look like "logged in and linked".
+    if let Err(e) = state
+        .faceit_service
+        .save_faceit_link(&uid, &info, &tokens)
+        .await
+    {
+        tracing::error!("❌ Saving FACEIT link failed for user {}: {}", masked, e);
+        return error_redirect("faceit_link_failed");
+    }
+
+    tracing::info!("✅ FACEIT callback: user {} linked", masked);
+
+    // 4. Set the cookie on this (canonical) origin and redirect with 303.
+    let target = post_login_url(return_to.as_deref());
+    let cookie = crate::api::build_auth_cookie(&session_token);
+    let Ok(cookie_value) = HeaderValue::from_str(&cookie) else {
+        return error_redirect("faceit_login_failed");
+    };
+    let mut response = Redirect::to(&target).into_response(); // 303 See Other
+    response
+        .headers_mut()
+        .insert(axum::http::header::SET_COOKIE, cookie_value);
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
     );
-    let bounce_url = format!(
-        "{}?token={}&next={}",
-        bounce_base,
-        urlencoding::encode(&session_token),
-        urlencoding::encode(&append_query_param(&frontend_url, "linked", "1")),
-    );
-
-    Ok(Redirect::temporary(&bounce_url))
-}
-
-// ── /faceit/session-bounce ─────────────────────────────────────────────────
-// Sets the auth cookie on localhost domain, then redirects to the frontend.
-// This solves the cookie-domain mismatch when OAuth callback goes through ngrok.
-
-#[derive(Deserialize)]
-struct SessionBounceQuery {
-    token: String,
-    next: String,
-}
-
-async fn session_bounce(
-    Query(query): Query<SessionBounceQuery>,
-) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode> {
-    // Use the shared cookie builder to ensure consistent SameSite/Secure attributes.
-    // The target URL determines whether Secure flag is needed.
-    let cookie_str = crate::api::build_auth_cookie_for_target(&query.token, &query.next);
-
-    let response = axum::response::Response::builder()
-        .status(axum::http::StatusCode::SEE_OTHER)
-        .header(axum::http::header::LOCATION, &query.next)
-        .header(
-            axum::http::header::SET_COOKIE,
-            HeaderValue::from_str(&cookie_str)
-                .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?,
-        )
-        .body(axum::body::Body::empty())
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    tracing::info!("🔐 Session bounce: cookie set, redirecting to {}", query.next);
-    Ok(response)
+    response
 }
 
 // ── /faceit/status ─────────────────────────────────────────────────────────
@@ -781,47 +742,37 @@ async fn faceit_disconnect(
 
 #[cfg(test)]
 mod tests {
-    use super::{infer_return_to, sanitize_return_to, validate_game_id};
-    use axum::http::{HeaderMap, HeaderValue, StatusCode};
+    use super::{post_login_url_for, referer_path, validate_game_id};
+    use axum::http::StatusCode;
+
+    const ORIGIN: &str = "https://www.example.test";
 
     #[test]
-    fn sanitize_return_to_keeps_http_urls_and_removes_fragments() {
+    fn post_login_redirect_targets_lobby_with_linked_flag() {
+        assert_eq!(post_login_url_for(ORIGIN, None), "https://www.example.test/lobby?linked=1");
+        assert_eq!(post_login_url_for(ORIGIN, Some("/lobby")), "https://www.example.test/lobby?linked=1");
         assert_eq!(
-            sanitize_return_to("https://example.com/lobby?foo=bar#frag").as_deref(),
-            Some("https://example.com/lobby?foo=bar")
+            post_login_url_for(ORIGIN, Some("/lobby?tab=2")),
+            "https://www.example.test/lobby?tab=2&linked=1"
         );
-        assert_eq!(
-            sanitize_return_to("http://localhost:5173/").as_deref(),
-            Some("http://localhost:5173")
-        );
-        assert_eq!(sanitize_return_to("javascript:alert(1)"), None);
+        // landing/callback routes would loop -> lobby
+        assert_eq!(post_login_url_for(ORIGIN, Some("/")), "https://www.example.test/lobby?linked=1");
+        assert_eq!(post_login_url_for(ORIGIN, Some("/auth/faceit/callback")), "https://www.example.test/lobby?linked=1");
     }
 
     #[test]
-    fn infer_return_to_prefers_origin() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "origin",
-            HeaderValue::from_static("https://demo.ngrok-free.dev"),
-        );
-        headers.insert(
-            "referer",
-            HeaderValue::from_static("https://localhost:5173/lobby"),
-        );
-
-        assert_eq!(infer_return_to(&headers), "https://demo.ngrok-free.dev");
+    fn post_login_redirect_never_leaves_canonical_origin() {
+        for evil in ["https://evil.example/x", "//evil.example", "/\\evil.example", "javascript:1"] {
+            let url = post_login_url_for(ORIGIN, Some(evil));
+            assert!(url.starts_with("https://www.example.test/lobby"), "{evil}: {url}");
+        }
     }
 
     #[test]
-    fn infer_return_to_uses_forwarded_host_when_needed() {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-forwarded-proto", HeaderValue::from_static("https"));
-        headers.insert(
-            "x-forwarded-host",
-            HeaderValue::from_static("demo.ngrok-free.dev"),
-        );
-
-        assert_eq!(infer_return_to(&headers), "https://demo.ngrok-free.dev");
+    fn referer_path_extracts_only_the_path() {
+        assert_eq!(referer_path("https://x.test/lobby?a=1").as_deref(), Some("/lobby?a=1"));
+        assert_eq!(referer_path("https://x.test").as_deref(), Some("/"));
+        assert_eq!(referer_path("ftp://x.test/a"), None);
     }
 
     #[test]
