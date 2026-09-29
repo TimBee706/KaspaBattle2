@@ -1,6 +1,6 @@
 # SilverScript L1 Escrow — Integration Plan
 
-Status: **Phase 0–3 abgeschlossen (Gate 1 freigegeben 2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) ist entworfen und wartet auf Freigabe — noch nicht implementiert, noch nicht committet.**
+Status: **Phase 0–3 abgeschlossen, Gate 1 freigegeben (2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) von Timo freigegeben (2026-09-29, Dispute-Scope und Fee-Modell wie entworfen bestätigt). Erste echte Kompilierung von `match_escrow.sil` gegen den realen `silverc`-Compiler erfolgreich (Abschnitt 7.7) — Interpreter-/Simnet-Tests (restlicher Gate-3-Umfang) stehen noch aus.**
 Branch: `feature/silverscript-l1-escrow`. Scope: nur 1v1-Matches, Turniere werden nicht migriert.
 
 Diese Datei wird mit jeder Phase weitergeschrieben (siehe [CLAUDE.md](../CLAUDE.md) → „Memory & Learnings"). Abschnitte ab „Contract-State" sind Platzhalter, bis Gate 2 ansteht.
@@ -274,6 +274,26 @@ CREATED ──join──────────────▶ FUNDED ──ora
 ```
 
 Kein Zustand ist nach einem terminalen Übergang mehr vorhanden — alle vier Endpfade konsumieren das Covenant-UTXO vollständig und erzeugen **keine** Fortsetzung desselben Contract-Typs (anders als Chess' `mux`↔`settle`-Zyklus, der für ein 1v1-Match mit genau einem Ergebnis nicht nötig ist).
+
+### 7.6 Gate-3-Fund: `this.ageDaa` unterstützt nur `>=`
+
+Beim ersten echten Kompilierversuch (siehe 7.7) stellte sich heraus: `this.ageDaa` ist **kein** normaler vergleichbarer Ausdruck, sondern eine eigene Grammatik-Sonderform (`TxVar`, lowert zu `Statement::RequireAgeDaa`) — **nur** `require(this.ageDaa >= <ausdruck>)` ist zulässig, ein `<`, `>`, `&&`-Verknüpfung o. ä. ist ein Parse-Fehler. Damit lässt sich **kein** "jünger als X"-Check ausdrücken. Konsequenz: `join_timeout_daa` kann in `join` **nicht** als "Beitritt nur vor Ablauf" durchgesetzt werden, wie ursprünglich in 7.4 vorgesehen. Das Feld bleibt vorerst unenforced/reserviert (im State abgelegt, aber ohne aktive Prüfung) — die einzige tatsächlich nutzbare Timeout-Richtung ist "mindestens X alt", passend zu `refund_timeout`. Das ist keine Design-Lücke, sondern eine durch den echten Compiler aufgedeckte Grenze, die vor der Implementierung (und nicht erst auf Testnet) gefunden wurde — genau der Zweck von Gate 3.
+
+### 7.7 Gate-3-Fortschritt: erste erfolgreiche Kompilierung (verifiziert)
+
+`contracts/silverscript/match_escrow.sil` wurde gegen den echten `silverc` (SilverScript `v1.0.0` @ `3ed9733…`, rusty-kaspa @ `a41a333b…`) kompiliert — **erfolgreich, keine Fehler**, nach den beiden oben dokumentierten Korrekturen (int-Encoding, `this.ageDaa`-Grenze). Artefakte: `contracts/artifacts/match_escrow.abi.json` (ABI-Schema-Version 1) und `contracts/artifacts/match_escrow.manifest.json`.
+
+| Entry | Dispatch-Tag (hex) |
+|---|---|
+| `join` | `8bb176b9` |
+| `cancel_unjoined` | `f7144901` |
+| `mutual_settle` | `bb8a5e32` |
+| `oracle_settle` | `414681ad` |
+| `refund_timeout` | `54b3d885` |
+
+Template-Hash: `8d96afea1e22818ec3f9b6781e8e41a8721f87b8245bfabe069d5701acb5d357` (mit Test-Konstruktor-Argumenten aus `contracts/silverscript/tests/match_escrow.ctor.json` — **ändert sich**, sobald echte Konstruktor-Werte oder der Contract-Code selbst sich ändern; kein fester Wert für „den" Contract, sondern für genau diese kompilierte Instanz). Kompilierter Bytecode: 1213 Bytes — deutlich unter jedem bekannten Größenlimit.
+
+**Noch nicht verifiziert (verbleibender Gate-3-Umfang):** keine Ausführung gegen den echten Interpreter (`cli-debugger`/`TxScriptEngine` mit `covenants_enabled: true`) für auch nur einen der fünf Entry-Points — die erfolgreiche Kompilierung beweist nur, dass der Quelltext syntaktisch/typmäßig gültig ist, **nicht**, dass die Logik zur Laufzeit wie beabsichtigt funktioniert (siehe Issue #252 — genau diese Art Fehler zeigt sich erst zur Laufzeit, nicht beim Kompilieren). Rust-/TypeScript-Attestation-Referenzimplementierung (8.3) ebenfalls noch offen.
 
 ---
 
