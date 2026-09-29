@@ -1,6 +1,7 @@
 //! # Payout Worker (Phase 4a)
 //!
-//! Background Tokio task that polls `FINISHED_FACEIT` matches and:
+//! Background Tokio task that polls `FINISHED_FACEIT` (FACEIT) and `FINISHED_GAME` (native
+//! browser games) matches and:
 //! 1. Loads the winner's Kaspa address from the `users` table.
 //! 2. Calls `MultisigEscrowService::create_pskt()`.
 //! 3. Persists the PSKT hex to `matches.payout_pskt_hex`.
@@ -41,7 +42,7 @@ pub async fn run_payout_worker(
 }
 
 /// Loads all matches in `FINISHED_FACEIT` status (= winner known, PSKT pending).
-async fn poll_finished_matches(
+pub(crate) async fn poll_finished_matches(
     pool: &PgPool,
     multisig_service: &battle_kaspa::multisig::service::MultisigEscrowService,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -50,13 +51,15 @@ async fn poll_finished_matches(
          u.kaspa_address AS winner_kaspa_address, \
          me.pubkey_a_hex, me.pubkey_b_hex, me.pubkey_oracle_hex, \
          me.redeem_script_hex, me.p2sh_address AS escrow_p2sh, \
-         me.wager_per_player_sompi, me.timelock_timestamp, m.faceit_finished_at \
+         me.wager_per_player_sompi, me.timelock_timestamp, \
+         COALESCE(m.faceit_finished_at, m.game_finished_at) AS finished_at \
          FROM matches m \
          JOIN users u ON u.id = m.winner_user_id \
          LEFT JOIN multisig_escrows me ON me.match_id = m.id \
-         WHERE m.status = 'FINISHED_FACEIT' \
+         WHERE m.status IN ('FINISHED_FACEIT', 'FINISHED_GAME') \
          AND m.winner_user_id IS NOT NULL \
          AND m.payout_pskt_hex IS NULL \
+         AND (m.provider <> 'NATIVE' OR (m.result_source = 'NATIVE_ENGINE' AND m.result_hash IS NOT NULL)) \
          ORDER BY m.created_at ASC \
          LIMIT 20",
     )
@@ -77,17 +80,17 @@ async fn poll_finished_matches(
         let escrow_p2sh: Option<String> = row.try_get("escrow_p2sh").ok().flatten();
         let wager_per_player_sompi: Option<i64> = row.try_get("wager_per_player_sompi").ok().flatten();
         let timelock_timestamp: Option<i64> = row.try_get("timelock_timestamp").ok().flatten();
-        let faceit_finished_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("faceit_finished_at").ok().flatten();
+        let finished_at_opt: Option<chrono::DateTime<chrono::Utc>> = row.try_get("finished_at").ok().flatten();
 
         // Check if stuck in FINISHED_FACEIT for > 24 hours
-        if let Some(finished_at) = faceit_finished_at {
+        if let Some(finished_at) = finished_at_opt {
             if (chrono::Utc::now() - finished_at).num_hours() > 24 {
                 warn!(
                     match_id = %match_id,
                     "Payout Worker: match stuck in FINISHED_FACEIT > 24h. Moving to DISPUTED"
                 );
                 let _ = sqlx::query(
-                    "UPDATE matches SET status = 'DISPUTED', payout_status = 'pending_dispute_resolution' WHERE id = $1 AND status = 'FINISHED_FACEIT'",
+                    "UPDATE matches SET status = 'DISPUTED', payout_status = 'pending_dispute_resolution' WHERE id = $1 AND status IN ('FINISHED_FACEIT', 'FINISHED_GAME')",
                 )
                 .bind(match_id)
                 .execute(pool)
@@ -160,7 +163,7 @@ async fn poll_finished_matches(
                      SET payout_pskt_hex = $1, \
                          payout_status = 'pending_winner_sig', \
                          status = 'READY_FOR_PAYOUT' \
-                     WHERE id = $2 AND status = 'FINISHED_FACEIT'",
+                     WHERE id = $2 AND status IN ('FINISHED_FACEIT', 'FINISHED_GAME')",
                 )
                 .bind(&pskt.pskt_hex)
                 .bind(match_id)
@@ -200,7 +203,7 @@ async fn escalate_legacy_to_disputed(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     sqlx::query(
         "UPDATE matches SET status = 'DISPUTED', payout_status = 'legacy_unsupported' \
-         WHERE id = $1 AND status = 'FINISHED_FACEIT'",
+         WHERE id = $1 AND status IN ('FINISHED_FACEIT', 'FINISHED_GAME')",
     )
     .bind(match_id)
     .execute(pool)

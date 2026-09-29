@@ -23,6 +23,21 @@ pub enum MatchStatus {
     Disputed,        // Dispute filed
     Cancelled,
     Refunded,        // Refund executed — deposits returned to players
+    ReadyToPlay,     // NATIVE: both deposits confirmed, session created, waiting for start
+    FinishedGame,    // NATIVE: server engine decided the game, winner known (payout worker input)
+    RefundPending,   // NATIVE: draw — both stakes are to be refunded (refund worker input)
+}
+
+/// Who runs the game (snapshotted on the match when it is created).
+#[derive(Type, Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[sqlx(type_name = "text", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MatchProvider {
+    /// External competitive game verified through FACEIT (legacy behaviour).
+    #[default]
+    Faceit,
+    /// Browser game played directly on KaspaBattle; result decided by the server engine.
+    Native,
 }
 
 #[derive(Type, Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -63,7 +78,8 @@ pub const MATCH_COLUMNS: &str = concat!(
     "faceit_finished_at, faceit_winner_faction, faceit_score, ",
     "winner_user_id, loser_user_id, ",
     "payout_pskt_hex, payout_tx_hash, payout_status, ",
-    "refund_tx_hash, refund_status, cancelled_at"
+    "refund_tx_hash, refund_status, cancelled_at, ",
+    "provider, requires_faceit, native_game_type, result_source, game_finished_at, result_hash"
 );
 
 /// Backwards-compat alias (use `MATCH_COLUMNS` in new code).
@@ -156,6 +172,23 @@ pub struct Match {
     #[sqlx(default)]
     pub cancelled_at: Option<chrono::DateTime<chrono::Utc>>,
 
+    // ── v2.0 Provider snapshot + native settlement metadata ──
+    /// Snapshot of the game provider at creation time (never changes afterwards).
+    #[sqlx(default)]
+    pub provider: MatchProvider,
+    #[sqlx(default)]
+    pub requires_faceit: Option<bool>,
+    /// e.g. "CONNECT_FOUR" for provider NATIVE
+    #[sqlx(default)]
+    pub native_game_type: Option<String>,
+    /// "NATIVE_ENGINE" for natively decided matches
+    #[sqlx(default)]
+    pub result_source: Option<String>,
+    #[sqlx(default)]
+    pub game_finished_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub result_hash: Option<String>,
+
     // ── v1.1 FACEIT Profile Enrichment (not stored in matches table) ──
     // These fields are populated in-memory after the DB load by joining faceit_links.
     // They are NOT included in MATCH_COLUMNS or any sqlx query.
@@ -183,6 +216,11 @@ pub struct Match {
     /// FACEIT ID (player_id) of Player B
     #[sqlx(skip)]
     pub player_b_faceit_id: Option<String>,
+    /// Wallet-account display names (both providers; native players have no FACEIT profile).
+    #[sqlx(skip)]
+    pub player_a_display_name: Option<String>,
+    #[sqlx(skip)]
+    pub player_b_display_name: Option<String>,
 }
 
 impl Match {
@@ -207,10 +245,14 @@ impl Match {
                 player_b_deposited: self.player_b_deposit_confirmed.unwrap_or(false),
             },
             MatchStatus::Funded | MatchStatus::Locked => MatchState::Locked,
+            // NATIVE lifecycle: no external game id is involved. Cancelling is rejected from
+            // READY_TO_PLAY on (funds are locked in the game) — same rule as `InGame`.
+            MatchStatus::ReadyToPlay => MatchState::ReadyToPlay,
             MatchStatus::GameIdInput => MatchState::GameIdInput {
                 faceit_id_a: self.faceit_match_id_player_a.clone(),
                 faceit_id_b: self.faceit_match_id_player_b.clone(),
             },
+            MatchStatus::InGame if self.provider == MatchProvider::Native => MatchState::NativeInGame,
             MatchStatus::InGame => MatchState::InGame {
                 faceit_match_id: self
                     .faceit_match_id_final
@@ -228,6 +270,17 @@ impl Match {
                     .unwrap_or_default(),
                 score: self.faceit_score.clone().unwrap_or_default(),
             },
+            MatchStatus::FinishedGame => MatchState::FinishedGame {
+                winner_id: self
+                    .winner_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                loser_id: self
+                    .loser_user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+            },
+            MatchStatus::RefundPending => MatchState::RefundPending,
             MatchStatus::ReadyForPayout => MatchState::ReadyForPayout {
                 winner_id: self
                     .winner_user_id

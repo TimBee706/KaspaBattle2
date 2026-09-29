@@ -28,6 +28,17 @@ pub enum MatchState {
         loser_id: String,
         score: String,
     },
+    /// NATIVE: both deposits confirmed and the game session exists; waiting for the start.
+    ReadyToPlay,
+    /// NATIVE: the server-authoritative game is running.
+    NativeInGame,
+    /// NATIVE: the server engine decided the game (winner known). Payout worker input.
+    FinishedGame {
+        winner_id: String,
+        loser_id: String,
+    },
+    /// NATIVE: the game ended without a winner (draw) — both stakes are refunded.
+    RefundPending,
     /// F-010: PSKT has been created and signed by the oracle. Waiting for winner to sign.
     ReadyForPayout {
         winner_id: String,
@@ -62,6 +73,10 @@ impl MatchState {
             MatchState::GameIdInput { .. } => "GameIdInput",
             MatchState::InGame { .. } => "InGame",
             MatchState::FinishedFaceit { .. } => "FinishedFaceit",
+            MatchState::ReadyToPlay => "ReadyToPlay",
+            MatchState::NativeInGame => "NativeInGame",
+            MatchState::FinishedGame { .. } => "FinishedGame",
+            MatchState::RefundPending => "RefundPending",
             MatchState::ReadyForPayout { .. } => "ReadyForPayout",
             MatchState::Resolved { .. } => "Resolved",
             MatchState::Disputed { .. } => "Disputed",
@@ -97,6 +112,17 @@ pub enum MatchAction {
     /// F-010: Automatically transitions from Locked/Funded to GameIdInput.
     /// Triggered by the episode runner immediately after both deposits are confirmed.
     TransitionToGameIdInput,
+    /// NATIVE: both deposits confirmed → create the game session (Locked → ReadyToPlay).
+    PrepareNativeGame,
+    /// NATIVE: start the game (ReadyToPlay → NativeInGame). Idempotent while running.
+    StartNativeGame,
+    /// NATIVE: the engine produced a winner (win, resignation or timeout).
+    NativeGameFinished {
+        winner_id: String,
+        loser_id: String,
+    },
+    /// NATIVE: the engine reported a draw. No winner payout may ever be created.
+    NativeGameDrawn,
     /// F-010: A player submits their FaceIT match ID.
     SubmitFaceitMatchId {
         player_id: String,
@@ -188,6 +214,15 @@ pub fn transition(
             }
             Ok(MatchState::Cancelled { reason: reason.clone() })
         }
+
+        // NATIVE: once the session exists the stakes are locked into the game.
+        (
+            MatchState::ReadyToPlay
+            | MatchState::NativeInGame
+            | MatchState::FinishedGame { .. }
+            | MatchState::RefundPending,
+            MatchAction::Cancel { .. },
+        ) => Err(MatchError::CannotCancelLockedMatch),
 
         // Cancel after Locked → Error
         (MatchState::Locked, MatchAction::Cancel { .. }) => {
@@ -294,6 +329,45 @@ pub fn transition(
             action: "TransitionToGameIdInput".to_string(),
         }),
 
+        // === NATIVE GAME LIFECYCLE ===
+        (MatchState::Locked, MatchAction::PrepareNativeGame) => Ok(MatchState::ReadyToPlay),
+        (MatchState::ReadyToPlay, MatchAction::PrepareNativeGame) => Ok(MatchState::ReadyToPlay),
+        (_, MatchAction::PrepareNativeGame) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "PrepareNativeGame".to_string(),
+        }),
+
+        (MatchState::ReadyToPlay, MatchAction::StartNativeGame) => Ok(MatchState::NativeInGame),
+        (MatchState::NativeInGame, MatchAction::StartNativeGame) => Ok(MatchState::NativeInGame),
+        (_, MatchAction::StartNativeGame) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "StartNativeGame".to_string(),
+        }),
+
+        (MatchState::NativeInGame, MatchAction::NativeGameFinished { winner_id, loser_id }) => {
+            let is_a = |id: &String| id == player_a_id;
+            let is_b = |id: &String| player_b_id.map(|b| id == b).unwrap_or(false);
+            // Winner and loser must be the two (distinct) participants.
+            let valid = (is_a(winner_id) && is_b(loser_id)) || (is_b(winner_id) && is_a(loser_id));
+            if !valid {
+                return Err(MatchError::NotAPlayer);
+            }
+            Ok(MatchState::FinishedGame {
+                winner_id: winner_id.clone(),
+                loser_id: loser_id.clone(),
+            })
+        }
+        (_, MatchAction::NativeGameFinished { .. }) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "NativeGameFinished".to_string(),
+        }),
+
+        (MatchState::NativeInGame, MatchAction::NativeGameDrawn) => Ok(MatchState::RefundPending),
+        (_, MatchAction::NativeGameDrawn) => Err(MatchError::InvalidTransition {
+            from: current_state.state_name().to_string(),
+            action: "NativeGameDrawn".to_string(),
+        }),
+
         // === SUBMIT FACEIT MATCH ID ===
         // F-010: A player submits their FaceIT match ID.
         (
@@ -368,6 +442,20 @@ pub fn transition(
             if winner_id != pskt_winner {
                 return Err(MatchError::InvalidTransition {
                     from: "FinishedFaceit".to_string(),
+                    action: "PsktCreated (winner mismatch)".to_string(),
+                });
+            }
+            Ok(MatchState::ReadyForPayout {
+                winner_id: winner_id.clone(),
+                pskt_hex: pskt_hex.clone(),
+            })
+        }
+
+        // NATIVE: the payout worker creates the PSKT from FinishedGame.
+        (MatchState::FinishedGame { winner_id, .. }, MatchAction::PsktCreated { winner_id: pskt_winner, pskt_hex }) => {
+            if winner_id != pskt_winner {
+                return Err(MatchError::InvalidTransition {
+                    from: "FinishedGame".to_string(),
                     action: "PsktCreated (winner mismatch)".to_string(),
                 });
             }
@@ -982,5 +1070,56 @@ mod tests {
             MatchError::CannotCancelLockedMatch => {}
             other => panic!("Expected CannotCancelLockedMatch, got {:?}", other),
         }
+    }
+
+    // ── NATIVE lifecycle ─────────────────────────────────────────────────────
+
+    fn t(state: &MatchState, action: MatchAction) -> Result<MatchState, MatchError> {
+        transition(state, &action, "alice", Some("bob"))
+    }
+
+    #[test]
+    fn native_happy_path_to_ready_for_payout() {
+        let s = t(&MatchState::Locked, MatchAction::PrepareNativeGame).unwrap();
+        assert_eq!(s, MatchState::ReadyToPlay);
+        let s = t(&s, MatchAction::StartNativeGame).unwrap();
+        assert_eq!(s, MatchState::NativeInGame);
+        // Idempotent start.
+        assert_eq!(t(&s, MatchAction::StartNativeGame).unwrap(), MatchState::NativeInGame);
+        let s = t(&s, MatchAction::NativeGameFinished { winner_id: "bob".into(), loser_id: "alice".into() }).unwrap();
+        assert_eq!(s, MatchState::FinishedGame { winner_id: "bob".into(), loser_id: "alice".into() });
+        let s = t(&s, MatchAction::PsktCreated { winner_id: "bob".into(), pskt_hex: "aa".into() }).unwrap();
+        assert!(matches!(s, MatchState::ReadyForPayout { .. }));
+    }
+
+    #[test]
+    fn native_draw_leads_to_refund_and_never_to_payout() {
+        let s = t(&MatchState::NativeInGame, MatchAction::NativeGameDrawn).unwrap();
+        assert_eq!(s, MatchState::RefundPending);
+        assert!(!s.allows_payout());
+        // No PSKT / winner can be attached to a refund-pending match.
+        assert!(t(&s, MatchAction::PsktCreated { winner_id: "alice".into(), pskt_hex: "aa".into() }).is_err());
+        assert!(t(&s, MatchAction::NativeGameFinished { winner_id: "alice".into(), loser_id: "bob".into() }).is_err());
+    }
+
+    #[test]
+    fn native_finish_requires_the_two_participants() {
+        let bad = t(&MatchState::NativeInGame, MatchAction::NativeGameFinished { winner_id: "mallory".into(), loser_id: "alice".into() });
+        assert!(matches!(bad, Err(MatchError::NotAPlayer)));
+        let same = t(&MatchState::NativeInGame, MatchAction::NativeGameFinished { winner_id: "alice".into(), loser_id: "alice".into() });
+        assert!(matches!(same, Err(MatchError::NotAPlayer)));
+    }
+
+    #[test]
+    fn native_states_cannot_be_cancelled_or_skipped() {
+        for st in [MatchState::ReadyToPlay, MatchState::NativeInGame, MatchState::RefundPending,
+                   MatchState::FinishedGame { winner_id: "alice".into(), loser_id: "bob".into() }] {
+            let r = t(&st, MatchAction::Cancel { player_id: "alice".into(), reason: "x".into() });
+            assert!(matches!(r, Err(MatchError::CannotCancelLockedMatch)), "{:?}", st);
+        }
+        // Cannot start before funding completed, nor finish without a running game.
+        assert!(t(&MatchState::WaitingForOpponent, MatchAction::StartNativeGame).is_err());
+        assert!(t(&MatchState::ReadyToPlay, MatchAction::NativeGameFinished { winner_id: "alice".into(), loser_id: "bob".into() }).is_err());
+        assert!(t(&MatchState::ReadyToPlay, MatchAction::NativeGameDrawn).is_err());
     }
 }

@@ -4,6 +4,7 @@ pub mod csrf_guard;
 pub mod rate_limit;
 pub mod faceit;
 pub mod multisig;
+pub mod native;
 pub mod tournament;
 pub mod admin_tournament;
 /// Handler sub-modules (CQ-01: Phase 1 — types extracted; full handler migration: post-beta).
@@ -128,6 +129,12 @@ pub fn router() -> Router<AppState> {
         .route("/matches/:id/payout/pskt", get(get_payout_pskt))
         .route("/matches/:id/payout/submit-signature", post(submit_payout_signature))
         .route("/matches/:id/payout/status", get(get_payout_status))
+        // ── Native (browser) games ──
+        .route("/features", get(native::features))
+        .route("/matches/:id/game", get(native::get_game))
+        .route("/matches/:id/game/start", post(native::start_game))
+        .route("/matches/:id/game/resign", post(native::resign))
+        .route("/matches/:id/connect-four/moves", post(native::post_move))
         .route("/me", get(get_me))
         .route("/me/wallet", axum::routing::patch(update_wallet_address))
         .route("/ws", get(ws_handler))
@@ -767,7 +774,8 @@ pub async fn get_lobbies(State(state): State<AppState>) -> Result<Json<Vec<Match
          WHERE status IN (\
            'OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED', \
            'GAME_ID_INPUT', 'IN_GAME', 'FINISHED_FACEIT', \
-           'READY_FOR_PAYOUT', 'DISPUTED'\
+           'READY_FOR_PAYOUT', 'DISPUTED', \
+           'READY_TO_PLAY', 'FINISHED_GAME', 'REFUND_PENDING'\
          ) ORDER BY created_at DESC LIMIT 100",
         crate::models::MATCH_COLUMNS,
     ))
@@ -836,6 +844,51 @@ pub async fn create_challenge(
     }
     let user_id = user.id;
 
+    // Games catalog → provider snapshot for this match (later catalog edits never change it).
+    let game = sqlx::query(
+        "SELECT provider, requires_faceit, native_game_type, enabled FROM games WHERE slug = $1",
+    )
+    .bind(&payload.game_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("create_challenge: games lookup failed: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or_else(|| {
+        tracing::warn!(game_id = %payload.game_id, "create_challenge: unknown game");
+        StatusCode::BAD_REQUEST
+    })?;
+    let game_enabled: bool = game.try_get("enabled").unwrap_or(false);
+    let provider: String = game.try_get("provider").unwrap_or_default();
+    let requires_faceit: bool = game.try_get("requires_faceit").unwrap_or(true);
+    let native_game_type: Option<String> = game.try_get("native_game_type").ok().flatten();
+    if !game_enabled {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if provider == "NATIVE" {
+        if !crate::native_game::native_games_enabled() || crate::native_game::mainnet_blocked() {
+            tracing::warn!("create_challenge: native games disabled or blocked on this network");
+            return Err(StatusCode::FORBIDDEN);
+        }
+        // Only best-of-1 exists for browser games.
+        if payload.mode != crate::models::MatchMode::Bo1 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+    // Server-side FACEIT gate (previously enforced by the frontend only).
+    if requires_faceit
+        && !crate::native_game::user_has_faceit_link(&state.pool, user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("create_challenge: faceit link lookup failed: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    {
+        tracing::warn!(user = %user_id, "create_challenge: FACEIT link required");
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
         tracing::error!("MultisigEscrowService not initialized — cannot generate escrow address");
         StatusCode::SERVICE_UNAVAILABLE
@@ -849,11 +902,14 @@ pub async fn create_challenge(
     })?;
 
     // 1. INSERT match (escrow_address will be set below — use a temp placeholder).
-    let record = sqlx::query_as::<_, Match>(&format!("INSERT INTO matches (creator_user_id, game_id, wager_sompi, wager_amount_sompi, mode) VALUES ($1, $2, $3, $3, $4) RETURNING {}", crate::models::MATCH_SELECT_COLS))
+    let record = sqlx::query_as::<_, Match>(&format!("INSERT INTO matches (creator_user_id, game_id, wager_sompi, wager_amount_sompi, mode, provider, requires_faceit, native_game_type) VALUES ($1, $2, $3, $3, $4, $5, $6, $7) RETURNING {}", crate::models::MATCH_SELECT_COLS))
     .bind(user_id)
     .bind(&payload.game_id)
     .bind(payload.wager_sompi)
     .bind(payload.mode)
+    .bind(&provider)
+    .bind(requires_faceit)
+    .bind(&native_game_type)
     .fetch_one(&mut *db_tx)
     .await
     .map_err(|e| {
@@ -898,9 +954,10 @@ pub async fn create_challenge(
     })?;
 
     // 4. UPDATE match with the freshly-derived escrow address.
-    let mut updated = sqlx::query_as::<_, Match>(
-        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at",
-    )
+    let mut updated = sqlx::query_as::<_, Match>(&format!(
+        "UPDATE matches SET escrow_address = $1 WHERE id = $2 RETURNING {}",
+        crate::models::MATCH_SELECT_COLS,
+    ))
     .bind(&escrow_addr)
     .bind(record.id)
     .fetch_one(&mut *db_tx)
@@ -933,9 +990,10 @@ pub async fn join_challenge(
 
     let joiner_id = user.id;
 
-    let current_match: Match = sqlx::query_as(
-        "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at FROM matches WHERE id = $1"
-    )
+    let current_match: Match = sqlx::query_as(&format!(
+        "SELECT {} FROM matches WHERE id = $1",
+        crate::models::MATCH_COLUMNS,
+    ))
         .bind(id)
         .fetch_one(&state.pool)
         .await
@@ -943,6 +1001,28 @@ pub async fn join_challenge(
             tracing::error!(match_id = %id, "join_challenge: failed to load match: {:?}", e);
             StatusCode::NOT_FOUND
         })?;
+
+    // Provider-dependent join rules. FACEIT matches need a linked FACEIT account (now enforced on
+    // the server, not just in the UI); native matches never do but honour the feature flag.
+    match current_match.provider {
+        crate::models::MatchProvider::Faceit => {
+            if !crate::native_game::user_has_faceit_link(&state.pool, joiner_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(match_id = %id, "join_challenge: faceit link lookup failed: {:?}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
+            {
+                tracing::warn!(match_id = %id, user = %joiner_id, "join_challenge: FACEIT link required");
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+        crate::models::MatchProvider::Native => {
+            if !crate::native_game::native_games_enabled() || crate::native_game::mainnet_blocked() {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+    }
 
     // M-08 Validation
     use battle_core::match_state::MatchAction;
@@ -1676,6 +1756,7 @@ pub async fn refund_request_handler(
         current_match.status,
         MatchStatus::Cancelled
             | MatchStatus::Disputed
+            | MatchStatus::RefundPending
             | MatchStatus::Open
             | MatchStatus::AwaitingFunding
             | MatchStatus::Funded
@@ -1717,6 +1798,7 @@ pub async fn refund_request_handler(
         match current_match.status {
             MatchStatus::Cancelled => "CANCELLED",
             MatchStatus::Disputed => "DISPUTED",
+            MatchStatus::RefundPending => "REFUND_PENDING",
             _ => "CANCELLED",
         }
     };
@@ -1954,6 +2036,15 @@ pub async fn submit_faceit_match_id(
             StatusCode::FORBIDDEN,
             "not_participant",
             "Only match participants can submit the FaceIT match ID",
+        ));
+    }
+
+    // Native browser games have no FACEIT match; never let them enter the FACEIT flow.
+    if m.provider != crate::models::MatchProvider::Faceit {
+        return Err(api_err(
+            StatusCode::CONFLICT,
+            "not_a_faceit_match",
+            "This match is played on KaspaBattle and has no FACEIT match ID",
         ));
     }
 
@@ -2418,6 +2509,23 @@ async fn fetch_faceit_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Option<Face
 /// for both Player A (creator) and Player B (opponent, if present).
 /// Operates entirely on cached faceit_links data.
 pub async fn enrich_match_with_profiles(pool: &sqlx::PgPool, m: &mut crate::models::Match) {
+    // Wallet-account display names (native players have no FACEIT profile).
+    let ids: Vec<Uuid> = std::iter::once(m.creator_user_id).chain(m.opponent_user_id).collect();
+    if let Ok(rows) = sqlx::query_as::<_, (Uuid, String)>("SELECT id, display_name FROM users WHERE id = ANY($1)")
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+    {
+        for (id, name) in rows {
+            if id == m.creator_user_id {
+                m.player_a_display_name = Some(name.clone());
+            }
+            if Some(id) == m.opponent_user_id {
+                m.player_b_display_name = Some(name);
+            }
+        }
+    }
+
     // Player A (creator)
     if let Some(profile) = fetch_faceit_profile(pool, m.creator_user_id).await {
         let profile_url = format!("https://www.faceit.com/en/players/{}", profile.faceit_nickname);
