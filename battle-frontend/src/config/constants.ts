@@ -47,5 +47,10 @@ export const SUPPORTED_GAMES = [
     { id: 'lol', name: 'League of Legends', icon: '/game_logo_lol.svg', platform: 'FACEIT' }
 ] as const;
 
+/** Native browser games offered under "Play on KaspaBattle" (slug = games.slug on the backend). */
+export const NATIVE_GAMES = [
+    { id: 'connect-four', nameKey: 'native.games.connect_four', gameType: 'CONNECT_FOUR', playerCount: 2 },
+] as const;
+
 export type GameId = typeof SUPPORTED_GAMES[number]['id'];
 export type MatchMode = 'bo1' | 'bo3';

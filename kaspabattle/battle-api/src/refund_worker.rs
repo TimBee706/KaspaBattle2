@@ -1,6 +1,6 @@
 //! # Refund Worker
 //!
-//! Background Tokio task that polls `CANCELLED` and `DISPUTED` matches and:
+//! Background Tokio task that polls `CANCELLED`, `DISPUTED` and `REFUND_PENDING` (native draw) matches and:
 //! 1. Restores the multisig escrow from DB if not in memory.
 //! 2. Calls `MultisigEscrowService::execute_refund()`.
 //! 3. Persists the refund TX hash and status to the `matches` table.
@@ -46,7 +46,7 @@ pub async fn run_refund_worker(
 /// - Status is CANCELLED or DISPUTED
 /// - refund_status is 'none' or 'failed' (not yet refunded / previous failure)
 /// - No payout has been executed (payout_tx_hash IS NULL)
-async fn poll_refundable_matches(
+pub(crate) async fn poll_refundable_matches(
     pool: &PgPool,
     multisig_service: &battle_kaspa::multisig::service::MultisigEscrowService,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -61,7 +61,7 @@ async fn poll_refundable_matches(
          JOIN users ua ON ua.id = m.creator_user_id \
          LEFT JOIN users ub ON ub.id = m.opponent_user_id \
          LEFT JOIN multisig_escrows me ON me.match_id = m.id \
-         WHERE m.status IN ('CANCELLED', 'DISPUTED') \
+         WHERE m.status IN ('CANCELLED', 'DISPUTED', 'REFUND_PENDING') \
          AND COALESCE(m.refund_status, 'none') IN ('none', 'failed') \
          AND m.payout_pskt_hex IS NULL \
          AND m.payout_tx_hash IS NULL \
@@ -176,7 +176,7 @@ async fn poll_refundable_matches(
                      SET refund_tx_hash = $1, \
                          refund_status = 'success', \
                          status = 'REFUNDED' \
-                     WHERE id = $2 AND status IN ('CANCELLED', 'DISPUTED')",
+                     WHERE id = $2 AND status IN ('CANCELLED', 'DISPUTED', 'REFUND_PENDING')",
                 )
                 .bind(&tx_hash)
                 .bind(match_id)

@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { MatchDetailView } from '../components/match/MatchDetailView';
+import { NativeMatchView } from '../components/native/NativeMatchView';
+import { getMatchProvider } from '../api/types';
 import { useMatchPolling } from '../hooks/useMatchPolling';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { useMatchStore } from '../stores/useMatchStore';
@@ -115,7 +117,10 @@ export function MatchPage() {
     return (
         <div>
             {matchId && <DepositStatusBanner matchId={matchId} />}
-            <MatchDetailView match={currentMatch} />
+            {/* Provider decides the flow: NATIVE = browser game, FACEIT = existing FACEIT flow (unchanged). */}
+            {getMatchProvider(currentMatch) === 'NATIVE'
+                ? <NativeMatchView match={currentMatch} />
+                : <MatchDetailView match={currentMatch} />}
         </div>
     );
 }

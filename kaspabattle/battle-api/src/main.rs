@@ -16,6 +16,9 @@ use tower_http::cors::CorsLayer;
 mod api;
 mod episodes;
 mod models;
+mod native_game;
+#[cfg(test)]
+mod native_tests;
 mod services;
 mod payout_worker;
 mod refund_worker;
@@ -533,7 +536,8 @@ async fn main() {
                 let db_result = sqlx::query_as::<_, (uuid::Uuid,)>(
                     "SELECT id FROM matches WHERE status IN \
                      ('OPEN', 'AWAITING_FUNDING', 'FUNDED', 'LOCKED', \
-                      'GAME_ID_INPUT', 'IN_GAME', 'FINISHED_FACEIT', 'READY_FOR_PAYOUT')",
+                      'GAME_ID_INPUT', 'IN_GAME', 'FINISHED_FACEIT', 'READY_FOR_PAYOUT', \
+                      'READY_TO_PLAY')",
                 )
                 .fetch_all(&ep_pool)
                 .await;

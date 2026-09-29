@@ -36,7 +36,7 @@
         "beta_tag": "Öffentliche Testnet-Beta",
         "faceit_badge": "Für FACEIT-Matches entwickelt",
         "title": "Competitive Gaming, abgewickelt auf <1>Kaspa</1>.",
-        "subtitle": "Fordere Spieler über FACEIT heraus und wickle Peer-to-Peer-Matcheinsätze über das schnelle Kaspa-Netzwerk ab.",
+        "subtitle": "Spiele Vier Gewinnt direkt im Browser oder fordere Spieler über FACEIT heraus – Peer-to-Peer-Einsätze, abgewickelt über das schnelle Kaspa-Netzwerk.",
         "cta_primary": "Testnet öffnen",
         "cta_secondary": "Tester werden",
         "cta_github": "Auf GitHub ansehen",
@@ -45,13 +45,14 @@
             "active_development": "Aktive Entwicklung",
             "open_for_testers": "Offen für Tester",
             "contributors_welcome": "Contributors willkommen"
-        }
+        },
+        "browser_badge": "Direkt im Browser spielen"
     },
     "sections": {
         "what_is": "WAS IST KASPABATTLE?",
         "what_is_eyebrow": "Überblick",
-        "what_is_content": "KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming, die <1>FACEIT-Matches</1> mit <3>Kaspa-basiertem Settlement</3> verbindet. Spieler erstellen oder betreten Challenges, treten über FACEIT gegeneinander an und wickeln ihre Testnet-Matcheinsätze direkt über Kaspa ab.",
-        "what_is_integration": "FACEIT stellt die kompetitive Match-Umgebung bereit. Kaspa übernimmt das transparente Peer-to-Peer-Settlement.",
+        "what_is_content": "KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming. Spiele Browser Games direkt auf KaspaBattle oder tritt in <1>FACEIT-Matches</1> an – beides wird mit <3>Kaspa-basiertem Escrow und Payout</3> abgewickelt.",
+        "what_is_integration": "Browser Games laufen direkt auf KaspaBattle, ganz ohne FACEIT-Konto. FACEIT stellt die kompetitive Match-Umgebung für externe Spiele bereit. Kaspa übernimmt das transparente Peer-to-Peer-Settlement.",
         "how_it_works": "SO FUNKTIONIERT EIN KASPA BATTLE",
         "how_it_works_steps": {
             "1": "WALLET VERBINDEN & FACEIT LOGIN",
@@ -63,7 +64,7 @@
         },
         "how_1vs1": {
             "title": "So funktioniert dein <1>KaspaBattle 1vs1</1>",
-            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und FACEIT spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – on-chain verifiziert, transparent und angenehm unkompliziert.",
+            "subtitle": "FACEIT Games: Bereit für echte Competition? Mit KaspaBattle und FACEIT spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – on-chain verifiziert, transparent und angenehm unkompliziert.",
             "steps": {
                 "1": {
                     "title": "FACEIT & Wallet verbinden",
@@ -178,6 +179,31 @@
             "feature_dispute_title": "Dispute-System",
             "feature_dispute_text": "Disput einreichen, Admin löst on-chain",
             "cta": "Turniere ansehen"
+        },
+        "two_ways": {
+            "eyebrow": "Zwei Wege zu spielen",
+            "title": "BROWSER GAMES & FACEIT GAMES",
+            "subtitle": "Wähle, wie du antreten willst. Beide Varianten nutzen Kaspa-basiertes Escrow und Settlement.",
+            "browser": {
+                "tag": "Direkt auf KaspaBattle spielen",
+                "title": "Browser Games",
+                "text": "Spiele direkt auf KaspaBattle gegeneinander. Kein FACEIT-Konto nötig – der Server überwacht jeden Zug und wickelt das Ergebnis automatisch ab.",
+                "p1": "Vier Gewinnt für 2 Spieler",
+                "p2": "Sofort, direkt im Browser",
+                "p3": "Kein FACEIT nötig – nur dein Kaspa-Wallet",
+                "cta": "Vier Gewinnt spielen",
+                "soon": "Auf diesem Server noch nicht aktiviert"
+            },
+            "faceit": {
+                "tag": "Externe Competitive Games",
+                "title": "FACEIT Games",
+                "text": "Fordere Spieler in CS2, Valorant, Rocket League, Dota 2 und League of Legends heraus. Das Ergebnis wird über FACEIT verifiziert.",
+                "p1": "CS2, Valorant, Rocket League, Dota 2, LoL",
+                "p2": "Verknüpftes FACEIT-Konto erforderlich",
+                "p3": "Ergebnis über FACEIT verifiziert",
+                "cta": "FACEIT-Matches ansehen"
+            },
+            "shared": "Beide Varianten nutzen Kaspa-basiertes Escrow und Settlement."
         }
     },
     "lobby": {
@@ -206,7 +232,17 @@
         "role_creator": "Creator",
         "role_opponent": "Gegner",
         "waiting_for_opponent": "Warten auf Gegner...",
-        "status_label": "Status:"
+        "status_label": "Status:",
+        "filter": {
+            "all": "Alle",
+            "browser": "Browser Games",
+            "faceit": "FACEIT",
+            "provider_label": "Nach Spieltyp filtern"
+        },
+        "badge": {
+            "native": "BROWSER GAME · {{game}}",
+            "faceit": "FACEIT · {{game}}"
+        }
     },
     "wallet": {
         "import_title": "Wallet importieren",
@@ -300,7 +336,19 @@
         "title": "FORDERE JEMANDEN HERAUS",
         "subtitle": "Wähle dein Spiel, deinen Einsatz und den Modus. Deine Challenge wird in der Lobby für alle Spieler sichtbar sein.",
         "instant": "Instante Erstellung",
-        "escrow": "100% Escrow Schutz"
+        "escrow": "100% Escrow Schutz",
+        "provider": {
+            "label": "Wo möchtest du spielen?",
+            "native": {
+                "title": "Auf KaspaBattle spielen",
+                "subtitle": "Browser Games – 2 Spieler, kein FACEIT nötig"
+            },
+            "faceit": {
+                "title": "Über FACEIT spielen",
+                "subtitle": "Externe Competitive Games mit FACEIT-Verifizierung"
+            },
+            "native_disabled": "Browser Games sind auf diesem Server nicht aktiviert."
+        }
     },
     "footer": {
         "copyright": "© 2026 KaspaBattle. Dezentrales Gaming auf Kaspa.",
@@ -420,7 +468,10 @@
         "DISPUTED": "Dispute",
         "CANCELLED": "Abgebrochen",
         "REFUNDED": "Erstattet",
-        "UNKNOWN": "Unbekannt"
+        "UNKNOWN": "Unbekannt",
+        "READY_TO_PLAY": "Spielbereit",
+        "FINISHED_GAME": "Spiel beendet",
+        "REFUND_PENDING": "Rückzahlung ausstehend"
     },
     "escrow": {
         "title": "Challenge erstellt!",
@@ -610,7 +661,6 @@
                 "error_name_taken": "Dieser Teamname ist bereits vergeben.",
                 "error_generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
                 "error_team_not_found": "Dein Team existiert in diesem Turnier nicht mehr. Bitte lade die Seite neu oder registriere dein Team erneut.",
-
                 "deposit_title": "Dein Team Buy-In einzahlen",
                 "stake_per_team": "Einsatz pro Team",
                 "deposit_now": "Jetzt zahlen"
@@ -660,6 +710,97 @@
                 "participant": "Teilnehmer",
                 "prize": "Preis: {{amount}} KAS"
             }
+        }
+    },
+    "native": {
+        "games": {
+            "connect_four": "Vier Gewinnt"
+        },
+        "badge_browser": "Browser Game",
+        "platform": "KaspaBattle (Browser)",
+        "result_source": "Ergebnis",
+        "result_source_value": "Server-Engine",
+        "open_seat": "Warte auf einen Gegner…",
+        "rules_hint": "Bringe vier deiner Steine in eine Reihe – waagerecht, senkrecht oder diagonal. Der Server entscheidet jeden Zug; Blau beginnt.",
+        "waiting_for_funding": "Das Spielfeld erscheint, sobald beide Einsätze on-chain bestätigt sind.",
+        "waiting_funding_info": "Sobald beide Spieler eingezahlt haben, startet das Spiel automatisch.",
+        "starting": "Beide Einsätze sind bestätigt. Das Spiel startet…",
+        "running_info": "Das Spiel läuft. Den Gewinner bestimmt die Server-Engine, ausgezahlt wird aus dem Escrow.",
+        "refund_pending_draw": "Unentschieden – kein Gewinner. Beide Einsätze werden aus dem Escrow zurückgezahlt.",
+        "access": {
+            "login": "Verbinde dein Wallet, um diese Challenge anzunehmen.",
+            "wallet": "Verknüpfe ein Kaspa-Wallet, um diese Challenge anzunehmen."
+        },
+        "create": {
+            "players": "2 Spieler",
+            "in_browser": "Im Browser",
+            "no_faceit": "Für Browser Games ist kein FACEIT-Konto nötig."
+        },
+        "board": {
+            "label": "Vier-Gewinnt-Spielfeld",
+            "column": "Spalte {{column}}, {{free}} freie Felder",
+            "column_full": "Spalte {{column}}, voll",
+            "sr_empty": "Das Spielfeld ist leer.",
+            "sr_last_move": "Letzter Stein in Spalte {{column}}, Reihe {{row}} gefallen.",
+            "sr_finished": "Das Spiel ist beendet."
+        },
+        "player": {
+            "unknown": "Spieler",
+            "you": "Du",
+            "blue": "Blau",
+            "red": "Rot",
+            "first": "beginnt",
+            "second": "zieht als Zweiter",
+            "winner": "Gewinner",
+            "to_move": "Am Zug"
+        },
+        "status": {
+            "starting": "Startet…",
+            "draw": "Unentschieden",
+            "draw_refund": "Kein Gewinner: Beide Einsätze werden zurückgezahlt.",
+            "you_won": "Du hast gewonnen!",
+            "you_lost": "Du hast verloren",
+            "won_by": "{{name}} hat gewonnen",
+            "your_turn": "Du bist am Zug",
+            "opponent_turn": "Gegner ist am Zug",
+            "turn_of": "{{name}} ist am Zug",
+            "time_left": "Noch {{seconds}} Sekunden für diesen Zug",
+            "moves": "{{count}} Züge"
+        },
+        "reason": {
+            "CONNECT_FOUR": "Vier in einer Reihe.",
+            "DRAW": "Das Spielfeld ist voll.",
+            "RESIGNATION": "Der Gegner hat aufgegeben.",
+            "TIMEOUT": "Dem Gegner ist die Zeit abgelaufen."
+        },
+        "error": {
+            "not_your_turn": "Du bist nicht am Zug.",
+            "version_conflict": "Das Spiel hat sich geändert – das Spielfeld wurde aktualisiert.",
+            "column_full": "Diese Spalte ist voll.",
+            "invalid_column": "Ungültige Spalte.",
+            "game_over": "Das Spiel ist bereits beendet.",
+            "wrong_status": "Das Spiel läuft gerade nicht.",
+            "not_participant": "Du bist kein Spieler dieses Spiels.",
+            "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+        },
+        "connection": {
+            "live": "Live",
+            "reconnecting": "Verbinde neu…"
+        },
+        "resign": {
+            "button": "Aufgeben",
+            "confirm": "Ja, aufgeben",
+            "cancel": "Weiterspielen"
+        },
+        "payout": {
+            "preparing": "Das Spiel ist entschieden. Die Auszahlung wird vorbereitet…",
+            "ready": "Das Spiel ist entschieden. Die Auszahlung ist bereit.",
+            "claim": "AUSZAHLUNG ANFORDERN",
+            "signing": "SIGNIERE…",
+            "done": "Auszahlung gesendet.",
+            "wallet_locked": "Dein Wallet ist gesperrt. Verbinde es erneut (Recovery-Phrase) und versuche es noch einmal – dein Schlüssel verlässt nie den Browser.",
+            "failed": "Die Auszahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+            "waiting_winner": "Warte darauf, dass der Gewinner die Auszahlung anfordert."
         }
     }
 }

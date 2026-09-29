@@ -62,7 +62,7 @@ impl EpisodeTrait for MatchEpisode {
             "SELECT m.status, m.creator_user_id, m.opponent_user_id, \
              m.escrow_address, m.wager_sompi, m.created_at, m.faceit_finished_at, \
              m.player_a_deposit_tx_hash, m.player_b_deposit_tx_hash, \
-             m.awaiting_funding_since, m.game_id_input_since, \
+             m.awaiting_funding_since, m.game_id_input_since, m.provider, \
              u_a.kaspa_address AS player_a_addr, \
              u_b.kaspa_address AS player_b_addr \
              FROM matches m \
@@ -75,6 +75,11 @@ impl EpisodeTrait for MatchEpisode {
         .await?;
 
         let status: MatchStatus = row.try_get("status")?;
+        let provider: String = row.try_get("provider").unwrap_or_else(|_| "FACEIT".to_string());
+        let is_native = provider == "NATIVE";
+        // Work that must run *after* this transaction committed (it takes its own locks).
+        let mut native_expiry_check = false;
+        let mut native_autostart_check = false;
 
         match status {
             // ─── Open | AwaitingFunding: check on-chain deposits per player ─────
@@ -441,6 +446,28 @@ impl EpisodeTrait for MatchEpisode {
             // Both deposits are confirmed on-chain. The match is now ready for
             // players to submit their FaceIT match IDs.
             // Sets game_id_input_since for accurate GAME_ID_INPUT timeout tracking.
+            // NATIVE: no external game id — create the game session and go to READY_TO_PLAY.
+            MatchStatus::Funded if is_native => {
+                let creator_id: Uuid = row.try_get("creator_user_id")?;
+                let opponent_id: Option<Uuid> = row.try_get("opponent_user_id")?;
+                match opponent_id {
+                    Some(opponent_id) => {
+                        crate::native_game::prepare_session_tx(&mut db_tx, self.match_id, creator_id, opponent_id)
+                            .await?;
+                        tracing::info!(match_id = %self.match_id, "▶️ FUNDED → READY_TO_PLAY (native game session created)");
+                    }
+                    None => tracing::error!(match_id = %self.match_id, "FUNDED native match without opponent"),
+                }
+            }
+
+            MatchStatus::ReadyToPlay if is_native => {
+                native_autostart_check = true;
+            }
+
+            MatchStatus::InGame if is_native => {
+                native_expiry_check = true;
+            }
+
             MatchStatus::Funded => {
                 sqlx::query(
                     "UPDATE matches \
@@ -545,23 +572,34 @@ impl EpisodeTrait for MatchEpisode {
 
         db_tx.commit().await?;
 
+        // ── Post-commit: native game housekeeping (own transactions, own events) ──
+        if native_autostart_check {
+            match crate::native_game::autostart_if_due(&self.db_pool, self.match_id).await {
+                Ok(Some(outcome)) => {
+                    crate::native_game::publish(&self.db_pool, &self.tx, self.match_id, &outcome.events).await;
+                }
+                Ok(None) => {}
+                Err(e) => tracing::error!(match_id = %self.match_id, error = %e, "native autostart failed"),
+            }
+        }
+        if native_expiry_check {
+            match crate::native_game::expire_if_due(&self.db_pool, self.match_id).await {
+                Ok(Some(outcome)) => {
+                    tracing::info!(match_id = %self.match_id, "⏰ native game turn timeout → forfeit");
+                    crate::native_game::publish(&self.db_pool, &self.tx, self.match_id, &outcome.events).await;
+                }
+                Ok(None) => {}
+                Err(e) => tracing::error!(match_id = %self.match_id, error = %e, "native timeout check failed"),
+            }
+        }
+
         // ── Post-commit: broadcast final committed state via WebSocket ──
         // Reading AFTER commit ensures clients see the real DB state.
         // Phase 5.4: Use full column list (all v1.0 fields) + typed envelope.
-        if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(
-            "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
-             creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
-             player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
-             player_a_deposit_confirmed, player_b_deposit_confirmed, \
-             player_a_faceid_hash, player_b_faceid_hash, \
-             player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
-             faceit_match_id_player_a, faceit_match_id_player_b, \
-             faceit_match_id_final, faceit_match_status, \
-             faceit_finished_at, faceit_winner_faction, faceit_score, \
-             winner_user_id, loser_user_id, \
-             payout_pskt_hex, payout_tx_hash, payout_status \
-             FROM matches WHERE id = $1",
-        )
+        if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(&format!(
+            "SELECT {} FROM matches WHERE id = $1",
+            crate::models::MATCH_COLUMNS,
+        ))
         .bind(self.match_id)
         .fetch_one(&self.db_pool)
         .await
@@ -589,20 +627,10 @@ impl EpisodeTrait for MatchEpisode {
         .await?;
 
         if let Ok(updated) =
-            sqlx::query_as::<_, crate::models::Match>(
-                "SELECT id, onchain_match_id, COALESCE(escrow_address, '') as escrow_address, \
-                 creator_user_id, opponent_user_id, game_id, wager_sompi, mode, status, external_match_id, created_at, \
-                 player_a_deposit_tx_hash, player_b_deposit_tx_hash, \
-                 player_a_deposit_confirmed, player_b_deposit_confirmed, \
-                 player_a_faceid_hash, player_b_faceid_hash, \
-                 player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, \
-                 faceit_match_id_player_a, faceit_match_id_player_b, \
-                 faceit_match_id_final, faceit_match_status, \
-                 faceit_finished_at, faceit_winner_faction, faceit_score, \
-                 winner_user_id, loser_user_id, \
-                 payout_pskt_hex, payout_tx_hash, payout_status \
-                 FROM matches WHERE id = $1",
-            )
+            sqlx::query_as::<_, crate::models::Match>(&format!(
+            "SELECT {} FROM matches WHERE id = $1",
+            crate::models::MATCH_COLUMNS,
+        ))
             .bind(self.match_id)
             .fetch_one(&self.db_pool)
             .await

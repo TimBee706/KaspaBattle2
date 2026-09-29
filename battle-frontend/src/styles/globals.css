@@ -114,3 +114,19 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Native games: Connect Four coin animations ─────────────────────────────── */
+@keyframes c4-drop {
+  0%   { transform: translateY(-420%); opacity: 0.4; }
+  70%  { transform: translateY(6%); opacity: 1; }
+  100% { transform: translateY(0); }
+}
+@keyframes c4-win-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(73, 234, 203, 0)); }
+  50%      { filter: drop-shadow(0 0 6px rgba(73, 234, 203, 0.9)); }
+}
+.c4-coin-drop { animation: c4-drop 0.32s ease-in; }
+.c4-coin-win  { animation: c4-win-pulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .c4-coin-drop, .c4-coin-win { animation: none; }
+}

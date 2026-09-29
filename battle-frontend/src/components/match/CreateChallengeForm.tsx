@@ -1,25 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SUPPORTED_GAMES, FEE_WINNER_PERCENT, FEE_TREASURY_PERCENT } from '../../config/constants';
+import { SUPPORTED_GAMES, NATIVE_GAMES, FEE_WINNER_PERCENT, FEE_TREASURY_PERCENT } from '../../config/constants';
 import { validateWagerAmount } from '../../utils/validation';
 import { useWalletStore } from '../../stores/useWalletStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLobby } from '../../hooks/useLobby';
 import { useTranslation } from 'react-i18next';
 import type { GameId } from '../../config/constants';
-import type { MatchMode } from '../../api/types';
+import type { MatchMode, MatchProvider } from '../../api/types';
+import { useAccess } from '../../hooks/useAccess';
+import { canPlayProvider } from '../../domain/access';
+import { KaspaCoin } from '../native/ConnectFourCell';
 import { getErrorMessage } from '../../utils/errors';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { Icon } from '../Icon';
 import { FormField } from '../common/FormField';
 
-export function CreateChallengeForm() {
+export function CreateChallengeForm({ provider = 'FACEIT' }: { provider?: MatchProvider }) {
     const navigate = useNavigate();
     const { isConnected } = useWalletStore();
-    const { isFullyConnected, isAuthLoading } = useAuthStore();
+    const { isAuthLoading } = useAuthStore();
+    const access = useAccess();
+    const isNative = provider === 'NATIVE';
     const { createChallenge, isCreating } = useLobby();
 
-    const [gameId, setGameId] = useState(SUPPORTED_GAMES[0].id);
+    const [gameId, setGameId] = useState<string>(isNative ? NATIVE_GAMES[0].id : SUPPORTED_GAMES[0].id);
     const [mode, setMode] = useState<'BO1' | 'BO3'>('BO1');
     const [wager, setWager] = useState<number | string>(10);
     const [error, setError] = useState<string | null>(null);
@@ -40,7 +45,9 @@ export function CreateChallengeForm() {
             return;
         }
 
-        const hasRequiredAuth = FEATURE_FLAGS.TEST_MODE ? isConnected : isFullyConnected;
+        // Browser games need login + wallet only; FACEIT games also need a linked FACEIT account
+        // (the server enforces the same rule).
+        const hasRequiredAuth = canPlayProvider(access, provider) || (FEATURE_FLAGS.TEST_MODE && isNative && isConnected);
         if (!validation.valid || !hasRequiredAuth) {
             // Keine weiteren Seiteneffekte – die UI zeigt Hinweise unterhalb des Formulars.
             return;
@@ -51,7 +58,7 @@ export function CreateChallengeForm() {
         try {
             const result = await createChallenge({
                 stakeKas: wagerNumber,
-                mode,
+                mode: isNative ? 'BO1' : mode,
                 gameId,
             });
 
@@ -63,7 +70,8 @@ export function CreateChallengeForm() {
         }
     };
 
-    const needsFaceitFirst = !FEATURE_FLAGS.TEST_MODE && !isFullyConnected && isConnected;
+    const canCreate = canPlayProvider(access, provider) || (FEATURE_FLAGS.TEST_MODE && isNative && isConnected);
+    const needsFaceitFirst = !isNative && !canCreate && isConnected;
 
     return (
         <div className="glass-panel p-8">
@@ -71,7 +79,25 @@ export function CreateChallengeForm() {
                 {/* Spiel-Auswahl */}
                 <FormField label={t('challenge.select_game')}>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {SUPPORTED_GAMES.map((game) => (
+                        {isNative && NATIVE_GAMES.map((game) => (
+                            <button
+                                key={game.id}
+                                type="button"
+                                onClick={() => setGameId(game.id)}
+                                aria-pressed={gameId === game.id}
+                                className="flex flex-col items-center justify-center p-3 rounded-xl border transition-all border-kaspa-primary bg-kaspa-primary/10 text-white shadow-glow-subtle"
+                            >
+                                <span className="mb-1 flex gap-0.5">
+                                    <KaspaCoin color="blue" className="h-6 w-6" />
+                                    <KaspaCoin color="red" className="h-6 w-6" />
+                                </span>
+                                <span className="text-2xs font-bold">{t(game.nameKey)}</span>
+                                <span className="mt-1 text-[9px] font-semibold text-gray-400 text-center leading-tight">
+                                    {t('native.create.players')} · {t('native.create.in_browser')}
+                                </span>
+                            </button>
+                        ))}
+                        {!isNative && SUPPORTED_GAMES.map((game) => (
                             <button
                                 key={game.id}
                                 type="button"
@@ -95,7 +121,7 @@ export function CreateChallengeForm() {
 
                 {/* Modus & Einsatz */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <FormField label={t('challenge.mode')} htmlFor="challenge-mode">
+                    {!isNative && <FormField label={t('challenge.mode')} htmlFor="challenge-mode">
                         <select
                             id="challenge-mode"
                             value={mode}
@@ -105,7 +131,7 @@ export function CreateChallengeForm() {
                             <option value="BO1">Best of 1</option>
                             <option value="BO3">Best of 3</option>
                         </select>
-                    </FormField>
+                    </FormField>}
                     <FormField
                         label={t('challenge.stake')}
                         htmlFor="challenge-stake"
@@ -151,7 +177,13 @@ export function CreateChallengeForm() {
                     </div>
                 </div>
 
-                {(!isConnected || (!FEATURE_FLAGS.TEST_MODE && !isFullyConnected)) && (
+                {isNative && (
+                    <p className="text-center text-xs font-semibold text-kaspa-primary/90" data-testid="native-no-faceit-note">
+                        {t('native.create.no_faceit')}
+                    </p>
+                )}
+
+                {(!isConnected || !canCreate) && (
                     <p className="text-center text-xs text-amber-400 font-bold flex items-center justify-center gap-1.5">
                         <Icon name="alert-triangle" className="w-3.5 h-3.5 shrink-0" />
                         {isAuthLoading
@@ -174,7 +206,7 @@ export function CreateChallengeForm() {
                         isAuthLoading
                         || !validation.valid
                         || isCreating
-                        || (!FEATURE_FLAGS.TEST_MODE ? !isFullyConnected : !isConnected)
+                        || !canCreate
                     }
                     title={needsFaceitFirst && !isAuthLoading ? t('challenge.connect_faceit_hint') : undefined}
                     className="w-full btn-primary h-12 relative overflow-hidden group disabled:opacity-40 disabled:cursor-not-allowed"
