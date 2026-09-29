@@ -1,0 +1,26 @@
+[package]
+name = "battle-silverscript"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Pure crypto/serialization deps only, at versions already resolved elsewhere
+# in this workspace's Cargo.lock (no new major dependency introduced).
+#
+# Deliberately NOT depending on kaspa-txscript/kaspa-consensus-core here:
+# those would need the SilverScript-pinned rusty-kaspa revision
+# (a41a333b08848f41bf737b72592e463a6011b8ac, git dependency), which conflicts
+# with this workspace's existing kaspa-* = "0.15" (crates.io) tree used by
+# battle-kaspa. This crate is scoped to what does NOT need that: the
+# off-chain-computable KASPABATTLE_RESULT_V1 attestation encoding (Gate 2/
+# docs/SILVERSCRIPT-INTEGRATION-PLAN.md section 8). The on-chain contract
+# artifact/builder pieces (artifact.rs, builder.rs, transitions.rs per the
+# planned structure) need that pinned rusty-kaspa tree and will live in a
+# SEPARATE standalone Cargo workspace, not as a member of this one — see the
+# same doc, section 11.
+blake2b_simd = "1"
+secp256k1 = { version = "0.29", features = ["global-context", "rand-std"] }
+thiserror = "1"
+
+[dev-dependencies]
+hex = "0.4"

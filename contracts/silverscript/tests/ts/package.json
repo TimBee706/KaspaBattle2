@@ -1,0 +1,17 @@
+{
+  "name": "kaspabattle-silverscript-attestation-ref",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Standalone TypeScript reference for the KASPABATTLE_RESULT_V1 attestation encoding (Gate 2/3, docs/SILVERSCRIPT-INTEGRATION-PLAN.md section 8). Deliberately NOT part of battle-frontend's package.json: this is cross-language verification material for the SilverScript migration, not yet wired into the real wallet/signing flow (that is Phase 7 implementation work).",
+  "scripts": {
+    "test": "node --experimental-strip-types attestation.test.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.7.0",
+    "@noble/hashes": "^1.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

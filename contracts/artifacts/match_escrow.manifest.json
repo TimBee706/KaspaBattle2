@@ -1,0 +1,23 @@
+{
+  "contract_name": "MatchEscrow",
+  "contract_version": 1,
+  "source_file": "contracts/silverscript/match_escrow.sil",
+  "source_sha256": "fd72cc93d2c9eea8d75c85ae1f782867d1a2765a5f7e8067b4590eb5db2f7a98",
+  "compiler": "kaspanet/silverscript",
+  "compiler_revision": "3ed973335b59269293564805cc2c58a14595ec03",
+  "compiler_tag": "v1.0.0",
+  "rusty_kaspa_revision": "a41a333b08848f41bf737b72592e463a6011b8ac",
+  "abi_schema_version": 1,
+  "template_hash": "53acf11fd0d084048188db58b71277eb5eca2373a2a9e0068569caf6c2e8cc7d",
+  "network": "testnet-10",
+  "entries": {
+    "cancel_unjoined": "f7144901",
+    "join": "8bb176b9",
+    "mutual_settle": "bb8a5e32",
+    "oracle_settle": "414681ad",
+    "refund_timeout": "54b3d885"
+  },
+  "generated_at": "2026-09-29T12:42:51.868Z",
+  "interpreter_tests": "10/10 passing against kaspa-txscript::TxScriptEngine (covenants_enabled) for join, cancel_unjoined, mutual_settle, oracle_settle; refund_timeout not yet interpreter-tested (this.ageDaa requires a live/simnet DAA-score context, see docs).",
+  "notes": "Gate 3 draft manifest. Compiled and interpreter-tested locally; NOT reviewed against a real testnet-10 node."
+}

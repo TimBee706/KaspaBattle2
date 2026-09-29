@@ -1,0 +1,224 @@
+pragma silverscript ^0.1.0;
+
+// MatchEscrow — 1v1 wager escrow (KaspaBattle SilverScript MVP).
+//
+// Gate 2 design: docs/SILVERSCRIPT-INTEGRATION-PLAN.md, sections 7-8.
+// This is a first compile attempt against the real silverc toolchain
+// (SilverScript v1.0.0 @ 3ed973335b..., rusty-kaspa @ a41a333b0884...).
+// Not yet reviewed against a real testnet-10 node or the interpreter
+// (cli-debugger) test suite — that is the remainder of Gate 3.
+//
+// Deliberate deviation from the Chess reference (see docs, section 7.1):
+// there are no persistent Player-account covenants in this MVP, so every
+// value-moving output is checked directly against a standard P2PK
+// scriptPubKey derived from a witness-supplied pubkey whose hash matches
+// the committed player_a/player_b/oracle field. Kaspa's standard P2PK
+// script (verified against kaspa-txscript::standard @ the pinned rev) is
+// `OpData32 (0x20) || <32-byte pubkey> || OpCheckSig (0xac)`.
+contract MatchEscrow(
+    int      init_contract_version,
+    byte[32] init_network_domain,
+    byte[16] init_match_id,
+    byte[32] init_game_id_hash,
+    byte[32] init_player_a,
+    byte[32] init_player_b,
+    int      init_stake_sompi,
+    int      init_status,
+    byte[32] init_result_oracle_commitment,
+    int      init_join_timeout_daa,
+    int      init_result_timeout_daa,
+    int      init_fee_bps,
+    byte[32] init_treasury_commitment
+) {
+    // status: 0 CREATED (waiting for player_b to join), 1 FUNDED (both staked).
+    // No further status values exist — every transition out of FUNDED is terminal
+    // (no continuing MatchEscrow output), so there is no "settled"/"refunded"
+    // status to represent on-chain.
+    int      contract_version = init_contract_version;
+    byte[32] network_domain = init_network_domain;
+    byte[16] match_id = init_match_id;
+    byte[32] game_id_hash = init_game_id_hash;
+    byte[32] player_a = init_player_a;
+    byte[32] player_b = init_player_b;
+    int      stake_sompi = init_stake_sompi;
+    int      status = init_status;
+    byte[32] result_oracle_commitment = init_result_oracle_commitment;
+    int      join_timeout_daa = init_join_timeout_daa;
+    int      result_timeout_daa = init_result_timeout_daa;
+    int      fee_bps = init_fee_bps;
+    byte[32] treasury_commitment = init_treasury_commitment;
+
+    // Player B joins and deposits their stake. Kaspa's transaction balance
+    // requirement (sum(inputs) == sum(outputs) + fee) forces player B to supply
+    // the extra `stake_sompi` via a separate plain input in the same transaction —
+    // the contract only needs to check the exact output value, not player B's
+    // plain input directly.
+    entry join(sig b_sig, pubkey b_pk) {
+        require(contract_version == 1);
+        require(status == 0);
+        // NOTE (Gate 3 finding): `this.ageDaa` only supports a dedicated
+        // `require(this.ageDaa >= expr)` statement form (grammar: TxVar / a
+        // relative-locktime primitive), not a general comparable expression —
+        // there is no `<` form. `join_timeout_daa` is therefore currently an
+        // unenforced/reserved field; see docs/SILVERSCRIPT-INTEGRATION-PLAN.md
+        // section 7 for the corrected discussion.
+
+        byte[32] b_owner = blake2b(byte[](b_pk));
+        require(b_owner != player_a);
+        require(checkSig(b_sig, b_pk));
+
+        require(OpAuthOutputCount(this.activeInputIndex) == 1);
+        int output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
+        require(tx.outputs[output_idx].value == tx.inputs[this.activeInputIndex].value + stake_sompi);
+
+        State next_state = State {
+            contract_version: contract_version,
+            network_domain: network_domain,
+            match_id: match_id,
+            game_id_hash: game_id_hash,
+            player_a: player_a,
+            player_b: b_owner,
+            stake_sompi: stake_sompi,
+            status: 1,
+            result_oracle_commitment: result_oracle_commitment,
+            join_timeout_daa: join_timeout_daa,
+            result_timeout_daa: result_timeout_daa,
+            fee_bps: fee_bps,
+            treasury_commitment: treasury_commitment
+        };
+        validateOutputState(output_idx, next_state);
+    }
+
+    // Player A withdraws before anyone has joined. Single-party terminal exit:
+    // once A's own signature is proven, no cross-party protection is needed, so
+    // (like Chess's Player.retire) the contract does not constrain the output at
+    // all beyond requiring zero authorized outputs.
+    entry cancel_unjoined(sig a_sig, pubkey a_pk) {
+        require(contract_version == 1);
+        require(status == 0);
+        require(blake2b(byte[](a_pk)) == player_a);
+        require(checkSig(a_sig, a_pk));
+        require(OpAuthOutputCount(this.activeInputIndex) == 0);
+    }
+
+    // Both players agree on an arbitrary split of the pot without an oracle.
+    // No platform fee (confirmed with Timo, Gate 2): a private agreement between
+    // both players is not a platform-mediated outcome.
+    entry mutual_settle(
+        sig a_sig,
+        pubkey a_pk,
+        sig b_sig,
+        pubkey b_pk,
+        int a_amount_sompi,
+        int b_amount_sompi
+    ) {
+        require(contract_version == 1);
+        require(status == 1);
+        require(blake2b(byte[](a_pk)) == player_a);
+        require(checkSig(a_sig, a_pk));
+        require(blake2b(byte[](b_pk)) == player_b);
+        require(checkSig(b_sig, b_pk));
+        require(a_amount_sompi >= 0 && b_amount_sompi >= 0);
+        require(a_amount_sompi + b_amount_sompi == 2 * stake_sompi);
+
+        require(OpAuthOutputCount(this.activeInputIndex) == 2);
+        int a_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
+        int b_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
+
+        // NOTE (Gate 3 finding): a real `tx.outputs[idx].scriptPubKey` is
+        // `version (2 bytes, big-endian) || script bytes` (kaspa-txscript's
+        // ScriptPublicKey::to_bytes(), verified against the pinned rev) --
+        // NOT just the raw script. Version 0 is Kaspa's standard/default.
+        byte[] a_spk = byte[2](0x0000) + byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
+        require(tx.outputs[a_output_idx].value == a_amount_sompi);
+        require(tx.outputs[a_output_idx].scriptPubKey == a_spk);
+
+        byte[] b_spk = byte[2](0x0000) + byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
+        require(tx.outputs[b_output_idx].value == b_amount_sompi);
+        require(tx.outputs[b_output_idx].scriptPubKey == b_spk);
+    }
+
+    // Permissionless settlement once a valid KASPABATTLE_RESULT_V1 attestation
+    // from the committed oracle exists (docs/SILVERSCRIPT-INTEGRATION-PLAN.md
+    // section 8). Neither player needs to be online or sign anything here.
+    entry oracle_settle(
+        datasig oracle_sig,
+        pubkey oracle_pk,
+        pubkey winner_pk,
+        byte[] treasury_spk,
+        int winner_selector,
+        byte[32] result_hash,
+        int observed_at,
+        byte[32] nonce
+    ) {
+        require(contract_version == 1);
+        require(status == 1);
+        require(winner_selector == 0 || winner_selector == 1);
+        require(blake2b(byte[](oracle_pk)) == result_oracle_commitment);
+
+        // Reconstruct the exact signed digest from this contract's OWN state
+        // fields plus the witness-supplied variable fields. Nothing here is
+        // taken on faith from an externally-supplied digest value.
+        byte[] msg = byte[]("KASPABATTLE_RESULT_V1")
+            + network_domain
+            + (contract_version as byte[4])
+            + match_id
+            + game_id_hash
+            + (winner_selector as byte[1])
+            + result_hash
+            + (observed_at as byte[8])
+            + nonce;
+        byte[32] digest = blake2b(msg);
+        require(checkMsgSig(oracle_sig, digest, oracle_pk));
+
+        byte[32] winner_owner = player_a;
+        if (winner_selector == 1) {
+            winner_owner = player_b;
+        }
+        require(blake2b(byte[](winner_pk)) == winner_owner);
+        require(blake2b(treasury_spk) == treasury_commitment);
+
+        int total_sompi = 2 * stake_sompi;
+        int fee_sompi = (total_sompi * fee_bps) / 10000;
+        int payout_sompi = total_sompi - fee_sompi;
+
+        require(OpAuthOutputCount(this.activeInputIndex) == 2);
+        int winner_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
+        int treasury_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
+
+        byte[] winner_spk = byte[2](0x0000) + byte[1](0x20) + byte[](winner_pk) + byte[1](0xac);
+        require(tx.outputs[winner_output_idx].value == payout_sompi);
+        require(tx.outputs[winner_output_idx].scriptPubKey == winner_spk);
+
+        require(tx.outputs[treasury_output_idx].value == fee_sompi);
+        require(tx.outputs[treasury_output_idx].scriptPubKey == treasury_spk);
+    }
+
+    // Permissionless refund once FUNDED has sat unresolved for too long (oracle
+    // never attests, FACEIT match never happens, etc.) — mirrors Chess's
+    // permissionless `timeout` entry. No fee: nobody won, the platform provided
+    // no service.
+    entry refund_timeout(pubkey a_pk, pubkey b_pk) {
+        require(contract_version == 1);
+        require(status == 1);
+        require(this.ageDaa >= result_timeout_daa);
+        require(blake2b(byte[](a_pk)) == player_a);
+        require(blake2b(byte[](b_pk)) == player_b);
+
+        require(OpAuthOutputCount(this.activeInputIndex) == 2);
+        int a_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
+        int b_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
+
+        // NOTE (Gate 3 finding): a real `tx.outputs[idx].scriptPubKey` is
+        // `version (2 bytes, big-endian) || script bytes` (kaspa-txscript's
+        // ScriptPublicKey::to_bytes(), verified against the pinned rev) --
+        // NOT just the raw script. Version 0 is Kaspa's standard/default.
+        byte[] a_spk = byte[2](0x0000) + byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
+        require(tx.outputs[a_output_idx].value == stake_sompi);
+        require(tx.outputs[a_output_idx].scriptPubKey == a_spk);
+
+        byte[] b_spk = byte[2](0x0000) + byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
+        require(tx.outputs[b_output_idx].value == stake_sompi);
+        require(tx.outputs[b_output_idx].scriptPubKey == b_spk);
+    }
+}

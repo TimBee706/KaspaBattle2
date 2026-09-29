@@ -326,11 +326,28 @@ async fn main() {
             }
         };
 
+        // SEC-MULTISIG-01: derive player escrow keys using a server-side secret,
+        // not just the (public) match ID — see derive_player_key doc comment.
+        // Hard-fail if missing, same as ORACLE_PRIVATE_KEY: silently falling back
+        // to a fixed/default secret would recreate the original vulnerability.
+        let key_derivation_secret_hex = std::env::var("MULTISIG_KEY_DERIVATION_SECRET")
+            .unwrap_or_else(|_| {
+                panic!("CRITICAL: MULTISIG_KEY_DERIVATION_SECRET must be set in all environments. Generate with: openssl rand -hex 32");
+            });
+        let key_derivation_secret: [u8; 32] = match hex::decode(key_derivation_secret_hex.trim()) {
+            Ok(bytes) if bytes.len() == 32 => bytes.try_into().unwrap(),
+            _ => {
+                tracing::warn!("⚠️ Invalid MULTISIG_KEY_DERIVATION_SECRET — MultisigEscrowService disabled");
+                return None;
+            }
+        };
+
         match battle_kaspa::multisig::service::MultisigEscrowService::new(
             rpc.clone(),
             prefix,
             oracle_sk_bytes,
             treasury_address.clone(),
+            key_derivation_secret,
         ) {
             Ok(service) => {
                 tracing::info!("✅ MultisigEscrowService initialized (prefix: {:?})", prefix);

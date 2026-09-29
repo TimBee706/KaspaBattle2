@@ -59,6 +59,12 @@ pub struct MultisigEscrowService {
     oracle_pubkey_hex: String,
     /// Platform treasury address for fee collection
     treasury_address: String,
+    /// Server-side secret used to key the player-key derivation (SEC-MULTISIG-01).
+    ///
+    /// **Must never be derivable from public data.** Player keys are derived as
+    /// `HMAC-SHA256(key_derivation_secret, match_id || role)`, so knowledge of the secret
+    /// is required in addition to the (public) match ID. See `derive_player_key`.
+    key_derivation_secret: [u8; 32],
     /// Player private keys: pubkey_hex → private_key_bytes
     /// In backend-held model, we generate and store player keys.
     player_keys: Arc<Mutex<HashMap<String, [u8; 32]>>>,
@@ -74,11 +80,15 @@ impl MultisigEscrowService {
     /// * `prefix` - Network prefix (testnet/mainnet)
     /// * `oracle_private_key` - 32-byte private key for the platform oracle
     /// * `treasury_address` - Address to receive platform fees
+    /// * `key_derivation_secret` - 32-byte server secret for player-key derivation
+    ///   (SEC-MULTISIG-01). Must be kept confidential — anyone who knows it, together
+    ///   with a match ID, can reconstruct both players' escrow keys.
     pub fn new(
         rpc: Arc<dyn KaspaBackend>,
         prefix: Prefix,
         oracle_private_key: [u8; 32],
         treasury_address: String,
+        key_derivation_secret: [u8; 32],
     ) -> Result<Self> {
         // Derive oracle public key from private key
         let secp = secp256k1::Secp256k1::new();
@@ -94,6 +104,7 @@ impl MultisigEscrowService {
             oracle_private_key,
             oracle_pubkey_hex,
             treasury_address,
+            key_derivation_secret,
             player_keys: Arc::new(Mutex::new(HashMap::new())),
             escrows: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -755,18 +766,44 @@ impl MultisigEscrowService {
 
     // ─── Internal Helpers ────────────────────────────────────────────────────
 
-    /// Derives a deterministic keypair for a player from match_id and role.
+    /// Derives a deterministic keypair for a player from match_id, role, and the
+    /// server-side `key_derivation_secret`.
+    ///
+    /// # Security — SEC-MULTISIG-01 (fixed 2026-09-29)
+    ///
+    /// The original implementation derived player keys as
+    /// `SHA256("{match_id}-{role}-kaspabattle-multisig")` — a function of **public**
+    /// data only (match IDs are exposed via `GET /lobbies` and `GET /matches/:id`
+    /// without authentication). That meant *anyone* could reconstruct both player
+    /// keys for any match and satisfy the "2-of-3" threshold alone, without the
+    /// Oracle key and without ever compromising the server — a critical,
+    /// server-independent theft primitive, not just a custodial-trust concern.
+    ///
+    /// The fix keys the derivation with `HMAC-SHA256(key_derivation_secret, ...)`
+    /// where `key_derivation_secret` is a 32-byte secret held only by the server
+    /// (`MULTISIG_KEY_DERIVATION_SECRET`). Derivation remains deterministic across
+    /// restarts (needed by `restore_escrow_from_row`, since player keys are not
+    /// persisted to the DB) but now additionally requires knowledge of that secret.
+    ///
+    /// This does **not** make the model non-custodial — the server still holds
+    /// (derives) all three key roles and could misbehave — but it removes the
+    /// public/anyone-can-derive flaw. Full decentralization is deferred to the
+    /// SilverScript L1 covenant migration (see `docs/LEARNINGS.md`).
     fn derive_player_key(
         &self,
         match_id: &Uuid,
         role: &str,
     ) -> Result<(String, [u8; 32])> {
-        use sha2::{Digest, Sha256};
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
 
-        let input = format!("{}-{}-kaspabattle-multisig", match_id, role);
-        let mut hasher = Sha256::new();
-        hasher.update(input.as_bytes());
-        let hash = hasher.finalize();
+        type HmacSha256 = Hmac<Sha256>;
+
+        let input = format!("{}-{}-kaspabattle-multisig-v2", match_id, role);
+        let mut mac = HmacSha256::new_from_slice(&self.key_derivation_secret)
+            .map_err(|e| anyhow!("Invalid key derivation secret: {}", e))?;
+        mac.update(input.as_bytes());
+        let hash = mac.finalize().into_bytes();
 
         let mut sk_bytes = [0u8; 32];
         sk_bytes.copy_from_slice(&hash);
@@ -876,7 +913,17 @@ mod tests {
     use crate::mock::MockKaspaClient;
     use crate::rpc::UtxoInfo;
 
+    /// Fixed test-only key-derivation secret. NEVER use a hardcoded secret like
+    /// this outside of tests — see `MultisigEscrowService::key_derivation_secret`.
+    const TEST_KEY_DERIVATION_SECRET: [u8; 32] = [0x42; 32];
+
     fn make_service() -> (MultisigEscrowService, Arc<MockKaspaClient>) {
+        make_service_with_secret(TEST_KEY_DERIVATION_SECRET)
+    }
+
+    fn make_service_with_secret(
+        key_derivation_secret: [u8; 32],
+    ) -> (MultisigEscrowService, Arc<MockKaspaClient>) {
         let mock = Arc::new(MockKaspaClient::new());
         // Use a deterministic oracle key for testing
         let oracle_sk: [u8; 32] =
@@ -904,6 +951,7 @@ mod tests {
             Prefix::Testnet,
             oracle_sk,
             treasury_addr,
+            key_derivation_secret,
         )
         .unwrap();
 
@@ -969,6 +1017,70 @@ mod tests {
             .unwrap();
 
         assert_ne!(info1.escrow_address, info2.escrow_address);
+    }
+
+    /// SEC-MULTISIG-01 regression test.
+    ///
+    /// Player-key derivation must depend on the server-side `key_derivation_secret`,
+    /// not just on the (publicly known) match ID and role. This proves an attacker
+    /// who only knows the match ID — but not the secret — cannot reconstruct the
+    /// escrow address or redeem script, closing the "anyone can derive both player
+    /// keys" theft primitive described on `derive_player_key`.
+    #[tokio::test]
+    async fn test_player_keys_require_derivation_secret() {
+        let match_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let (service_a, _mock_a) = make_service_with_secret([0x11; 32]);
+        let (service_b, _mock_b) = make_service_with_secret([0x22; 32]);
+
+        let info_a = service_a
+            .create_escrow(match_id, 5_000_000, None)
+            .await
+            .unwrap();
+        let info_b = service_b
+            .create_escrow(match_id, 5_000_000, None)
+            .await
+            .unwrap();
+
+        // Same match ID, same oracle key, different derivation secret →
+        // different player keys → different redeem script / escrow address.
+        assert_ne!(
+            info_a.escrow_address, info_b.escrow_address,
+            "escrow address must depend on the server secret, not just the public match_id"
+        );
+        assert_ne!(info_a.redeem_script_hex, info_b.redeem_script_hex);
+        assert_ne!(
+            info_a.pubkeys[0], info_b.pubkeys[0],
+            "player A key must differ when the derivation secret differs"
+        );
+        assert_ne!(
+            info_a.pubkeys[1], info_b.pubkeys[1],
+            "player B key must differ when the derivation secret differs"
+        );
+        // The oracle key (3rd pubkey) is independent of the derivation secret and
+        // must stay identical.
+        assert_eq!(info_a.pubkeys[2], info_b.pubkeys[2]);
+
+        // Sanity check against the OLD (vulnerable) formula: SHA256(match_id-role-kaspabattle-multisig)
+        // must NOT equal either player's derived key — i.e. the fix actually changed the scheme,
+        // it isn't accidentally reproducing the old, publicly-derivable keys.
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(format!("{}-player_a-kaspabattle-multisig", match_id).as_bytes());
+        let old_sk_a: [u8; 32] = hasher.finalize().into();
+        let secp = secp256k1::Secp256k1::new();
+        let old_pk_a_hex = secp256k1::SecretKey::from_slice(&old_sk_a)
+            .ok()
+            .map(|sk| {
+                let kp = secp256k1::Keypair::from_secret_key(&secp, &sk);
+                hex::encode(kp.x_only_public_key().0.serialize())
+            });
+        if let Some(old_pk_a_hex) = old_pk_a_hex {
+            assert_ne!(
+                info_a.pubkeys[0], old_pk_a_hex,
+                "derived key must not match the old, publicly-derivable SHA256-only scheme"
+            );
+        }
     }
 
     #[tokio::test]

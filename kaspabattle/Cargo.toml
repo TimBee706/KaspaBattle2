@@ -1,5 +1,5 @@
 [workspace]
-members = ["battle-core", "battle-kaspa", "battle-kdapp", "battle-api"]
+members = ["battle-core", "battle-kaspa", "battle-kdapp", "battle-api", "battle-silverscript"]
 resolver = "2"
 
 [profile.dev]

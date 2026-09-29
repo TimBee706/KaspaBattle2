@@ -243,6 +243,26 @@ The multisig module uses PSKTs for multi-party signing:
 - **Loser cannot intercept**: Their key is not part of the signing set
 - **Server compromise recovery**: Oracle key rotation invalidates pending PSKTs
 
+### Player Key Derivation (SEC-MULTISIG-01)
+
+Player keys in the 2-of-3 redeem script (`[player_a, player_b, oracle]`) are derived
+deterministically per match, not stored, so they can be reconstructed after a
+backend restart. They are derived as:
+
+```
+player_key = HMAC-SHA256(MULTISIG_KEY_DERIVATION_SECRET, "{match_id}-{role}-kaspabattle-multisig-v2")
+```
+
+**Fixed 2026-09-29**: the original formula was `SHA256("{match_id}-{role}-kaspabattle-multisig")`
+— a function of the match ID alone, which is public (`GET /lobbies`, `GET /matches/:id`
+require no auth). That meant anyone could reconstruct *both* player keys for any match
+and satisfy the 2-of-3 threshold without the Oracle key and without compromising the
+server at all — not a custodial-trust issue, but an anyone-can-steal bug. Keying the
+derivation with a server-only secret (`MULTISIG_KEY_DERIVATION_SECRET`, required at
+startup, same handling as `ORACLE_PRIVATE_KEY`) closes this. The model is still
+custodial (the server derives all three roles); full decentralization is the
+SilverScript L1 covenant migration described below.
+
 ---
 
 ## Known Limitations

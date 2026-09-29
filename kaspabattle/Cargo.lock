@@ -496,6 +496,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "hex",
+ "hmac",
  "js-sys",
  "kaspa-addresses",
  "kaspa-bip32",
@@ -551,6 +552,16 @@ dependencies = [
  "uuid 1.16.0",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "battle-silverscript"
+version = "0.1.0"
+dependencies = [
+ "blake2b_simd",
+ "hex",
+ "secp256k1",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

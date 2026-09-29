@@ -78,6 +78,9 @@ check_errors.txt
 tmp/
 temp/
 
+# SilverScript reference material (contracts/silverscript/tests/ts)
+contracts/silverscript/tests/ts/node_modules/
+
 # Frontend (battle-frontend)
 battle-frontend/node_modules/
 battle-frontend/dist/
@@ -92,3 +95,8 @@ battle-frontend/coverage/
 .vite/
 .eslintcache
 battle-frontend/*.timestamp-*.mjs
+
+# Claude Code (local instructions, settings, notes)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
