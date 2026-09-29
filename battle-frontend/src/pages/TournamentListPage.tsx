@@ -12,6 +12,8 @@ import { startFaceitLogin } from '../api/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_GAMES } from '../config/constants';
+import { Icon } from '../components/Icon';
+import { PageHeader } from '../components/common/PageHeader';
 
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -101,7 +103,8 @@ export function TournamentListPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TournamentStatus | 'ALL'>('ALL');
-  const user = useAuthStore(s => s.user);
+  const { user, testMode, setTestMode, fetchUser, isFaceitConnected } = useAuthStore();
+  const kaspaAddress = user?.kaspa_address || null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,6 +119,14 @@ export function TournamentListPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetchUser().then(() => {
+      if (useAuthStore.getState().user?.display_name === "TestUser") {
+        setTestMode(true);
+      }
+    }).catch(console.error);
+  }, [fetchUser, setTestMode]);
 
   const handleCreateClick = async () => {
     if (user) {
@@ -140,34 +151,35 @@ export function TournamentListPage() {
 
   return (
     <div>
-      {/* Header – mirrors LobbyPage */}
-      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6 mb-12">
-        <div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">
-            {t('tournaments.title')}
-          </h1>
-          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">
-            {t('tournaments.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <button
-            id="refresh-tournaments-btn"
-            onClick={load}
-            className="p-2 rounded-lg border border-white/10 hover:border-kaspa-primary/30 text-gray-400 hover:text-kaspa-primary transition-all shrink-0"
-            title={t('tournaments.refresh')}
-          >
-            ↻
-          </button>
-          <button
-            id="create-tournament-btn"
-            onClick={() => { void handleCreateClick(); }}
-            className="w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95 text-center"
-          >
-            {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon="trophy"
+        title={t('tournaments.title')}
+        subtitle={t('tournaments.subtitle')}
+        actions={
+          <>
+            <button
+              id="refresh-tournaments-btn"
+              onClick={load}
+              className="p-2 rounded-lg border border-white/10 hover:border-kaspa-primary/30 text-gray-400 hover:text-kaspa-primary transition-all shrink-0"
+              title={t('tournaments.refresh')}
+            >
+              ↻
+            </button>
+            <button
+              id="create-tournament-btn"
+              onClick={() => { void handleCreateClick(); }}
+              className="w-full md:w-auto bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-8 py-3 rounded-xl font-black uppercase tracking-tighter transition-all shadow-xl shadow-kaspa-primary/10 active:scale-95 text-center"
+            >
+              {user ? t('tournaments.create_btn') : t('tournaments.login_create_btn')}
+            </button>
+          </>
+        }
+      />
+
+      {testMode && <div className="glass-panel p-4 border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
+          <Icon name="beaker" className="w-4 h-4 shrink-0 text-blue-400" />
+          {t('lobby.test_mode')}
+      </div>}
 
       {/* Filter pills */}
       <div className="flex gap-2 mb-6 flex-wrap">
@@ -187,7 +199,7 @@ export function TournamentListPage() {
         ))}
       </div>
 
-      <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
+      <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/15">
         {/* Content */}
         {loading ? (
           <div className="flex flex-col gap-3">
@@ -221,6 +233,35 @@ export function TournamentListPage() {
             {filtered.map(t => (
               <TournamentCard key={t.id} tournament={t} />
             ))}
+          </div>
+        )}
+
+        {(!kaspaAddress || testMode || (kaspaAddress && isFaceitConnected) || (kaspaAddress && !isFaceitConnected)) && (
+          <div className="mt-4 pt-4 border-t border-kaspa-border/60">
+            {!kaspaAddress && (
+              <p className="text-red-400 text-sm font-semibold flex items-center gap-2">
+                <Icon name="alert-triangle" className="w-4 h-4 shrink-0" />
+                {t('lobby.connect_wallet_join')}
+              </p>
+            )}
+            {kaspaAddress && isFaceitConnected && !testMode && (
+              <p className="text-emerald-400 text-sm font-semibold flex items-center gap-2">
+                <span className="inline-block w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
+                {t('lobby.faceit_connected_as')} <strong className="text-white">{user?.faceit_nickname}</strong>
+              </p>
+            )}
+            {kaspaAddress && !isFaceitConnected && !testMode && (
+              <p className="text-amber-400 text-sm font-semibold flex items-center gap-2">
+                <Icon name="alert-triangle" className="w-4 h-4 shrink-0" />
+                {t('lobby.connect_faceit_join')}
+              </p>
+            )}
+            {testMode && (
+              <p className="text-kaspa-primary/90 text-sm font-medium italic flex items-center gap-2">
+                <Icon name="beaker" className="w-4 h-4 shrink-0" />
+                {t('lobby.test_mode_notice')}
+              </p>
+            )}
           </div>
         )}
       </div>

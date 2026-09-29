@@ -63,13 +63,13 @@
         },
         "how_1vs1": {
             "title": "So funktioniert dein <1>KaspaBattle 1vs1</1>",
-            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und Faceit spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – on-chain verifiziert, transparent und angenehm unkompliziert.",
+            "subtitle": "Bereit für echte Competition? Mit KaspaBattle und FACEIT spielst du nahtlose 1vs1-Matches um KAS. Tritt unserem Club bei, verbinde deine Accounts und lass das Multisig-Oracle die Auszahlung regeln – on-chain verifiziert, transparent und angenehm unkompliziert.",
             "steps": {
                 "1": {
-                    "title": "Faceit & Wallet verbinden",
-                    "text": "Verknüpfe dein Faceit-Konto mit unserer Plattform und verbinde deine Kaspa-Wallet (Reihenfolge ist egal). Das ist nötig, um das Match-Ergebnis zu tracken und den Gewinn an dich auszuzahlen.",
+                    "title": "FACEIT & Wallet verbinden",
+                    "text": "Verknüpfe dein FACEIT-Konto mit unserer Plattform und verbinde deine Kaspa-Wallet (Reihenfolge ist egal). Das ist nötig, um das Match-Ergebnis zu tracken und den Gewinn an dich auszuzahlen.",
                     "btn_wallet": "Verbinde deine Wallet",
-                    "btn_faceit": "Verbinde dein Faceit"
+                    "btn_faceit": "Verbinde dein FACEIT"
                 },
                 "2": {
                     "title": "Lobby beitreten oder erstellen",
@@ -80,14 +80,14 @@
                     "text": "Zahle deinen KAS-Einsatz in den Match-Escrow ein. Du musst ggf. kurz warten, bis dein Gegner joint und die Transaktion im Kaspa-Netzwerk bestätigt ist."
                 },
                 "4": {
-                    "title": "Faceit 1vs1 starten",
-                    "text": "Wechselt jetzt beide zu Faceit in unseren <1>KaspaBattle CS2 Club</1>. In der Club Queue <3>„1 vs 1“</3> antreten, Match darüber starten und auf dem gleichen Server gegeneinander zocken.",
+                    "title": "FACEIT 1vs1 starten",
+                    "text": "Wechselt jetzt beide zu FACEIT in unseren <1>KaspaBattle CS2 Club</1>. In der Club Queue <3>„1 vs 1“</3> antreten, Match darüber starten und auf dem gleichen Server gegeneinander zocken.",
                     "btn_club": "Club beitreten (Invite)",
                     "btn_queue": "1vs1 Queue öffnen"
                 },
                 "5": {
                     "title": "Match-ID eintragen",
-                    "text": "Sobald die Match-Seite auf Faceit angezeigt wird, kopiert einer von euch die Match-ID aus dem Faceit-Matchroom und trägt sie auf unserer Seite ein. So wird euer Match-Ergebnis automatisch verknüpft."
+                    "text": "Sobald die Match-Seite auf FACEIT angezeigt wird, kopiert einer von euch die Match-ID aus dem FACEIT-Matchroom und trägt sie auf unserer Seite ein. So wird euer Match-Ergebnis automatisch verknüpft."
                 },
                 "6": {
                     "title": "Spielen & automatische Auszahlung",
@@ -137,7 +137,7 @@
             }
         },
         "future": "DIE ZUKUNFT DES ESPORTS",
-        "future_subtitle": "GEBAUT FÜR GESCHWINDIGKEIT AUF KASPAS BLOCKDAG",
+        "future_subtitle": "IN SEKUNDEN ABGEWICKELT. OFFEN ENTWICKELT.",
         "ready": "Bereit für dein Match?",
         "recruit": {
             "heading": "Entwickle KaspaBattle mit uns weiter",
@@ -192,7 +192,12 @@
         "stake": "Einsatz",
         "players": "Spieler",
         "join": "Herausforderung annehmen",
-        "no_entries": "Keine Einträge.",
+        "empty": {
+            "title": "Keine Challenges gefunden",
+            "subtitle_auth": "Sei der Erste, der eine erstellt!",
+            "subtitle_guest": "Melde dich an, um eine Challenge zu erstellen"
+        },
+        "login_create_btn": "Zum Erstellen anmelden",
         "connect_wallet_join": "Wallet verbinden zum Beitreten!",
         "faceit_connected_as": "Mit FACEIT verbunden als",
         "connect_faceit_join": "FACEIT verbinden zum Beitreten!",
@@ -472,8 +477,8 @@
         "startGame": "Spiel starten"
     },
     "tournaments": {
-        "title": "Turniere",
-        "subtitle": "Spielen, siegen, KAS verdienen",
+        "title": "Turniere Übersicht",
+        "subtitle": "Aktive Turniere",
         "refresh": "Aktualisieren",
         "create_btn": "+ Turnier erstellen",
         "login_create_btn": "Zum Erstellen anmelden",

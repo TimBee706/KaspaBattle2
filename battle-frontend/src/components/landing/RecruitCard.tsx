@@ -18,7 +18,7 @@ interface RecruitCardProps {
 
 export function RecruitCard({ icon, title, audience, text, ctas }: RecruitCardProps) {
     return (
-        <div className="glass-panel rounded-2xl border border-kaspa-primary/15 p-8 flex flex-col h-full hover:border-kaspa-primary/30 transition-colors">
+        <div className="glass-panel rounded-2xl border border-kaspa-primary/15 p-8 flex flex-col h-full hover:border-kaspa-primary/35 hover:shadow-glow-subtle hover:-translate-y-1 transition-all duration-300">
             <div className="w-12 h-12 rounded-xl bg-kaspa-primary/10 border border-kaspa-primary/20 flex items-center justify-center mb-5">
                 <Icon name={icon} className="w-6 h-6 text-kaspa-primary" />
             </div>

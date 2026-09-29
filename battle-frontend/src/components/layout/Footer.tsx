@@ -16,7 +16,7 @@ export function Footer() {
                     {/* Brand + description */}
                     <div>
                         <Link to="/" className="inline-flex items-center gap-2 text-lg font-bold text-kaspa-primary tracking-tighter mb-3">
-                            <img src="/KaspaBattleLogo.svg" alt="Kaspa Battle Logo" className="h-7 w-auto" />
+                            <img src="/KaspaBattleLogo.svg" alt="KaspaBattle Logo" className="h-7 w-auto" />
                             KASPABATTLE
                         </Link>
                         <p className="text-sm text-gray-400 max-w-sm leading-relaxed mb-3">{t('footer.description')}</p>

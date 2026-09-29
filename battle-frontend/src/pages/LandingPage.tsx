@@ -18,7 +18,7 @@ export function LandingPage() {
         <div className="animate-fade-in-up">
             {/* Hero Section */}
             <section className="py-20 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-kaspa-primary/10 blur-[120px] rounded-full -z-10" />
+                <div aria-hidden="true" className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-kaspa-primary/10 blur-[120px] rounded-full -z-10" />
 
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
                     <PublicBetaBadge />
@@ -101,7 +101,7 @@ export function LandingPage() {
 
             {/* 2. Schritt-für-Schritt Anleitung CS2 1vs1 */}
             <section id="how" className="py-24 border-t border-kaspa-border relative">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-kaspa-primary/5 blur-[150px] rounded-full -z-10" />
+                <div aria-hidden="true" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-kaspa-primary/5 blur-[150px] rounded-full -z-10" />
                 
                 <div className="text-center max-w-3xl mx-auto mb-16 px-4">
                     <h2 className="text-3xl md:text-5xl font-black mb-6 uppercase tracking-tight text-white drop-shadow-md">
@@ -178,7 +178,7 @@ export function LandingPage() {
                             <h4 className="text-xl md:text-2xl font-bold text-white mb-2">{t('sections.how_1vs1.steps.4.title')}</h4>
                             <p className="text-gray-400 text-sm md:text-base leading-relaxed mb-4">
                                 <Trans i18nKey="sections.how_1vs1.steps.4.text">
-                                    Wechselt jetzt beide zu Faceit in unseren <strong>KaspaBattle CS2 Club</strong>. 
+                                    Wechselt jetzt beide zu FACEIT in unseren <strong>KaspaBattle CS2 Club</strong>.
                                     In der Club Queue <em>„1 vs 1"</em> antreten, Match darüber starten und auf dem gleichen Server gegeneinander zocken.
                                 </Trans>
                             </p>
@@ -226,7 +226,7 @@ export function LandingPage() {
             {/* Warum Kaspa? */}
             <section className="py-20 border-t border-kaspa-border relative overflow-hidden">
                 {/* Subtle background light island, echoing the hero glow at a much lower key */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-kaspa-primary/5 blur-[140px] rounded-full -z-10" />
+                <div aria-hidden="true" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-kaspa-primary/5 blur-[140px] rounded-full -z-10" />
 
                 <SectionHeading
                     eyebrow={t('sections.why_kaspa_eyebrow')}
@@ -279,7 +279,7 @@ export function LandingPage() {
                 {/* Kaspa Battle Logo */}
                 <div className="mb-4 flex justify-center relative">
                     <span className="relative z-10 flex items-center justify-center">
-                        <img src="/KaspaBattleLogo.svg" alt="Kaspa Battle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
+                        <img src="/KaspaBattleLogo.svg" alt="KaspaBattle Logo" className="w-64 h-64 md:w-80 md:h-80 object-contain drop-shadow-[0_0_30px_rgba(112,199,186,0.3)]" />
                     </span>
                 </div>
 
@@ -321,7 +321,7 @@ export function LandingPage() {
             <section className="py-16 border-t border-kaspa-border">
                 <div className="max-w-4xl mx-auto px-4">
                     <div className="glass-panel rounded-2xl relative overflow-hidden border border-kaspa-primary/20 p-8 md:p-12">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-kaspa-primary/5 blur-3xl rounded-full -z-0" />
+                        <div aria-hidden="true" className="absolute top-0 right-0 w-64 h-64 bg-kaspa-primary/5 blur-3xl rounded-full -z-0" />
                         <div className="relative z-10">
                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-kaspa-primary/10 border border-kaspa-primary/20 rounded-full text-kaspa-primary text-xs font-bold tracking-widest uppercase mb-6">
                                 {t('sections.tournament_callout.badge')}

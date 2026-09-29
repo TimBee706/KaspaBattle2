@@ -25,7 +25,7 @@ export const HistoryPage: React.FC = () => {
             </div>
 
             {/* Section box — same style as LobbyTable */}
-            <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
+            <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/15">
                 <div className="flex flex-col gap-3">
                     {history.length === 0 && <p className="text-slate-500 italic pl-2">{t('common.no_matches')}</p>}
                     {history.map(m => (

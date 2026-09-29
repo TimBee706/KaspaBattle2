@@ -91,4 +91,9 @@ describe('LandingPage — design refinement (FACEIT integration, glow cleanup)',
         expect(screen.getByText(/Für FACEIT-Matches entwickelt/i)).toBeInTheDocument();
         expect(screen.getByText('WAS IST KASPABATTLE?')).toBeInTheDocument();
     });
+
+    it('always spells the brand name "FACEIT" in full caps, never "Faceit"', () => {
+        const { container } = renderLanding();
+        expect(container.textContent).not.toMatch(/\bFaceit\b/);
+    });
 });

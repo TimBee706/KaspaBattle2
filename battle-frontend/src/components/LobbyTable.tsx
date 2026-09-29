@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MatchStatusBadge } from './match/MatchStatusBadge';
 import { Icon } from './Icon';
+import { startFaceitLogin } from '../api/auth';
 
 export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLobbyClick?: (id: string) => void }> = ({ matches, title, onLobbyClick }) => {
     const { user, testMode, isFaceitConnected } = useAuthStore();
@@ -24,7 +25,7 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLo
     };
 
     return (
-        <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
+        <div className="mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/15">
             {title && <h2 className="text-xl font-black mb-6 text-white uppercase tracking-tighter pl-2">{title}</h2>}
             <div className="flex flex-col gap-3">
                 {matches.length === 0 && (
@@ -32,7 +33,16 @@ export const LobbyTable: React.FC<{ matches: BattleMatch[], title?: string, onLo
                         <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
                             <Icon name="search" className="w-5 h-5 text-gray-500" />
                         </div>
-                        <p className="text-gray-400 font-semibold">{t('lobby.no_entries')}</p>
+                        <p className="text-lg font-semibold text-gray-400">{t('lobby.empty.title')}</p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {(isFaceitConnected || testMode) ? t('lobby.empty.subtitle_auth') : t('lobby.empty.subtitle_guest')}
+                        </p>
+                        <button
+                            onClick={() => ((isFaceitConnected || testMode) ? navigate('/lobby/create') : startFaceitLogin())}
+                            className="mt-6 bg-kaspa-primary hover:bg-kaspa-secondary text-kaspa-dark px-6 py-2.5 rounded-lg font-black uppercase tracking-tighter transition-all shadow-glow-subtle active:scale-95"
+                        >
+                            {(isFaceitConnected || testMode) ? t('lobby.create_challenge') : t('lobby.login_create_btn')}
+                        </button>
                     </div>
                 )}
                 {matches.map((m, index) => {

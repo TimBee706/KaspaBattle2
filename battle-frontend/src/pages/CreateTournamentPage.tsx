@@ -61,11 +61,7 @@ export function CreateTournamentPage() {
                 </div>
             </div>
 
-            <div className="max-w-lg mx-auto mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">
-                <h2 className="text-xl font-black mb-6 text-emerald-400 uppercase tracking-tighter pl-2">
-                    {t('tournaments.create.title')}
-                </h2>
-
+            <div className="max-w-lg mx-auto">
                 <div className="glass-panel p-8">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Name Input */}
@@ -87,7 +83,7 @@ export function CreateTournamentPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <button
                                     type="button"
-                                    className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-kaspa-primary bg-kaspa-primary/10 text-white transition-all shadow-glow-primary"
+                                    className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-kaspa-primary bg-kaspa-primary/10 text-white transition-all shadow-glow-subtle"
                                 >
                                     <img src={cs2Game.icon} alt={cs2Game.name} className="w-8 h-8 mb-1 object-contain" />
                                     <span className="text-[10px] font-bold">{cs2Game.name}</span>

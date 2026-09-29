@@ -20,7 +20,7 @@ export function Header() {
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-8">
                     <Link to="/" className="text-xl font-bold text-kaspa-primary tracking-tighter flex items-center gap-2" onClick={closeMenu}>
-                        <img src="/KaspaBattleLogo.svg" alt="Kaspa Battle Logo" className="h-8 w-auto" />
+                        <img src="/KaspaBattleLogo.svg" alt="KaspaBattle Logo" className="h-8 w-auto" />
                         <span className="hidden sm:inline">KASPABATTLE</span>
                     </Link>
 
