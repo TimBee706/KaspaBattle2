@@ -6,6 +6,15 @@ Laufendes, geteiltes Protokoll nicht-offensichtlicher Erkenntnisse und Entscheid
 
 ---
 
+### 2026-09-29 — Attestation-Referenz in Rust und TypeScript, cross-verifiziert  [silverscript]
+
+`KASPABATTLE_RESULT_V1` (§8) jetzt zweimal implementiert und gegen denselben Testvektor geprüft:
+
+- **Rust:** neues Crate `kaspabattle/battle-silverscript` (`attestation.rs`), Mitglied im bestehenden `kaspabattle`-Cargo-Workspace. Braucht nur `blake2b_simd` + `secp256k1` — beide schon im Workspace-`Cargo.lock` in exakt dieser Version vorhanden, kein Upgrade. Bewusst **ohne** `kaspa-txscript`/`kaspa-consensus-core`, da die den inkompatiblen neuen rusty-kaspa-Rev bräuchten. 7/7 Tests grün.
+- **TypeScript:** eigenständiger Ordner `contracts/silverscript/tests/ts/` (eigenes `package.json`, **nicht** in `battle-frontend` eingehängt — noch nicht an den echten Signier-Fluss angebunden). `@noble/hashes` + `@noble/curves` (Blake2b/Schnorr) statt selbstgeschriebener Krypto — bewusste Entscheidung, weil dieser Code direkt über Auszahlungsziele entscheidet. Node 22.6+, `--experimental-strip-types`, kein Build-Schritt. 7/7 Tests grün.
+- **Cross-Check bestätigt:** derselbe KAT-Digest (`dc848da9…acf90`) kommt aus dem echten interpretierten Contract (`interpreter_tests.rs`), der Rust-Referenz UND der TS-Referenz — unabhängig voneinander geschrieben, keine nachträglich aneinander angepasst.
+- **Kleiner Fund:** `"KASPABATTLE_RESULT_V1"` hat 21 Zeichen, nicht 22 wie ein Kommentar/Test-Assert zunächst annahm — reiner Zählfehler (Test schlug prompt fehl, Ursache in 2 Minuten gefunden), keine Auswirkung auf die eigentliche Kodierung. In allen drei betroffenen Stellen korrigiert.
+
 ### 2026-09-29 — 10/10 Interpreter-Tests grün, zwei weitere reale Bugs gefunden (Gate 3 läuft)  [silverscript]
 
 Fortsetzung des vorherigen Eintrags. Eigene Rust-Testsuite (`contracts/silverscript/tests/interpreter_tests.rs`, Muster von SilverScripts eigenem `chess_apps_tests.rs`) gegen den **echten Interpreter** (`TxScriptEngine`, `covenants_enabled: true`, reale Schnorr-Signaturen/Sighashes) — nicht nur Compiler-Check. Ergebnis: **10/10 Tests grün** für `join`, `cancel_unjoined`, `mutual_settle`, `oracle_settle` (je 1-3 Fälle inkl. gezielter Angriffe: Selbst-Beitritt, unterfinanzierter Output, Betragssumme falsch, gefälschte Oracle-Signatur, **umgeleiteter Gewinner-Payout trotz gültiger Attestation** — die zentrale „Output substitution"-Bedrohung aus dem Threat Model ist damit nicht nur auf Papier, sondern am echten Interpreter widerlegt). `refund_timeout` bleibt interpreter-ungetestet — `this.ageDaa` braucht einen Simnet-/Konsens-Kontext, den der leichte Test-Harness nicht bietet (SilverScripts eigene Suite testet `this.ageDaa`-Entries aus demselben Grund auch nicht so).

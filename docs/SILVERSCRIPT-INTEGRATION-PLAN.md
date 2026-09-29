@@ -1,6 +1,6 @@
 # SilverScript L1 Escrow — Integration Plan
 
-Status: **Phase 0–3 abgeschlossen, Gate 1 freigegeben (2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) von Timo freigegeben (2026-09-29, Dispute-Scope und Fee-Modell wie entworfen bestätigt). `match_escrow.sil` kompiliert erfolgreich UND besteht 10/10 Tests gegen den echten Interpreter für `join`/`cancel_unjoined`/`mutual_settle`/`oracle_settle` (Abschnitt 7.7/7.8, zwei reale Bugs dabei gefunden und gefixt). Noch offen: `refund_timeout` interpreter-/simnet-testen, Attestation-Referenzimplementierung (8.3), dann Gate 3 (echte Testnet-TX) selbst.**
+Status: **Phase 0–3 abgeschlossen, Gate 1 freigegeben (2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) von Timo freigegeben (2026-09-29, Dispute-Scope und Fee-Modell wie entworfen bestätigt). `match_escrow.sil` kompiliert erfolgreich UND besteht 10/10 Tests gegen den echten Interpreter für `join`/`cancel_unjoined`/`mutual_settle`/`oracle_settle` (Abschnitt 7.7/7.8, zwei reale Bugs dabei gefunden und gefixt). Attestation-Referenzimplementierung in Rust UND TypeScript fertig, Digest gegen den echten Contract cross-verifiziert (Abschnitt 8.3). Noch offen: `refund_timeout` interpreter-/simnet-testen, dann Gate 3 (echte Testnet-TX) selbst.**
 Branch: `feature/silverscript-l1-escrow`. Scope: nur 1v1-Matches, Turniere werden nicht migriert.
 
 Diese Datei wird mit jeder Phase weitergeschrieben (siehe [CLAUDE.md](../CLAUDE.md) → „Memory & Learnings"). Abschnitte ab „Contract-State" sind Platzhalter, bis Gate 2 ansteht.
@@ -317,7 +317,7 @@ Dabei zwei weitere reale, vorher nicht bekannte Bugs gefunden (beide **vor** die
 Deterministische Byte-Konkatenation (keine JSON-Serialisierung — vermeidet jede Feldreihenfolge-/Whitespace-Ambiguität):
 
 ```
-msg = "KASPABATTLE_RESULT_V1"      (22 ASCII-Bytes, Domain-Separator)
+msg = "KASPABATTLE_RESULT_V1"      (21 ASCII-Bytes, Domain-Separator)
     || network_domain              (32 Bytes — blake2b("KASPABATTLE_MATCH_V1" + network_id_string), MUSS mit dem
                                      Contract-State-Feld übereinstimmen, siehe 7.2)
     || contract_version             (4 Bytes — SilverScripts `int as byte[4]`-Encoding, s.u.)
@@ -351,9 +351,12 @@ signature = SchnorrSign(oracle_privkey, digest)   // kompatibel mit OpCheckSigFr
 
 **Wichtige Klarstellung (Auftragsvorgabe):** SilverScript dezentralisiert **Escrow und Auszahlung** — es macht **nicht** die externe FACEIT-Datenquelle dezentral oder vertrauenslos. Der Oracle liest weiterhin von FACEITs API (siehe `docs/03-SECURITY.md` „Oracle (FACEIT results): Trusted"); was sich ändert, ist dass der Oracle **nur noch attestiert**, aber nicht mehr selbst die Auszahlungs-TX signiert/broadcastet — die Auszahlung ist kryptographisch an die Attestation gebunden, nicht an eine serverseitig kontrollierte Signierhandlung.
 
-### 8.3 Testvektoren (Rust + TypeScript)
+### 8.3 Testvektoren (Rust + TypeScript) — erledigt, drei Implementierungen stimmen überein
 
-**Noch nicht erstellt — Teil der Implementierung nach Gate 2.** Geplanter Ort: `kaspabattle/battle-silverscript/src/attestation.rs` (Rust-Referenzimplementierung + `#[cfg(test)]`-Vektoren) und ein TypeScript-Äquivalent unter `battle-frontend/src/kaspa/` oder einem neuen `attestation.ts`, das exakt dieselben Testvektoren (feste Eingaben → fester `digest`-Hex-Wert) prüft, um Rust/TS-Implementierungsdrift auszuschließen.
+- **Rust-Referenz:** `kaspabattle/battle-silverscript/src/attestation.rs` — neues Crate im `kaspabattle`-Workspace (`Cargo.toml`-Member), nutzt nur `blake2b_simd` + `secp256k1` (beide bereits im Workspace-`Cargo.lock` vorhanden, keine neue/abweichende Version). **Bewusst ohne** `kaspa-txscript`/`kaspa-consensus-core`-Abhängigkeit — die bräuchten den gepinnten SilverScript-rusty-kaspa-Rev, der mit dem bestehenden 0.15er-Baum kollidiert (siehe Cargo.toml-Kommentar dort). 7 Tests, alle grün: KAT-Digest, Sign/Verify-Roundtrip, Ablehnung gefälschter Signatur, Ablehnung einer nach dem Signieren manipulierten Attestation (Gewinner umgeschrieben), `script_num_bytes`-Korrektheit (inkl. Ablehnung zu großer Werte).
+- **TypeScript-Referenz:** `contracts/silverscript/tests/ts/attestation.ts` (+ `attestation.test.ts`, `README.md`) — bewusst **nicht** in `battle-frontend/package.json`, da noch nicht an den echten Wallet-Signier-Fluss angebunden (Phase 7, offene Frage in Abschnitt 9). Nutzt `@noble/hashes` (Blake2b) und `@noble/curves` (Schnorr) — etablierte, auditierte Bibliotheken, bewusst keine selbstgeschriebene Krypto für Code, der direkt entscheidet, wohin Auszahlungen gehen. Node 22.6+, kein Build-Schritt (`--experimental-strip-types`). 7/7 Tests grün.
+- **Cross-Verifikation:** Der KAT-Digest-Testvektor (`network_domain=0x01×32, match_id=0x02×16, game_id_hash=0x03×32, winner=player_a, result_hash=0x07×32, observed_at=123456, nonce=0x08×32` → `dc848da95b52e226f93992932784bccb64f24e7891fffd45f3ea43aa031acf90`) ist in **allen drei** Implementierungen identisch: dem echten kompilierten/interpretierten `match_escrow.sil`-Contract (`oracle_settle_digest` in `interpreter_tests.rs`), der Rust-Referenz und der TypeScript-Referenz. Keine der drei wurde nachträglich an eine andere angepasst — die Übereinstimmung ist ein echter Beleg, kein Zirkelschluss.
+- **Kleiner Fund unterwegs:** Ein eigener Kommentar/Test-Assert ging von „22 ASCII-Bytes" für `"KASPABATTLE_RESULT_V1"` aus — tatsächlich sind es 21. Reiner Zählfehler in der Doku/im Test, nicht in der eigentlichen Kodierung (die verkettet den String direkt, ohne eine Längenannahme zu hartcodieren) — trotzdem in allen drei Stellen (dieses Dokument, `attestation.rs`-Kommentar, `attestation.test.ts`-Assertion) korrigiert.
 
 ---
 
@@ -415,7 +418,7 @@ pub trait MatchSettlement {
 ```
 
 - `LegacyMultisigSettlement` = dünner Wrapper um das bestehende `MultisigEscrowService` (Abschnitt „SEC-MULTISIG-01" bleibt dessen Sicherheitsbasis).
-- `SilverScriptSettlement` = neue Implementierung in einem neuen Crate `kaspabattle/battle-silverscript/` (`artifact.rs`, `state.rs`, `attestation.rs`, `builder.rs`, `transitions.rs`, `errors.rs` — wie im Auftrag vorgeschlagen).
+- `SilverScriptSettlement` = neue Implementierung in einem neuen Crate `kaspabattle/battle-silverscript/` (`artifact.rs`, `state.rs`, `attestation.rs`, `builder.rs`, `transitions.rs`, `errors.rs` — wie im Auftrag vorgeschlagen). **`attestation.rs` existiert bereits** (Abschnitt 8.3) und ist bereits Mitglied des `kaspabattle`-Cargo-Workspace, da es ohne die inkompatible neue rusty-kaspa-Version auskommt. `artifact.rs`/`builder.rs`/`transitions.rs` brauchen dagegen den gepinnten SilverScript-rusty-kaspa-Rev und können **nicht** in denselben Workspace — die gehören in einen separaten, eigenständigen Cargo-Workspace (analog zu `contracts/silverscript/tests/interpreter_tests.rs`, das aus demselben Grund nicht hier läuft). Wie diese beiden Workspaces später zusammengeführt bzw. das Backend zur Laufzeit beide nutzt, ist noch offen.
 - `SETTLEMENT_MODE=legacy_multisig|silverscript_testnet` steuert, welche Implementierung für **neue** Matches verwendet wird; `settlement_mode` und `contract_version`/`template_hash` werden **pro Match** in der DB gespeichert (neue Migration, additiv, siehe `CLAUDE.md`-Regel „nur neue Migrationsdateien"). Bereits finanzierte Multisig-UTXOs werden **nicht** migriert.
 - **Manifest** (`contracts/artifacts/match_escrow.manifest.json`): `contract_name`, `contract_version`, `source_hash` (Hash der `.sil`-Datei), `compiler_revision` (`3ed9733…`), `rusty_kaspa_revision` (`a41a333b…`), `abi_schema_version` (aktuell `1`, siehe `SIL_ABI_SCHEMA_VERSION` in Abschnitt 5.3), `template_hash`, `network` (`testnet-10`). Backend-Start im SilverScript-Modus validiert ABI-Schema-Version und Template-Hash gegen dieses Manifest und **verweigert den Start** bei Abweichung — kein stiller Fallback auf einen anderen Bytecode (Auftragsvorgabe, deckt sich mit dem Threat-Model-Eintrag „ABI mismatch" oben).
 
