@@ -20,7 +20,13 @@ export function LandingPage() {
             <section className="py-20 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-kaspa-primary/10 blur-[120px] rounded-full -z-10" />
 
-                <PublicBetaBadge className="mb-8" />
+                <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                    <PublicBetaBadge />
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FF5500]/10 border border-[#FF5500]/25 text-[#FF5500] font-black uppercase tracking-widest px-3 py-1 text-[10px]">
+                        <Icon name="link" className="w-3 h-3" />
+                        {t('hero.faceit_badge')}
+                    </span>
+                </div>
 
                 <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-[0.95] uppercase max-w-4xl mx-auto">
                     <Trans i18nKey="hero.title">
@@ -78,15 +84,17 @@ export function LandingPage() {
             </section>
 
             {/* Was ist KaspaBattle? */}
-            <section className="py-20 border-t border-kaspa-border relative">
-                <h2 className="text-3xl md:text-4xl font-black text-center mb-10 underline decoration-kaspa-primary decoration-4 underline-offset-8">{t('sections.what_is')}</h2>
-                <div className="max-w-4xl mx-auto text-center glass-panel rounded-2xl p-10 relative overflow-hidden">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-kaspa-primary/10 via-transparent to-kaspa-primary/10 blur-xl opacity-50 -z-10" />
-                    <p className="text-lg md:text-xl text-gray-300 leading-relaxed font-medium">
+            <section className="py-20 border-t border-kaspa-border">
+                <SectionHeading eyebrow={t('sections.what_is_eyebrow')} title={t('sections.what_is')} />
+                <div className="max-w-3xl mx-auto px-4 text-center">
+                    <p className="text-lg md:text-xl text-gray-300 leading-relaxed font-medium mb-6">
                         <Trans i18nKey="sections.what_is_content">
-                            KaspaBattle ist eine dezentrale <strong className="text-white font-bold">Peer‑to‑Peer Gaming-Wager-Plattform</strong> auf Kaspa.
-                            Zwei Spieler zahlen KAS in einen sicheren Smart-Contract-Escrow ein. Nach einem Match (z.B. CS2 auf FACEIT) wertet unser automatisiertes Oracle das Ergebnis aus und der Gewinner erhält automatisch den Payout.
+                            KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming, die <span className="text-[#FF5500] font-semibold">FACEIT-Matches</span> mit <span className="text-kaspa-primary font-semibold">Kaspa-basiertem Settlement</span> verbindet.
+                            Spieler erstellen oder betreten Challenges, treten über FACEIT gegeneinander an und wickeln ihre Testnet-Matcheinsätze direkt über Kaspa ab.
                         </Trans>
+                    </p>
+                    <p className="text-base text-gray-400 leading-relaxed">
+                        {t('sections.what_is_integration')}
                     </p>
                 </div>
             </section>
@@ -108,9 +116,9 @@ export function LandingPage() {
 
                 <div className="max-w-4xl mx-auto flex flex-col gap-6 px-4">
                     {/* Step 1 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             1
                         </div>
                         <div className="flex-1">
@@ -130,9 +138,9 @@ export function LandingPage() {
                     </div>
 
                     {/* Step 2 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             2
                         </div>
                         <div className="flex-1">
@@ -147,9 +155,9 @@ export function LandingPage() {
                     </div>
 
                     {/* Step 3 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             3
                         </div>
                         <div className="flex-1">
@@ -161,9 +169,9 @@ export function LandingPage() {
                     </div>
 
                     {/* Step 4 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             4
                         </div>
                         <div className="flex-1">
@@ -186,9 +194,9 @@ export function LandingPage() {
                     </div>
 
                     {/* Step 5 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             5
                         </div>
                         <div className="flex-1">
@@ -200,9 +208,9 @@ export function LandingPage() {
                     </div>
 
                     {/* Step 6 */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary hover:shadow-glow-primary-lg transition-all relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/50 group-hover:bg-kaspa-primary transition-colors" />
-                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/15 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/40 text-3xl shadow-[0_0_20px_rgba(112,199,186,0.5)]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 md:p-8 glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle focus-within:border-kaspa-primary/35 focus-within:shadow-glow-subtle transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-kaspa-primary/25 group-hover:bg-kaspa-primary/70 transition-colors" />
+                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-kaspa-primary/10 text-kaspa-primary flex items-center justify-center font-black border border-kaspa-primary/30 group-hover:border-kaspa-primary/60 group-hover:bg-kaspa-primary/15 transition-colors duration-300 text-3xl">
                             6
                         </div>
                         <div className="flex-1">
@@ -228,15 +236,16 @@ export function LandingPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {([
-                        { iconName: 'bolt'   as const, title: t('sections.features.finality.title'),  text: t('sections.features.finality.text') },
-                        { iconName: 'blocks' as const, title: t('sections.features.blocks.title'),    text: t('sections.features.blocks.text') },
-                        { iconName: 'coin'   as const, title: t('sections.features.fees.title'),      text: t('sections.features.fees.text') },
-                        { iconName: 'shield' as const, title: t('sections.features.security.title'), text: t('sections.features.security.text') },
+                        { iconName: 'bolt'   as const, overline: t('sections.features.finality.overline'), title: t('sections.features.finality.title'),  text: t('sections.features.finality.text') },
+                        { iconName: 'blocks' as const, overline: t('sections.features.blocks.overline'),   title: t('sections.features.blocks.title'),    text: t('sections.features.blocks.text') },
+                        { iconName: 'coin'   as const, overline: t('sections.features.fees.overline'),     title: t('sections.features.fees.title'),      text: t('sections.features.fees.text') },
+                        { iconName: 'shield' as const, overline: t('sections.features.security.overline'), title: t('sections.features.security.title'), text: t('sections.features.security.text') },
                     ]).map((feature) => (
                         <div key={feature.title} className="glass-panel rounded-2xl border border-kaspa-primary/15 hover:border-kaspa-primary/35 hover:shadow-glow-subtle transition-all p-8 text-center hover:-translate-y-1 duration-300">
                             <div className="w-14 h-14 mb-6 mx-auto rounded-xl bg-kaspa-primary/10 border border-kaspa-primary/20 flex items-center justify-center">
                                 <Icon name={feature.iconName} className="w-7 h-7 text-kaspa-primary" />
                             </div>
+                            <p className="text-xs text-kaspa-primary/80 font-semibold uppercase tracking-wide mb-2">{feature.overline}</p>
                             <h3 className="text-lg font-bold mb-3 text-white">{feature.title}</h3>
                             <p className="text-gray-400 text-sm leading-relaxed">{feature.text}</p>
                         </div>
@@ -258,7 +267,10 @@ export function LandingPage() {
 
             {/* Future / CTA Section */}
             <section className="py-24 border-t border-kaspa-border text-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-kaspa-primary/10 to-transparent -z-10" />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-[560px] h-[320px] md:w-[700px] md:h-[460px] bg-[radial-gradient(ellipse_at_center,rgba(73,234,203,0.16),transparent_70%)] blur-2xl -z-10"
+                />
                 <h2 className="text-4xl md:text-6xl font-black mb-6 uppercase tracking-tighter">{t('sections.future')}</h2>
                 <p className="text-xl text-kaspa-primary mb-4 max-w-2xl mx-auto font-bold tracking-wide">
                     {t('sections.future_subtitle')}
@@ -308,7 +320,7 @@ export function LandingPage() {
             {testMode && (
             <section className="py-16 border-t border-kaspa-border">
                 <div className="max-w-4xl mx-auto px-4">
-                    <div className="glass-panel rounded-2xl relative overflow-hidden border-kaspa-primary/20 p-8 md:p-12 shadow-glow-primary-lg">
+                    <div className="glass-panel rounded-2xl relative overflow-hidden border border-kaspa-primary/20 p-8 md:p-12">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-kaspa-primary/5 blur-3xl rounded-full -z-0" />
                         <div className="relative z-10">
                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-kaspa-primary/10 border border-kaspa-primary/20 rounded-full text-kaspa-primary text-xs font-bold tracking-widest uppercase mb-6">

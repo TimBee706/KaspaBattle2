@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { PUBLIC_CONTACT_EMAIL } from '../config/constants';
 
 export function SupportPage() {
   const { t, i18n } = useTranslation();
@@ -25,10 +26,10 @@ export function SupportPage() {
           </p>
           <p className="mb-6">
             <a
-              href="mailto:info@kaspabattle.com"
+              href={`mailto:${PUBLIC_CONTACT_EMAIL}`}
               className="text-kaspa-primary hover:underline break-all"
             >
-              info@kaspabattle.com
+              {PUBLIC_CONTACT_EMAIL}
             </a>
           </p>
           <p className="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wide">
@@ -57,10 +58,10 @@ export function SupportPage() {
           </p>
           <p className="mb-6">
             <a
-              href="mailto:info@kaspabattle.com"
+              href={`mailto:${PUBLIC_CONTACT_EMAIL}`}
               className="text-kaspa-primary hover:underline break-all"
             >
-              info@kaspabattle.com
+              {PUBLIC_CONTACT_EMAIL}
             </a>
           </p>
           <p className="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wide">

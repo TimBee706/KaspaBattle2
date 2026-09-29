@@ -34,8 +34,9 @@
     },
     "hero": {
         "beta_tag": "Public Testnet Beta",
+        "faceit_badge": "Built for FACEIT matches",
         "title": "Competitive gaming, settled on <1>Kaspa</1>.",
-        "subtitle": "KaspaBattle is an open testnet platform for peer-to-peer matches and experimental tournaments. Connect a testnet wallet, play with the community and help shape the platform.",
+        "subtitle": "Challenge players through FACEIT and settle peer-to-peer match stakes on Kaspa's high-speed network.",
         "cta_primary": "Enter Testnet",
         "cta_secondary": "Become a Tester",
         "cta_github": "View on GitHub",
@@ -48,7 +49,9 @@
     },
     "sections": {
         "what_is": "WHAT IS KASPABATTLE?",
-        "what_is_content": "KaspaBattle is a decentralized <1>peer-to-peer gaming wager platform</1> on Kaspa. Two players deposit KAS into a secure multisig escrow (based on multi-signature transactions). After a match (e.g. CS2 on FACEIT), our automated oracle evaluates the result and the winner automatically receives the payout.",
+        "what_is_eyebrow": "Overview",
+        "what_is_content": "KaspaBattle is a peer-to-peer competitive gaming platform that connects <1>FACEIT matches</1> with <3>Kaspa-based settlement</3>. Players create or join challenges, compete through FACEIT and settle testnet match stakes directly through Kaspa.",
+        "what_is_integration": "FACEIT handles the competitive match environment. Kaspa handles transparent peer-to-peer settlement.",
         "how_it_works": "HOW A KASPA BATTLE WORKS",
         "how_it_works_steps": {
             "1": "CONNECT WALLET & FACEIT LOGIN",
@@ -113,18 +116,22 @@
         "why_kaspa_intro": "KaspaBattle relies on a combination most blockchains can't offer at once: sub-second finality, fees low enough that a modest wager isn't eaten by transaction costs, and Proof-of-Work security that doesn't depend on trusting a small validator set. That combination is what makes on-chain escrow for individual matches — not just large tournaments — practical in the first place.",
         "features": {
             "finality": {
+                "overline": "Settlement",
                 "title": "Fast finality ~1s",
                 "text": "A match result can be settled and paid out almost as soon as it's confirmed — no multi-minute wait between game end and payout."
             },
             "blocks": {
+                "overline": "Performance",
                 "title": "High throughput",
                 "text": "Kaspa's BlockDAG processes many blocks per second, so deposits and payouts aren't stuck competing for scarce block space during busy periods."
             },
             "fees": {
+                "overline": "Efficiency",
                 "title": "Low fees",
                 "text": "Transaction costs stay small relative to typical wagers, so even modest 1v1 stakes remain worthwhile."
             },
             "security": {
+                "overline": "Network",
                 "title": "Proof-of-Work security",
                 "text": "Consensus doesn't rely on a small validator set — the same security model protecting the network protects every escrow it holds."
             }

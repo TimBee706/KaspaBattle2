@@ -34,8 +34,9 @@
     },
     "hero": {
         "beta_tag": "Öffentliche Testnet-Beta",
+        "faceit_badge": "Für FACEIT-Matches entwickelt",
         "title": "Competitive Gaming, abgewickelt auf <1>Kaspa</1>.",
-        "subtitle": "KaspaBattle ist eine offene Testnet-Plattform für Peer-to-Peer-Matches und experimentelle Turniere. Verbinde eine Testnet-Wallet, spiele mit der Community und hilf dabei, die Plattform weiterzuentwickeln.",
+        "subtitle": "Fordere Spieler über FACEIT heraus und wickle Peer-to-Peer-Matcheinsätze über das schnelle Kaspa-Netzwerk ab.",
         "cta_primary": "Testnet öffnen",
         "cta_secondary": "Tester werden",
         "cta_github": "Auf GitHub ansehen",
@@ -48,7 +49,9 @@
     },
     "sections": {
         "what_is": "WAS IST KASPABATTLE?",
-        "what_is_content": "KaspaBattle ist eine dezentrale <1>Peer-to-Peer Gaming-Wager-Plattform</1> auf Kaspa. Zwei Spieler zahlen KAS in einen sicheren Multisig-Escrow ein (basierend auf Multi-Signature Transaktionen). Nach einem Match (z.B. CS2 auf FACEIT) wertet unser automatisiertes Oracle das Ergebnis aus und der Gewinner erhält automatisch den Payout.",
+        "what_is_eyebrow": "Überblick",
+        "what_is_content": "KaspaBattle ist eine Peer-to-Peer-Plattform für kompetitives Gaming, die <1>FACEIT-Matches</1> mit <3>Kaspa-basiertem Settlement</3> verbindet. Spieler erstellen oder betreten Challenges, treten über FACEIT gegeneinander an und wickeln ihre Testnet-Matcheinsätze direkt über Kaspa ab.",
+        "what_is_integration": "FACEIT stellt die kompetitive Match-Umgebung bereit. Kaspa übernimmt das transparente Peer-to-Peer-Settlement.",
         "how_it_works": "SO FUNKTIONIERT EIN KASPA BATTLE",
         "how_it_works_steps": {
             "1": "WALLET VERBINDEN & FACEIT LOGIN",
@@ -113,18 +116,22 @@
         "why_kaspa_intro": "KaspaBattle setzt auf eine Kombination, die kaum eine andere Blockchain gleichzeitig bietet: Finalität in unter einer Sekunde, Gebühren, die niedrig genug sind, dass ein moderater Einsatz nicht von den Transaktionskosten aufgefressen wird, und Proof-of-Work-Sicherheit, die nicht von einer kleinen Validator-Gruppe abhängt. Genau diese Kombination macht On-Chain-Escrow für einzelne Matches – nicht nur für große Turniere – überhaupt erst praktikabel.",
         "features": {
             "finality": {
+                "overline": "Settlement",
                 "title": "Schnelle Finalität ~1s",
                 "text": "Ein Match-Ergebnis kann fast so schnell abgewickelt und ausgezahlt werden, wie es bestätigt wird – kein minutenlanges Warten zwischen Spielende und Auszahlung."
             },
             "blocks": {
+                "overline": "Performance",
                 "title": "Hoher Durchsatz",
                 "text": "Kaspas BlockDAG verarbeitet viele Blöcke pro Sekunde, sodass Einzahlungen und Auszahlungen auch bei hoher Auslastung nicht um knappen Blockplatz konkurrieren."
             },
             "fees": {
+                "overline": "Effizienz",
                 "title": "Niedrige Gebühren",
                 "text": "Die Transaktionskosten bleiben im Verhältnis zum Einsatz gering – auch moderate 1v1-Einsätze lohnen sich noch."
             },
             "security": {
+                "overline": "Netzwerk",
                 "title": "Proof-of-Work-Sicherheit",
                 "text": "Der Konsens hängt nicht von einer kleinen Validator-Gruppe ab – dasselbe Sicherheitsmodell, das das Netzwerk schützt, schützt auch jeden Escrow darauf."
             }
