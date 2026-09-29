@@ -1,12 +1,19 @@
 //! Interpreter-level tests for KaspaBattle's MatchEscrow contract (Gate 3).
-//! All 10 tests pass against the real kaspa-txscript interpreter
-//! (`covenants_enabled: true`) at the pinned rusty-kaspa revision.
+//! All 12 tests pass against the real kaspa-txscript interpreter
+//! (`covenants_enabled: true`) at the pinned rusty-kaspa revision, covering
+//! all five entry points (including `refund_timeout` -- `this.ageDaa` reads
+//! the spending input's own `sequence` field directly, so it's testable here
+//! too, no simnet needed; see `tx_input_with_sequence` below).
 //!
-//! This is a reference copy. See README.md in this directory for how to run
-//! it. It is not runnable in-place inside the KaspaBattle repo, since
-//! kaspabattle's own Cargo workspace pins an incompatible, older rusty-kaspa
-//! (0.15.x, no covenant support). Porting this into a real,
-//! git-dependency-based `kaspabattle/battle-silverscript` crate is follow-up
+//! This copy is committed as a reference at
+//! `contracts/silverscript/tests/interpreter_tests.rs` in the KaspaBattle
+//! repo, alongside a README explaining how to run it (drop it into a clone
+//! of kaspanet/silverscript at tag v1.0.0, next to `tests/common.rs`, since
+//! it reuses that file and SilverScript's own dev-dependencies). It is not
+//! runnable in-place inside the KaspaBattle repo, since kaspabattle's own
+//! Cargo workspace pins an incompatible, older rusty-kaspa (0.15.x, no
+//! covenant support). Porting this into a real, git-dependency-based Cargo
+//! workspace alongside `kaspabattle/battle-silverscript` is follow-up
 //! implementation work.
 //!
 //! Adjust the `include_str!` path in `source()` below to point at your local
@@ -148,7 +155,17 @@ fn compile(ctor: &[ArtifactValue]) -> silverscript_abi::SilAbiArtifact {
 }
 
 fn tx_input(signature_script: Vec<u8>) -> TransactionInput {
-    TransactionInput::new(TransactionOutpoint { transaction_id: TransactionId::from_bytes([7u8; 32]), index: 0 }, signature_script, 0, 1)
+    tx_input_with_sequence(signature_script, 0)
+}
+
+/// `sequence` is what `this.ageDaa` reads (verified against
+/// `compiles_require_age_daa_to_csv_and_verifies` in SilverScript's own
+/// `compiler_tests.rs`: `this.ageDaa >= N` lowers to `OpCheckSequenceVerify`,
+/// which checks the spending input's own `sequence` field directly -- no
+/// simnet/live-consensus context needed, contrary to an earlier assumption
+/// in this file's own doc comment (see docs/LEARNINGS.md).
+fn tx_input_with_sequence(signature_script: Vec<u8>, sequence: u64) -> TransactionInput {
+    TransactionInput::new(TransactionOutpoint { transaction_id: TransactionId::from_bytes([7u8; 32]), index: 0 }, signature_script, sequence, 1)
 }
 
 fn entry_sigscript(compiled: &silverscript_abi::SilAbiArtifact, entry: &str, args: Vec<ArtifactValue>) -> Vec<u8> {
@@ -508,4 +525,62 @@ fn oracle_settle_rejects_redirected_winner_output() {
 
     let result = common::execute_input_with_covenants(tx, entries, 0);
     assert!(result.is_err(), "oracle_settle must reject a payout redirected away from the committed winner scriptPubKey");
+}
+
+// ─── refund_timeout ─────────────────────────────────────────────────────────
+
+#[test]
+fn refund_timeout_succeeds_once_timeout_elapsed() {
+    let fx = fixture();
+    let player_b = actor_from_seed(0xD4);
+    let active = compile(&ctor_args(&fx, 1, player_b.owner_hash));
+    let entries = vec![covenant_utxo(&active, 2 * STAKE_SOMPI as u64)];
+
+    let outputs = vec![
+        plain_output(p2pk_script(&fx.player_a.pubkey_bytes), STAKE_SOMPI as u64),
+        plain_output(p2pk_script(&player_b.pubkey_bytes), STAKE_SOMPI as u64),
+    ];
+    let args = vec![fx.player_a.pubkey_bytes.clone().into(), player_b.pubkey_bytes.clone().into()];
+    let sigscript = entry_sigscript(&active, "refund_timeout", args);
+    // sequence == this.ageDaa; RESULT_TIMEOUT_DAA exactly met (>=, boundary case).
+    let tx = Transaction::new(
+        1,
+        vec![tx_input_with_sequence(sigscript, RESULT_TIMEOUT_DAA as u64)],
+        outputs,
+        0,
+        Default::default(),
+        0,
+        vec![],
+    );
+
+    let result = common::execute_input_with_covenants(tx, entries, 0);
+    assert!(result.is_ok(), "refund_timeout should succeed once the timeout has elapsed: {:?}", result.unwrap_err());
+}
+
+#[test]
+fn refund_timeout_rejects_before_timeout_elapsed() {
+    let fx = fixture();
+    let player_b = actor_from_seed(0xD4);
+    let active = compile(&ctor_args(&fx, 1, player_b.owner_hash));
+    let entries = vec![covenant_utxo(&active, 2 * STAKE_SOMPI as u64)];
+
+    let outputs = vec![
+        plain_output(p2pk_script(&fx.player_a.pubkey_bytes), STAKE_SOMPI as u64),
+        plain_output(p2pk_script(&player_b.pubkey_bytes), STAKE_SOMPI as u64),
+    ];
+    let args = vec![fx.player_a.pubkey_bytes.clone().into(), player_b.pubkey_bytes.clone().into()];
+    let sigscript = entry_sigscript(&active, "refund_timeout", args);
+    // One tick short of RESULT_TIMEOUT_DAA -- must be rejected.
+    let tx = Transaction::new(
+        1,
+        vec![tx_input_with_sequence(sigscript, (RESULT_TIMEOUT_DAA - 1) as u64)],
+        outputs,
+        0,
+        Default::default(),
+        0,
+        vec![],
+    );
+
+    let result = common::execute_input_with_covenants(tx, entries, 0);
+    assert!(result.is_err(), "refund_timeout must reject a claim before the timeout has elapsed");
 }

@@ -41,7 +41,7 @@ against a separate checkout of the SilverScript compiler itself.
 
 ## What's covered
 
-10 tests, all passing as of 2026-09-29:
+12 tests, all passing as of 2026-09-29, covering all five entry points:
 
 - `join`: happy path, rejects the creator joining their own match, rejects an
   under-funded continuation output.
@@ -54,13 +54,14 @@ against a separate checkout of the SilverScript compiler itself.
   payout redirected to an attacker's address while keeping a validly-signed
   attestation for the real winner (the "Output substitution" threat model
   entry).
+- `refund_timeout`: succeeds exactly at the timeout boundary, rejects a claim
+  one DAA tick early.
 
-**Not covered:** `refund_timeout`. `this.ageDaa` needs a live/simnet
-consensus context to give a meaningful current-DAA-score reference; the
-lightweight `execute_input_with_covenants` harness used here doesn't easily
-provide one (SilverScript's own test suite doesn't exercise
-`this.ageDaa`-gated entries via this harness either — Chess's `timeout` entry
-isn't tested this way). Needs a simnet run instead (Gate 3, still open).
+`this.ageDaa >= N` turned out to be directly testable with this same
+lightweight harness, contrary to an earlier assumption in this repo's history
+(see `docs/LEARNINGS.md`): it lowers to `OpCheckSequenceVerify`, which reads
+the spending `TransactionInput`'s own `sequence` field — no simnet or live
+consensus context needed. `tx_input_with_sequence` sets it directly.
 
 ## Findings this uncovered (see `docs/LEARNINGS.md` for the full write-up)
 

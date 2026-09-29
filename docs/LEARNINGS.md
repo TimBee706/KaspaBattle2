@@ -6,6 +6,14 @@ Laufendes, geteiltes Protokoll nicht-offensichtlicher Erkenntnisse und Entscheid
 
 ---
 
+### 2026-09-29 — refund_timeout doch interpreter-testbar: `this.ageDaa` = Input-`sequence`-Feld  [silverscript]
+
+Korrektur einer eigenen Fehlannahme von vor ein paar Stunden (siehe Eintrag „10/10 Interpreter-Tests grün" unten): dort stand, `refund_timeout` sei ohne Simnet nicht testbar, weil `this.ageDaa` einen Live-Konsens-Kontext bräuchte. **Das stimmt nicht.** Beim Lesen von SilverScripts eigenem `compiler_tests.rs` (`compiles_require_age_daa_to_csv_and_verifies`) zeigt sich: `this.ageDaa >= N` lowert zu `OpCheckSequenceVerify` (Bitcoins BIP68/CSV-Äquivalent) und prüft einfach das `sequence`-Feld des ausgegebenen `TransactionInput` direkt — ein reiner Skript-Level-Check, kein Konsens-Lookup. Also mit demselben leichten Harness testbar wie alle anderen Entries: `sequence` im Test-Input auf den gewünschten Alterswert setzen.
+
+Ergebnis: 2 neue Tests (`refund_timeout_succeeds_once_timeout_elapsed` mit `sequence == RESULT_TIMEOUT_DAA`, `refund_timeout_rejects_before_timeout_elapsed` mit `sequence == RESULT_TIMEOUT_DAA - 1`), beide grün beim ersten Versuch. **Jetzt 12/12 Interpreter-Tests, alle fünf Entry-Points abgedeckt.**
+
+**Lehre für mich selbst:** Bevor ich „X ist ohne Y nicht testbar" ins Integrationsplan-Dokument schreibe, erst in der Zielbibliothek nach einem existierenden Test für genau dieses Feature suchen (`grep -n "ageDaa" **/*.rs`, ~30 Sekunden) statt aus der Architektur zu extrapolieren. Hier hätte ein früherer Blick in `compiler_tests.rs` (statt nur `chess_apps_tests.rs`) die Fehlannahme sofort vermieden.
+
 ### 2026-09-29 — Attestation-Referenz in Rust und TypeScript, cross-verifiziert  [silverscript]
 
 `KASPABATTLE_RESULT_V1` (§8) jetzt zweimal implementiert und gegen denselben Testvektor geprüft:
