@@ -125,6 +125,10 @@ async fn link_faceit(pool: &PgPool, user: Uuid) {
         .unwrap();
 }
 
+/// Fixed test-only key-derivation secret. NEVER use a hardcoded secret like
+/// this outside of tests — see `MultisigEscrowService::key_derivation_secret`.
+const TEST_KEY_DERIVATION_SECRET: [u8; 32] = [0x42; 32];
+
 fn mock_multisig() -> (Arc<MultisigEscrowService>, Arc<MockKaspaClient>) {
     let mock = Arc::new(MockKaspaClient::new());
     let svc = MultisigEscrowService::new(
@@ -132,6 +136,7 @@ fn mock_multisig() -> (Arc<MultisigEscrowService>, Arc<MockKaspaClient>) {
         Prefix::Testnet,
         [0xe1; 32],
         kaspa_test_address(0x5f),
+        TEST_KEY_DERIVATION_SECRET,
     )
     .unwrap();
     (Arc::new(svc), mock)
