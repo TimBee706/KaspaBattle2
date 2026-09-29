@@ -132,6 +132,7 @@ fn mock_multisig() -> (Arc<MultisigEscrowService>, Arc<MockKaspaClient>) {
         Prefix::Testnet,
         [0xe1; 32],
         kaspa_test_address(0x5f),
+        [0xd1; 32],
     )
     .unwrap();
     (Arc::new(svc), mock)
