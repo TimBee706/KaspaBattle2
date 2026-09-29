@@ -1,0 +1,40 @@
+# Isolated private Kaspa Testnet-10 node for Kaspa Battle.
+# Own compose project / network / volume path: touches nothing else on the host.
+#
+#   cd /opt/kaspabattle-kaspa-node && cp .env.example .env   # set KASPAD_IMAGE (pinned, no :latest)
+#   docker compose -p kaspabattle-kaspa-node config
+#   docker compose -p kaspabattle-kaspa-node up -d
+#
+# STATUS: prepared but NOT yet run on the target server. Flags and ports must be checked
+# against the pinned rusty-kaspa release (`kaspad --help`) before the first start.
+name: kaspabattle-kaspa-node
+
+services:
+  kaspad:
+    image: ${KASPAD_IMAGE:?set KASPAD_IMAGE to a pinned rusty-kaspa image (tag + digest)}
+    container_name: kaspabattle-kaspad-tn10
+    restart: unless-stopped
+    command:
+      - kaspad
+      - --testnet
+      - --netsuffix=10
+      - --utxoindex
+      - --disable-upnp
+      - --appdir=/data
+      - --listen=0.0.0.0:16211            # P2P (TN10)
+      - --rpclisten-borsh=0.0.0.0:17210   # Borsh wRPC, the encoding kaspa-wasm uses
+      # gRPC / JSON wRPC intentionally not enabled; no --unsaferpc.
+    ports:
+      - "16211:16211"                     # P2P, public
+      - "${RPC_BIND_IP:-127.0.0.1}:17210:17210"  # wRPC: bind to a private IP / restrict by firewall
+    volumes:
+      - /var/lib/kaspabattle-kaspa/tn10:/data
+    networks: [kaspabattle-kaspa]
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+    stop_grace_period: 2m
+
+networks:
+  kaspabattle-kaspa:
+    name: kaspabattle-kaspa

@@ -1,7 +1,7 @@
 import * as kaspa from 'kaspa-wasm';
 import { initKaspaWasm } from './init';
-import { KASPA_NODE_URL, KASPA_NETWORK } from '../config/constants';
-import { KaspaRpcError } from './errors';
+import { KASPA_NODE_URL, KASPA_NETWORK, KASPA_PUBLIC_FALLBACK } from '../config/constants';
+import { KaspaRpcError, classifyRpcFailure, rpcErrorMessage } from './errors';
 
 let rpcClient: kaspa.RpcClient | null = null;
 
@@ -16,9 +16,12 @@ type RpcClientCtor = new (config: {
  * Get or create a connected RPC client.
  *
  * Connection strategy (in order):
- *   1. Direct URL from VITE_KASPA_NODE_URL (if set)
- *   2. WASM SDK built-in Resolver (works in browser for WebSocket — no CORS issue)
- *   3. Error with clear message
+ *   1. Own node from VITE_KASPA_NODE_URL (e.g. wss://<domain>/kaspa-rpc, Borsh wRPC). It is
+ *      verified via getServerInfo: correct network, synced, UTXO index on.
+ *   2. Public WASM Resolver — only when no own node is configured, or when
+ *      VITE_KASPA_PUBLIC_FALLBACK=true.
+ *   3. Error whose code says what actually failed (unreachable / TLS / timeout / wrong
+ *      network / not synced / encoding).
  *
  * The WASM Resolver (`new kaspa.Resolver()`) handles node discovery internally
  * via WebSocket, which is NOT subject to browser CORS restrictions.
@@ -33,9 +36,8 @@ export async function getRpcClient(): Promise<kaspa.RpcClient> {
 
         const RpcClientClass = kaspa.RpcClient as unknown as RpcClientCtor;
 
-        // 1. Direct URL from environment
+        // 1. Own node
         if (KASPA_NODE_URL) {
-            console.log(`[kaspa] Connecting to configured node: ${KASPA_NODE_URL}`);
             try {
                 const client = new RpcClientClass({
                     url: KASPA_NODE_URL,
@@ -43,12 +45,19 @@ export async function getRpcClient(): Promise<kaspa.RpcClient> {
                     networkId: KASPA_NETWORK,
                 });
                 await client.connect({ strategy: kaspa.ConnectStrategy.Fallback, timeoutDuration: 8000 });
-                console.log(`[kaspa] ✅ Connected to ${KASPA_NODE_URL}`);
+                await verifyNode(client);
+                console.log('[kaspa] Connected to configured own node');
                 rpcClient = client;
                 return client;
             } catch (e) {
-                console.warn(`[kaspa] ❌ Configured node unreachable: ${KASPA_NODE_URL}`, e);
-                // Fall through to Resolver
+                const code = classifyRpcFailure(e);
+                console.warn(`[kaspa] Own node failed (${code})`, e);
+                if (!KASPA_PUBLIC_FALLBACK) {
+                    throw new KaspaRpcError(code, rpcErrorMessage(code, KASPA_NETWORK), {
+                        technicalDetail: `[${KASPA_NETWORK}] ${String(e)}`,
+                    });
+                }
+                // Explicitly enabled public fallback: continue with the Resolver.
             }
         }
 
@@ -79,6 +88,26 @@ export async function getRpcClient(): Promise<kaspa.RpcClient> {
         console.error('[kaspa] RPC initialization failed:', error);
         rpcClient = null;
         throw error;
+    }
+}
+
+interface ServerInfoLike {
+    networkId?: string;
+    isSynced?: boolean;
+    hasUtxoIndex?: boolean;
+}
+
+/** Confirms the node is on the expected network, synced and serves the UTXO index. */
+async function verifyNode(client: kaspa.RpcClient): Promise<void> {
+    const info = (await client.getServerInfo()) as unknown as ServerInfoLike;
+    if (info.networkId && info.networkId !== KASPA_NETWORK) {
+        throw new KaspaRpcError('KASPA_WRONG_NETWORK', rpcErrorMessage('KASPA_WRONG_NETWORK', KASPA_NETWORK));
+    }
+    if (info.isSynced === false) {
+        throw new KaspaRpcError('KASPA_NODE_NOT_SYNCED', rpcErrorMessage('KASPA_NODE_NOT_SYNCED', KASPA_NETWORK));
+    }
+    if (info.hasUtxoIndex === false) {
+        throw new KaspaRpcError('KASPA_NO_UTXO_INDEX', rpcErrorMessage('KASPA_NO_UTXO_INDEX', KASPA_NETWORK));
     }
 }
 

@@ -262,26 +262,26 @@ pub struct WalletVerifyReq {
     pub link_to_existing_user: bool,
 }
 
-fn auth_cookie_security_attrs(target_url: Option<&str>) -> (&'static str, &'static str) {
+/// Cookie attributes derived from the canonical origin (`FRONTEND_URL`).
+/// The app and API share one origin (Caddy routes `/api/*`), so `SameSite=Lax` suffices and
+/// still survives the top-level navigation back from FACEIT. `Secure` whenever the origin is
+/// HTTPS. No `Domain` attribute: host-only cookie, no sibling-subdomain exposure.
+fn auth_cookie_security_attrs() -> (&'static str, &'static str) {
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    
-    // If FRONTEND_URL is an external HTTPS proxy (e.g. ngrok), we MUST force SameSite=None + Secure
-    // regardless of the redirect target url, otherwise Chrome blocks the auth cookie.
-    if frontend_url.contains("ngrok-free.dev") || frontend_url.starts_with("https://") {
-        return ("None", "; Secure");
+    cookie_attrs_for_origin(&frontend_url)
+}
+
+fn cookie_attrs_for_origin(frontend_url: &str) -> (&'static str, &'static str) {
+    if frontend_url.starts_with("https://") {
+        ("Lax", "; Secure")
+    } else {
+        ("Lax", "")
     }
-
-    let effective_url = target_url.unwrap_or(&frontend_url);
-    let is_secure = effective_url.starts_with("https://");
-    let same_site = if is_secure { "None" } else { "Lax" };
-    let secure_flag = if is_secure { "; Secure" } else { "" };
-
-    (same_site, secure_flag)
 }
 
 pub fn build_auth_cookie(session_token: &str) -> String {
-    let (same_site, secure_flag) = auth_cookie_security_attrs(None);
+    let (same_site, secure_flag) = auth_cookie_security_attrs();
 
     format!(
         "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
@@ -289,17 +289,32 @@ pub fn build_auth_cookie(session_token: &str) -> String {
     )
 }
 
-pub fn build_auth_cookie_for_target(session_token: &str, target_url: &str) -> String {
-    let (same_site, secure_flag) = auth_cookie_security_attrs(Some(target_url));
+#[cfg(test)]
+mod cookie_tests {
+    use super::cookie_attrs_for_origin;
 
-    format!(
-        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
-        session_token, same_site, secure_flag
-    )
+    #[test]
+    fn https_origin_gets_secure_lax_host_only_cookie() {
+        let (same_site, secure) = cookie_attrs_for_origin("https://www.example.test");
+        assert_eq!((same_site, secure), ("Lax", "; Secure"));
+    }
+
+    #[test]
+    fn http_dev_origin_is_lax_without_secure() {
+        assert_eq!(cookie_attrs_for_origin("http://localhost:5173"), ("Lax", ""));
+    }
+
+    #[test]
+    fn cookie_is_httponly_path_root_and_has_no_domain_attribute() {
+        let (ss, sec) = cookie_attrs_for_origin("https://www.example.test");
+        let c = format!("kaspabattle-auth=t; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800", ss, sec);
+        assert!(c.contains("HttpOnly") && c.contains("Path=/") && c.contains("Secure"));
+        assert!(!c.to_lowercase().contains("domain="));
+    }
 }
 
 fn build_clear_auth_cookie() -> String {
-    let (same_site, secure_flag) = auth_cookie_security_attrs(None);
+    let (same_site, secure_flag) = auth_cookie_security_attrs();
 
     format!(
         "kaspabattle-auth=; HttpOnly; Path=/; SameSite={}{}; Max-Age=0",

@@ -26,6 +26,15 @@ www.{$DOMAIN} {
 		reverse_proxy backend:8080
 	}
 
+	# ── FACEIT OAuth callback: same origin, served by the backend ──────────
+	# The registered redirect URI stays https://www.<DOMAIN>/auth/faceit/callback (no FACEIT
+	# portal change). The backend redeems the code, sets the HttpOnly session cookie and
+	# answers 303 -> /lobby?linked=1. The query string (code/state) is preserved by rewrite.
+	handle /auth/faceit/callback {
+		rewrite * /api/v1/faceit/callback
+		reverse_proxy backend:8080
+	}
+
 	# ── WebSocket (Backend): /ws und /ws/* matchen ──────────────────────────
 	# /ws/* matcht NICHT /ws exakt — beide Varianten nötig
 	handle /ws {
@@ -35,17 +44,20 @@ www.{$DOMAIN} {
 		reverse_proxy backend:8080
 	}
 
-	# ── OPTIONAL: Kaspa wRPC Proxy (Browser → externer Node) ────────────────
-	# Nur nötig, wenn das Frontend/WASM-SDK direkt (nicht über das Backend) mit
-	# einem externen Kaspa-Node spricht und dieser Node kein natives wss://
-	# anbietet: Browser-WASM kann kein ws:// über https:// nutzen (mixed
-	# content), Caddy terminiert hier TLS und leitet als plain WS weiter.
-	# KASPA_RPC_HTTP_TARGET z.B. "http://217.160.255.235:17110" — an den
-	# tatsächlich genutzten externen RPC-Provider anpassen, oder diesen
-	# gesamten Block entfernen, falls das Backend alle Kaspa-RPC-Aufrufe
-	# übernimmt (empfohlen, siehe Security-Hinweis in DEPLOYMENT_IONOS_DOCKER.md).
+	# ── Kaspa Borsh-wRPC proxy (Browser -> private TN10 node) ────────────────
+	# Browser (wss://www.<DOMAIN>/kaspa-rpc) -> Caddy terminates TLS -> plain WebSocket to the
+	# node's Borsh wRPC listener. handle_path strips the "/kaspa-rpc" prefix, so the node
+	# receives the WebSocket upgrade on "/", which is where kaspad serves wRPC.
+	# KASPA_RPC_HTTP_TARGET example: http://<NODE-IP>:17210  (TN10 Borsh wRPC default; verify
+	# against the installed rusty-kaspa version). Firewall the node so that port only accepts
+	# connections from THIS server. Caddy proxies WebSocket upgrades natively; long-lived
+	# connections are kept open (no response timeout is set for streamed upgrades).
 	handle_path /kaspa-rpc {
-		reverse_proxy {$KASPA_RPC_HTTP_TARGET}
+		reverse_proxy {$KASPA_RPC_HTTP_TARGET} {
+			transport http {
+				dial_timeout 5s
+			}
+		}
 	}
 
 	# ── Frontend SPA: everything else ──────────────────────────────────────

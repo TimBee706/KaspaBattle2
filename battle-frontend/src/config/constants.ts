@@ -5,6 +5,9 @@ export const KASPA_NETWORK = import.meta.env.VITE_KASPA_NETWORK || 'testnet-10';
 // KASPA_NODE_URL: leave empty to use the Kaspa Resolver / public node infrastructure (recommended,
 // no self-hosted node required). Set a direct WS(S) URL only to use your own/dedicated node.
 export const KASPA_NODE_URL = rawKaspaNodeUrl ?? '';
+// Public Resolver as a controlled fallback when the configured own node fails. Off by default
+// whenever an own node is configured (a silent switch would hide a broken private node).
+export const KASPA_PUBLIC_FALLBACK = import.meta.env.VITE_KASPA_PUBLIC_FALLBACK === 'true';
 export const KASPA_EXPLORER_URL = 'https://explorer-tn10.kaspa.org'; // Testnet-10 Explorer
 export const SOMPI_PER_KAS = 100_000_000; // 1 KAS = 10^8 Sompi
 
