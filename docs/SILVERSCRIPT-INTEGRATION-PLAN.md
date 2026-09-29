@@ -1,6 +1,6 @@
 # SilverScript L1 Escrow — Integration Plan
 
-Status: **Phase 0–3 abgeschlossen (Gate 1 freigegeben 2026-09-29). Gate 2 (Contract-Spec + Threat Model) steht noch aus.**
+Status: **Phase 0–3 abgeschlossen (Gate 1 freigegeben 2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) ist entworfen und wartet auf Freigabe — noch nicht implementiert, noch nicht committet.**
 Branch: `feature/silverscript-l1-escrow`. Scope: nur 1v1-Matches, Turniere werden nicht migriert.
 
 Diese Datei wird mit jeder Phase weitergeschrieben (siehe [CLAUDE.md](../CLAUDE.md) → „Memory & Learnings"). Abschnitte ab „Contract-State" sind Platzhalter, bis Gate 2 ansteht.
@@ -145,21 +145,243 @@ Contracts: `League` (Registrierung), `Player` (Account/Rating/Spielstart), `Ches
 
 ---
 
-## 7. Contract-State / Zustandsdiagramm / Entry-Points (Phase 4)
+## 7. Contract-State / Zustandsdiagramm / Entry-Points (Phase 4) — GATE 2 ENTWURF
 
-*Noch offen — folgt nach Freigabe von Gate 2 (Contract-Spezifikation + Threat Model).*
+**Status: Entwurf zur Freigabe. Noch nicht kompiliert, noch nicht gegen den Interpreter getestet — das ist Gate 3.** Alles unten ist Design-Absicht in SilverScript-naher Pseudo-Syntax, keine verifizierte `.sil`-Datei. Jede verwendete Primitive (`checkSig`, `checkMsgSig`, `blake2b`, `OpAuthOutput*`, Byte-Konkatenation `+`) ist gegen den tatsächlichen SilverScript-Quellcode geprüft (siehe Abschnitt 5.4 und die Fußnoten unten); die exakte P2PK-Skript-Byte-Struktur (Abschnitt 7.3) ist als offene Verifikationsaufgabe für Gate 3 markiert.
+
+### 7.1 Scope-Entscheidung: ein einzelnes Covenant-UTXO, keine Player-Accounts
+
+Die Chess-Referenz (Abschnitt 6) trägt ihr Sicherheitsmodell für Auszahlungs-Ziele über **langlebige `Player`-Covenants** (Auszahlung = Fortsetzung eines bestehenden Player-UTXOs mit unverändertem `owner`-Feld, nie eine direkte Adress-Prüfung). Das ist für uns **nicht direkt übernehmbar**: Player-Ratings/Accounts sind laut Auftrag ausdrücklich außerhalb des MVP-Scopes. Ohne Player-Accounts muss `MatchEscrow` das Auszahlungsziel **selbst** verifizieren — sonst wäre "Output substitution" (Phase 10) trivial ausnutzbar. Deshalb: **jede Entry, die Werte an eine der beiden Parteien auszahlt, prüft `tx.outputs[idx].scriptPubKey` explizit** gegen ein aus dem committeten Owner-Pubkey-Hash abgeleitetes Standard-P2PK-Skript (Abschnitt 7.3). Das ist eine bewusste, begründete Abweichung vom Chess-Vorbild, kein Versehen.
+
+### 7.2 State
+
+```
+contract MatchEscrow(
+    int      init_contract_version,
+    byte[32] init_network_domain,        // blake2b("KASPABATTLE_MATCH_V1" + network_id_string) — Verteidigung in der Tiefe;
+                                          // die eigentliche Netzwerk-Bindung kommt aus dem kompilierten Template selbst
+                                          // (unterschiedliches Netzwerk -> anderer Bytecode -> anderer template_hash)
+    byte[16] init_match_id,              // rohe UUID-Bytes, nicht als String
+    byte[32] init_game_id_hash,          // Hash der FACEIT-Spiel-/Lobby-Kennung (variable Länge extern gehasht)
+    byte[32] init_player_a,              // blake2b(x-only pubkey) — wie Chess' `owner`
+    byte[32] init_player_b,              // Sentinel 0x00..00 = "noch nicht beigetreten"
+    int      init_stake_sompi,           // Einsatz PRO Spieler (symmetrisch, MVP-Scope)
+    int      init_status,                // 0 CREATED, 1 FUNDED (terminal Übergänge s.u. brauchen keinen State mehr)
+    byte[32] init_result_oracle_commitment, // blake2b(x-only oracle pubkey)
+    int      init_join_timeout_daa,      // relative DAA-Ticks, NICHT absolute Deadline (s. Anmerkung)
+    int      init_result_timeout_daa,    // relative DAA-Ticks ab FUNDED
+    int      init_fee_bps,               // Plattform-Fee in Basispunkten (0–10000)
+    byte[32] init_treasury_commitment    // blake2b(Treasury-Payout-Skript) — analog zu player_a/b
+) { ... }
+```
+
+**Direkt gespeichert vs. nur Hash-committed:**
+
+| Feld | Speicherung | Begründung |
+|---|---|---|
+| `contract_version`, `stake_sompi`, `status`, `fee_bps`, Timeouts | direkt (int, klein) | für jede Entry-Prüfung nötig, keine Vertraulichkeit |
+| `network_domain` | direkt, aber redundant zur eigentlichen Bindung über den Template-Hash | Verteidigung in der Tiefe, siehe 7.1-Kommentar |
+| `match_id` | direkt, `byte[16]` (rohe UUID) | wird 1:1 für Attestation-Digest gebraucht, keine variable Länge |
+| `game_id_hash` | **nur Hash** (`byte[32]`), nicht die rohe FACEIT-ID | FACEIT-IDs sind variabel lang und laut Issue #168 wären dynamische Byte-Arrays als State-Feld ohnehin nicht unterstützt |
+| `player_a` / `player_b` | **nur Hash** (`blake2b(pubkey)`), nie der rohe Pubkey | Pubkey kommt bei jeder Aktion als Witness-Argument, exakt wie bei Chess (`owner`) |
+| `result_oracle_commitment` | **nur Hash** (`blake2b(pubkey)`) | ein einzelner fest committeter Oracle je Match — keine dynamische Oracle-Governance (Auftragsvorgabe) |
+| `treasury_commitment` | **nur Hash** (`blake2b(scriptPubKey)`) | gleiches Muster wie Spieler-Ziele — Treasury-Adresse ist bei Contract-Erstellung fix |
+
+**Kein `nonce`-State-Feld im Contract selbst.** Kaspas UTXO-Modell macht jede Transition ohnehin einmalig (das UTXO ist nach dem Spend weg) — Replay der *eigenen* Transitionen ist strukturell ausgeschlossen. `nonce` gehört ausschließlich in die Attestation (Abschnitt 8): er macht die *off-chain* signierte Nachricht eindeutig, falls der Oracle vor der endgültigen On-Chain-Einreichung mehrmals signiert (z. B. nach einer Korrektur).
+
+**Zu `join_deadline`/`result_deadline` (Auftragsbenennung) → `*_timeout_daa` (Umsetzung):** Die einzige im echten Chess-Code verifizierte Timeout-Primitive ist `this.ageDaa >= move_timeout` — ein **relativer** Vergleich gegen das Alter des ausgegebenen UTXO, keine absolute Deadline. Eine absolute Deadline würde eine andere, in den gelesenen Quellen nicht belegte Primitive brauchen. Wir übernehmen bewusst nur das verifizierte Muster: `join_timeout_daa`/`result_timeout_daa` sind **Dauern**, keine Zeitstempel.
+
+### 7.3 Auszahlungsziel-Verifikation (für alle wertbewegenden Entries)
+
+Gemeinsamer Baustein (kein eigener Entry, sondern wiederverwendete Prüf-Logik):
+
+```
+// pk ist Witness-Argument, geprüft gegen das committete Feld:
+require(blake2b(byte[](pk)) == player_a /* oder player_b, result_oracle_commitment, treasury */);
+// Zieladresse wird NICHT separat committed, sondern deterministisch aus pk abgeleitet:
+byte[] expected_spk = <Standard-P2PK-scriptPubKey-Bytes für pk>;
+require(tx.outputs[idx].scriptPubKey == expected_spk);
+```
+
+**Offene Verifikationsaufgabe für Gate 3:** die exakten Byte-Konstanten des Standard-P2PK-`scriptPubKey` (Push-Opcode + 32-Byte-Pubkey + `OP_CHECKSIG`-Byte) müssen aus dem gepinnten `kaspa-txscript`-Rev (`a41a333b…`) übernommen werden (unser eigenes `battle-kaspa/src/multisig/scripts.rs` und `kaspa_addresses::Address` zeigen das Muster für den alten 0.15-Baum, aber die exakte Byte-Sequenz ist am gepinnten Rev zu verifizieren, nicht zu raten). Bis dahin ist `expected_spk` ein Platzhalter für „das on-chain aus `pk` ableitbare Standard-Empfänger-Skript".
+
+### 7.4 Entry-Points
+
+**`join(sig b_sig, pubkey b_pk)`** — Spieler B tritt bei und zahlt seinen Einsatz ein.
+- `require(contract_version == CURRENT_VERSION)`
+- `require(status == CREATED)`
+- `byte[32] b_owner = blake2b(byte[](b_pk)); require(b_owner != player_a)` — verhindert, dass A sein eigenes Match "annimmt" (Self-Dealing/Griefing, siehe Threat Model)
+- `require(checkSig(b_sig, b_pk))`
+- `require(OpAuthOutputCount(this.activeInputIndex) == 1)`
+- `output_idx = OpAuthOutputIdx(this.activeInputIndex, 0)`
+- `require(tx.outputs[output_idx].value == tx.inputs[this.activeInputIndex].value + stake_sompi)` — B's Einsatz muss atomar in **derselben** TX über ein zusätzliches Plain-Input dazukommen; Kaspas TX-Bilanzzwang (`Σinputs == Σoutputs + fee`) erzwingt das strukturell, ohne dass der Contract B's Plain-Input explizit anfassen muss
+- neuer State: `player_b = b_owner`, `status = FUNDED`, alle anderen Felder unverändert
+- `validateOutputState(output_idx, next_state)` — reine Selbstfortsetzung, **kein** fremdes `readInputStateWithTemplate` in derselben Entry → unkritisch bzgl. Issue #252 (Abschnitt 5.5)
+
+**`cancel_unjoined(sig a_sig, pubkey a_pk)`** — A zieht sein Match zurück, solange niemand beigetreten ist.
+- `require(contract_version == CURRENT_VERSION)`
+- `require(status == CREATED)`
+- `require(blake2b(byte[](a_pk)) == player_a)`
+- `require(checkSig(a_sig, a_pk))`
+- `require(OpAuthOutputCount(this.activeInputIndex) == 0)` — **wie Chess' `Player::retire`**: sobald die alleinige Eigentümer-Signatur bewiesen ist und niemand sonst beteiligt ist, braucht der Contract das Ziel nicht zu erzwingen — A darf frei über sein eigenes, noch ungeteiltes Geld verfügen. Kein `validateOutputState`/Zielprüfung nötig, da einparteiisch.
+
+**`mutual_settle(sig a_sig, pubkey a_pk, sig b_sig, pubkey b_pk, int a_amount_sompi, int b_amount_sompi)`** — beide Parteien einigen sich auf eine beliebige Aufteilung (z. B. einvernehmlicher Abbruch, Split), ohne Oracle.
+- `require(contract_version == CURRENT_VERSION)`
+- `require(status == FUNDED)`
+- `require(blake2b(byte[](a_pk)) == player_a); require(checkSig(a_sig, a_pk))`
+- `require(blake2b(byte[](b_pk)) == player_b); require(checkSig(b_sig, b_pk))`
+- `require(a_amount_sompi >= 0 && b_amount_sompi >= 0)`
+- `require(a_amount_sompi + b_amount_sompi == 2 * stake_sompi)` — **keine** Fee bei einvernehmlicher Einigung (bewusste Design-Entscheidung: die Plattform-Fee ist an das Oracle-Settlement gekoppelt, nicht an private Einigungen — siehe Threat Model „Fee-Umgehung ist hier kein Diebstahl, sondern von beiden Parteien gewollt")
+- `require(OpAuthOutputCount(this.activeInputIndex) == 2)`
+- zwei Outputs, je gegen `player_a`/`player_b` verifiziert wie in 7.3, mit `tx.outputs[idx].value == a_amount_sompi` bzw. `b_amount_sompi`
+- Kein `validateOutputState` (terminal, keine Fortsetzung) — beide Signaturen sichern bereits die gesamte Transaktion inkl. Beträge über den nativen Sighash-Mechanismus; keine zusätzliche Attestation nötig.
+
+**`oracle_settle(datasig oracle_sig, pubkey oracle_pk, int winner_selector, byte[32] result_hash, int observed_at, byte[32] nonce)`** — permissionless, jeder (typischerweise unser Backend oder der Gewinner selbst) kann die TX einreichen, sobald eine gültige Oracle-Attestation vorliegt. **Kein Spieler muss online sein oder signieren** — Verbesserung gegenüber dem heutigen PSKT-Fluss, der die Live-Signatur des Gewinners braucht.
+- `require(contract_version == CURRENT_VERSION)`
+- `require(status == FUNDED)`
+- `require(winner_selector == 0 || winner_selector == 1)`
+- `require(blake2b(byte[](oracle_pk)) == result_oracle_commitment)`
+- Digest **aus den eigenen State-Feldern plus den Witness-Feldern** rekonstruieren (siehe Abschnitt 8 für das exakte Format) — **nicht** aus einem separat übergebenen, potenziell manipulierbaren Digest-Wert:
+  `byte[] msg = byte[]("KASPABATTLE_RESULT_V1") + network_domain + contract_version_bytes + match_id + game_id_hash + winner_selector_bytes + result_hash + observed_at_bytes + nonce; byte[32] digest = blake2b(msg);`
+- `require(checkMsgSig(oracle_sig, digest, oracle_pk))` — verifiziert über `OpCheckSigFromStack` (KIP-17), **nicht** die transaktionsgebundene `checkSig`
+- Gewinner-Pubkey-Hash `winner_owner = (winner_selector == 0) ? player_a : player_b`, Verlierer entsprechend umgekehrt
+- Pot: `total = 2 * stake_sompi`; `fee = total * fee_bps / 10000`; `payout = total - fee`
+- `require(OpAuthOutputCount(this.activeInputIndex) == 2)` — ein Output an den Gewinner, ein Output an die Treasury (fee); bei `fee_bps == 0` könnte man auf 1 Output reduzieren, MVP hält es für Gate 3 einfach bei fest 2
+- Gewinner-Output gegen `winner_owner` verifiziert wie 7.3, Wert `== payout`
+- Treasury-Output gegen `treasury_commitment` verifiziert (analog 7.3, aber gegen ein committetes Skript statt live abgeleitetem Pubkey-Skript — Treasury ist keine Pubkey-Identität, sondern eine fest hinterlegte Ziel-Skript-Hash), Wert `== fee`
+
+**`refund_timeout(pubkey caller_pk)`** — permissionless Notausstieg, wenn FUNDED zu lange ohne Settlement bleibt (Oracle antwortet nie, FACEIT-Match wird nie ausgetragen, etc.).
+- `require(contract_version == CURRENT_VERSION)`
+- `require(status == FUNDED)`
+- `require(this.ageDaa >= result_timeout_daa)` — **wie Chess' `timeout`**: rein UTXO-Alter-basiert, kein externer Zeitstempel nötig
+- `require(OpAuthOutputCount(this.activeInputIndex) == 2)`
+- je ein Output à `stake_sompi` an `player_a` und `player_b`, je gegen 7.3 verifiziert — **keine Fee bei Refund** (niemand hat "gewonnen", die Plattform hat nichts geleistet)
+- `caller_pk` wird **nicht** geprüft (Aufruf ist bewusst permissionless, jeder darf den Refund auslösen — analog Chess' Kommentar „Worker timeout is permissionless")
+
+### 7.5 Zustandsdiagramm
+
+```
+CREATED ──join──────────────▶ FUNDED ──oracle_settle────▶ (terminal: Gewinner-Payout + Fee)
+   │                             │
+   └──cancel_unjoined──▶         ├──mutual_settle─────────▶ (terminal: vereinbarte Aufteilung)
+     (terminal: A erhält         │
+      seinen Einsatz zurück)     └──refund_timeout────────▶ (terminal: 50/50 Rückerstattung)
+```
+
+Kein Zustand ist nach einem terminalen Übergang mehr vorhanden — alle vier Endpfade konsumieren das Covenant-UTXO vollständig und erzeugen **keine** Fortsetzung desselben Contract-Typs (anders als Chess' `mux`↔`settle`-Zyklus, der für ein 1v1-Match mit genau einem Ergebnis nicht nötig ist).
+
+---
 
 ## 8. Result-Attestation (Phase 5)
 
-*Noch offen — folgt mit Gate 2.*
+### 8.1 Kanonisches Format `KASPABATTLE_RESULT_V1`
 
-## 9. Oracle-Modell / Wallet-Modell / RPC-Modell ohne eigenen Node (Phase 5/7/8)
+Deterministische Byte-Konkatenation (keine JSON-Serialisierung — vermeidet jede Feldreihenfolge-/Whitespace-Ambiguität):
 
-*Noch offen — folgt mit Gate 2. Vorläufige Beobachtung: vendiertes `kaspa-wasm` (v1.1.0-rc.3) hat keine erkennbaren Covenant-Symbole; muss vor Phase 7 gegen eine SilverScript-kompatible `kaspa-wasm`-Version geprüft werden.*
+```
+msg = "KASPABATTLE_RESULT_V1"      (22 ASCII-Bytes, Domain-Separator)
+    || network_domain              (32 Bytes — blake2b("KASPABATTLE_MATCH_V1" + network_id_string), MUSS mit dem
+                                     Contract-State-Feld übereinstimmen, siehe 7.2)
+    || contract_version             (4 Bytes, big-endian i32)
+    || match_id                     (16 Bytes, rohe UUID — aus dem Contract-State, nicht separat übergeben)
+    || game_id_hash                 (32 Bytes — aus dem Contract-State)
+    || winner_selector               (1 Byte: 0x00 = player_a, 0x01 = player_b)
+    || result_hash                  (32 Bytes — off-chain Commitment auf die vollständigen FACEIT-Match-Details:
+                                     blake2b(faceit_match_id || score_string || …); Detailformat ist Backend-intern,
+                                     nur der Hash geht on-chain)
+    || observed_at                  (8 Bytes, big-endian u64 — DAA-Score oder Unix-Zeit zum Beobachtungszeitpunkt
+                                     des Oracles; rein informativ, nicht konsensrelevant außer als Teil des
+                                     signierten Digests)
+    || nonce                        (32 Bytes — vom Oracle zufällig gewählt, macht jede Signatur eindeutig, falls
+                                     vor der On-Chain-Einreichung mehrfach signiert wird, z. B. nach Korrektur)
 
-## 10. Migrationsplan / Testplan / Risiken / Rollback-Plan / Mainnet-Readiness-Checkliste
+digest = blake2b(msg)               // 32 Bytes — DAS wird signiert, nicht `msg` selbst (Anforderung von
+                                     // `checkMsgSig`/OpCheckSigFromStack: exakt byte[32])
+signature = SchnorrSign(oracle_privkey, digest)   // kompatibel mit OpCheckSigFromStack (KIP-17, 0xd7)
+```
 
-*Noch offen — folgt mit Gate 2 bzw. Gate 3/4.*
+**Netzwerk-Bindung:** `network_domain` verhindert Replay einer testnet-10-Attestation auf einem späteren Mainnet-Contract (unterschiedliche `network_id_string` → anderer Digest → Signatur passt nicht). Zusätzlich verhindert der unterschiedliche kompilierte Bytecode/Template-Hash pro Netzwerk (Abschnitt 5.1) ohnehin, dass ein testnet-10-Contract auf Mainnet überhaupt als "derselbe" Contract-Typ akzeptiert würde.
+
+**Keine serverseitige Einschleusung beliebiger Empfänger-Outputs:** Der Digest enthält **keine** Empfänger-Adresse/-Skript. Das Empfängerziel wird ausschließlich im Contract selbst aus `player_a`/`player_b`/`treasury_commitment` (State, bei Contract-Erstellung fixiert) plus `winner_selector` (im Digest, also vom Oracle attestiert) abgeleitet — ein kompromittiertes Backend, das die Transaktion baut, kann `winner_selector` nicht ändern, ohne die Oracle-Signatur ungültig zu machen, und kann die Empfänger-Skripte generell nicht frei wählen (siehe 7.3).
+
+### 8.2 Zwei Settlement-Pfade
+
+1. **`mutual_settle`** — beide Spieler signieren live die Transaktion selbst (`checkSig`, transaktionsgebunden). Kein Attestation-Objekt nötig; die native Sighash-Bindung deckt Beträge und Empfänger bereits ab.
+2. **`oracle_settle`** — ein einzelner autorisierter Testnet-Oracle signiert eine `KASPABATTLE_RESULT_V1`-Attestation off-chain (`checkMsgSig`/`OpCheckSigFromStack`); die Transaktion kann von *jedem* eingereicht werden, sobald diese Signatur vorliegt.
+
+**Wichtige Klarstellung (Auftragsvorgabe):** SilverScript dezentralisiert **Escrow und Auszahlung** — es macht **nicht** die externe FACEIT-Datenquelle dezentral oder vertrauenslos. Der Oracle liest weiterhin von FACEITs API (siehe `docs/03-SECURITY.md` „Oracle (FACEIT results): Trusted"); was sich ändert, ist dass der Oracle **nur noch attestiert**, aber nicht mehr selbst die Auszahlungs-TX signiert/broadcastet — die Auszahlung ist kryptographisch an die Attestation gebunden, nicht an eine serverseitig kontrollierte Signierhandlung.
+
+### 8.3 Testvektoren (Rust + TypeScript)
+
+**Noch nicht erstellt — Teil der Implementierung nach Gate 2.** Geplanter Ort: `kaspabattle/battle-silverscript/src/attestation.rs` (Rust-Referenzimplementierung + `#[cfg(test)]`-Vektoren) und ein TypeScript-Äquivalent unter `battle-frontend/src/kaspa/` oder einem neuen `attestation.ts`, das exakt dieselben Testvektoren (feste Eingaben → fester `digest`-Hex-Wert) prüft, um Rust/TS-Implementierungsdrift auszuschließen.
+
+---
+
+## 9. Oracle-/Wallet-/RPC-Modell (Phase 5/7/8) — Kurzfassung für Gate 2
+
+- **Oracle-Modell:** ein fest committeter Oracle-Pubkey-Hash pro Match (`result_oracle_commitment`), identisch zum bestehenden `ORACLE_PRIVATE_KEY`-Muster (ein Plattform-Oracle-Key, kein dynamisches Multi-Oracle-Set — Auftragsvorgabe „keine dynamische Oracle-Governance"). Der bestehende `OracleService`/FACEIT-Watcher (`battle-kaspa/src/oracle.rs`) ändert sich in seiner FACEIT-Anbindung **nicht** — er bekommt nur einen neuen Ausgabe-Pfad: statt eine PSKT zu bauen und zu signieren, erzeugt er eine `KASPABATTLE_RESULT_V1`-Attestation und signiert **den Digest**, nicht mehr eine Transaktion.
+- **Wallet-Modell:** noch nicht abschließend geklärt, siehe offene Fragen unten. Das bestehende `battle-frontend/src/kaspa/wallet.ts`-Signiermodell (`pending.sign(privateKeys)`) deckt transaktionsgebundene Signaturen (`mutual_settle`) potenziell ab, aber `join`/`cancel_unjoined` brauchen ebenfalls nur Standard-Transaktionssignaturen — **kein** neues clientseitiges Signaturschema nötig für die Spieler-Seite, sofern das vendierte `kaspa-wasm` covenant-fähige Transaktionen überhaupt bauen kann (unverifiziert, s. u.).
+- **Offene Fragen für die Implementierungsphase (nicht Gate 2, aber hier festgehalten, damit sie nicht verloren gehen):**
+  1. Kann das vendierte `kaspa-wasm` (v1.1.0-rc.3, keine Covenant-Symbole gefunden) covenant-tragende Transaktionen überhaupt bauen/signieren, oder brauchen wir eine neuere `kaspa-wasm`-Version bzw. serverseitigen TX-Bau (Browser bekommt nur eine unsignierte TX zum Signieren, wie im Auftrag als Zielbild beschrieben)?
+  2. Das exakte P2PK-`scriptPubKey`-Byte-Layout (Abschnitt 7.3) muss aus dem gepinnten `kaspa-txscript`-Rev übernommen werden.
+  3. Compute-Budget-Kalibrierung (Issue #243) für jede Entry-Funktion — kein Schätzer verfügbar, nur Trial-and-Error gegen einen echten testnet-10-Node.
+- **RPC-Modell:** unverändert zum bestehenden Ansatz (Resolver-first, optionale explizite `KASPA_NODE_URL`, kein eigener Node) — muss aber auf **testnet-10** zeigen (Abschnitt 5.2), nicht testnet-12 wie der aktuelle Backend-Default.
+
+---
+
+## 10. Threat Model (Phase 10, Gate-2-Teil)
+
+**Kerninvariante (Auftragsvorgabe):** *Auch wenn Backend oder Datenbank vollständig kompromittiert sind, darf keine Auszahlung an einen nicht durch den Contract autorisierten Empfänger möglich sein.* Das Design in Abschnitt 7 ist genau darauf ausgelegt: jeder wertbewegende Output wird gegen ein bei Contract-Erstellung fixiertes Commitment geprüft (7.3), nie gegen einen vom Transaktions-Ersteller frei wählbaren Wert.
+
+| Bedrohung | Betroffene Entry(s) | Mitigation im Design | Restrisiko |
+|---|---|---|---|
+| **Contract transition substitution** (falscher Entry-Typ akzeptiert) | alle | Dispatch-Tag ist `blake3(entry_name + Typsignatur)` (5.3), Kollisionen sind Compile-Fehler; jede Entry prüft `status` explizit | gering |
+| **Output substitution** (Geld an falsche Adresse) | `join`, `mutual_settle`, `oracle_settle`, `refund_timeout` | explizite `scriptPubKey`-Prüfung gegen committete Pubkey-Hashes (7.3) — **bewusste Abweichung von Chess**, s. 7.1 | **hoch, bis 7.3s offene P2PK-Byte-Frage in Gate 3 verifiziert ist** — vorher nicht implementieren |
+| **Double payout** (UTXO zweimal ausgegeben) | alle terminalen | strukturell durch Kaspas UTXO-Modell ausgeschlossen (Input ist nach einem Spend weg); kein zusätzlicher Schutz nötig | sehr gering |
+| **Fee siphoning** (Fee-Betrag manipuliert) | `oracle_settle` | `fee`/`payout` werden **im Contract** aus `stake_sompi`/`fee_bps` berechnet, nicht vom TX-Ersteller vorgegeben; `require(tx.outputs[idx].value == payout)` exakt | gering |
+| **Oracle key compromise** | `oracle_settle` | Schaden ist **pro Match begrenzt** (ein `result_oracle_commitment` pro Contract-Instanz, kein globaler Oracle-Key, der alle Matches gleichzeitig betrifft, sofern man den Oracle-Key rotiert) — aber MVP nutzt vermutlich denselben Oracle-Pubkey für alle Matches (siehe „keine dynamische Oracle-Governance"), also **de facto global** trotz Pro-Match-Commitment | **hoch, wie im bestehenden System auch (unverändert ggü. Multisig-Modell)** — außerhalb des MVP-Scopes lösbar (Oracle-Rotation bräuchte neue Matches mit neuem committetem Key; bestehende FUNDED-Matches bleiben am alten Key hängen bis Settlement/Timeout) |
+| **Oracle equivocation** (zwei widersprüchliche Attestationen) | `oracle_settle` | strukturell irrelevant: UTXO ist nach dem ersten gültigen `oracle_settle` weg, eine zweite (widersprüchliche) Attestation hat kein UTXO mehr zum Einlösen | gering, **aber**: wenn zwei widersprüchliche, gültig signierte Attestationen gleichzeitig im Mempool konkurrieren, gewinnt schlicht, wessen TX zuerst bestätigt wird — kein On-Chain-Dispute-Mechanismus im MVP (Scope-Entscheidung, siehe unten) |
+| **Replay** (alte gültige Aktion erneut einreichen) | alle | UTXO-Konsum macht jede Transition einmalig; Attestation-`nonce` schützt zusätzlich die *Signatur* vor Wiederverwendung außerhalb ihres UTXO-Kontexts | gering |
+| **Cross-network replay** (Testnet-Attestation auf Mainnet) | `oracle_settle` | `network_domain` im Digest + unterschiedlicher Template-Hash pro Netzwerk (5.1/5.2) | gering, sofern 8.1 korrekt implementiert |
+| **Timeout race** (Settlement und Timeout gleichzeitig eingereicht) | `oracle_settle` vs. `refund_timeout` | `refund_timeout` erfordert `status == FUNDED` UND `ageDaa >= result_timeout_daa`; ein rechtzeitiges `oracle_settle` konsumiert das UTXO zuerst und macht `refund_timeout` gegenstandslos — normale Mempool-Konkurrenz, kein Extra-Schutz nötig, aber **Backend sollte `oracle_settle` proaktiv vor Ablauf des Timeouts einreichen** | gering, operationell zu beachten |
+| **Frontend XSS** | Spieler-seitiges Signieren | unverändert zum bestehenden Risiko (Mnemonic im Zustand-Store, siehe `docs/LEARNINGS.md` Gate-1-Befund) — SilverScript ändert daran nichts, es sei denn Phase 7 führt einen externen Wallet-Adapter ein | unverändert, außerhalb dieses Contract-Designs |
+| **Malicious backend** | TX-Bau für alle Entries | Kerninvariante oben — Backend kann TXen bauen, aber nicht deren Gültigkeit gegen den Contract erzwingen | durch Design adressiert, **abhängig von 7.3-Verifikation** |
+| **Manipulierte Datenbank** | Restore-Pfade (`restore_escrow_from_row`-Äquivalent) | Anders als beim bestehenden Multisig-Modell (Abschnitt „SEC-MULTISIG-01") braucht `MatchEscrow` **keine** aus der DB rekonstruierbaren Private Keys — die Contract-Identität lebt vollständig on-chain im UTXO/Template, die DB ist nur noch ein Index/Cache. Eine manipulierte DB kann bestenfalls die falsche TX zur falschen Zeit bauen *versuchen*, aber nicht gegen den Contract durchsetzen | **strukturell deutlich sicherer als das bestehende Multisig-Modell** |
+| **RPC liveness / falscher Netzwerkmodus** | alle | testnet-12-Fehlkonfiguration (Abschnitt 5.2) würde schlicht keine gültige Verbindung/kein gültiges Netzwerk ergeben, kein Sicherheits-, sondern ein Verfügbarkeitsrisiko | gering, aber **muss vor jeder Implementierung auf testnet-10 umgestellt werden** |
+| **Reorg** | frisch bestätigte Deposits/Settlements | wie im bestehenden System: Kaspas hohe BPS-Rate + DAA-Tiefe vor "confirmed"-Markierung abwarten; unverändert zur bestehenden Mitigation in `docs/03-SECURITY.md` | unverändert |
+| **ABI mismatch** | Backend-Start | Manifest-Validierung (Phase 6, siehe unten) — Backend verweigert den SilverScript-Modus-Start bei Abweichung, kein stiller Fallback | durch geplantes Manifest-Design adressiert (Implementierungsdetail, nicht mehr Gate 2) |
+| **Compiler supply chain** | Build-Zeit | fester Git-Rev-Pin (`a41a333b…`, `v1.0.0`), kein `master`; Cargo.lock committed | durch Vorgehen bereits adressiert |
+| **Gestohlene Dev-Keys** | Testnet-Betrieb | Testnet-only, keine echten Werte — Schaden auf Testnet-KAS begrenzt (Auftragsvorgabe „kein Mainnet") | durch Scope begrenzt |
+| **Manipulierte Contract-Artefakte** | Backend-Start | Template-Hash-Prüfung gegen Manifest beim Start (Phase 6) | durch geplantes Manifest-Design adressiert |
+| **Self-Dealing/Griefing** (A "tritt" seinem eigenen Match bei) | `join` | `require(b_owner != player_a)` (7.4) | gering |
+
+**Bewusst nicht gelöst im MVP (Scope-Entscheidung, nicht vergessen):** Es gibt **keinen** `dispute`-Entry-Point — der Auftrag listet exakt fünf Entries (`join`, `cancel_unjoined`, `mutual_settle`, `oracle_settle`, `refund_timeout`), keinen Dispute-Pfad. Eine falsch attestierte `oracle_settle`-Transition ist im MVP **endgültig**, sobald sie bestätigt ist — anders als das bestehende System, das einen `Disputed`-Status kennt (`docs/03-SECURITY.md`, F-009). Das ist ein bewusster Komplexitäts-Trade-off der Vorgabe, kein Versehen; sollte vor produktivem Einsatz (auch auf Testnet mit echten Nutzern) noch einmal explizit mit Timo abgestimmt werden.
+
+---
+
+## 11. Phase 6 — Modulare Integration (Kurzentwurf)
+
+```rust
+// kaspabattle/battle-kaspa/src/settlement.rs (neu) — Abstraktion über beide Escrow-Backends
+#[async_trait]
+pub trait MatchSettlement {
+    async fn create_match(&self, match_id: Uuid, stake_sompi: u64, /* … */) -> Result<...>;
+    async fn join_match(&self, match_id: &Uuid, /* … */) -> Result<...>;
+    async fn mutual_settle(&self, match_id: &Uuid, /* … */) -> Result<...>;
+    async fn oracle_settle(&self, match_id: &Uuid, /* … */) -> Result<...>;
+    async fn refund_timeout(&self, match_id: &Uuid) -> Result<...>;
+    async fn inspect_state(&self, match_id: &Uuid) -> Result<...>;
+}
+```
+
+- `LegacyMultisigSettlement` = dünner Wrapper um das bestehende `MultisigEscrowService` (Abschnitt „SEC-MULTISIG-01" bleibt dessen Sicherheitsbasis).
+- `SilverScriptSettlement` = neue Implementierung in einem neuen Crate `kaspabattle/battle-silverscript/` (`artifact.rs`, `state.rs`, `attestation.rs`, `builder.rs`, `transitions.rs`, `errors.rs` — wie im Auftrag vorgeschlagen).
+- `SETTLEMENT_MODE=legacy_multisig|silverscript_testnet` steuert, welche Implementierung für **neue** Matches verwendet wird; `settlement_mode` und `contract_version`/`template_hash` werden **pro Match** in der DB gespeichert (neue Migration, additiv, siehe `CLAUDE.md`-Regel „nur neue Migrationsdateien"). Bereits finanzierte Multisig-UTXOs werden **nicht** migriert.
+- **Manifest** (`contracts/artifacts/match_escrow.manifest.json`): `contract_name`, `contract_version`, `source_hash` (Hash der `.sil`-Datei), `compiler_revision` (`3ed9733…`), `rusty_kaspa_revision` (`a41a333b…`), `abi_schema_version` (aktuell `1`, siehe `SIL_ABI_SCHEMA_VERSION` in Abschnitt 5.3), `template_hash`, `network` (`testnet-10`). Backend-Start im SilverScript-Modus validiert ABI-Schema-Version und Template-Hash gegen dieses Manifest und **verweigert den Start** bei Abweichung — kein stiller Fallback auf einen anderen Bytecode (Auftragsvorgabe, deckt sich mit dem Threat-Model-Eintrag „ABI mismatch" oben).
+
+Implementierung dieses Crates/Manifests ist **nicht** Teil von Gate 2 — das ist der nächste Schritt nach Freigabe.
+
+---
 
 ---
 
