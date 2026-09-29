@@ -496,6 +496,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "hex",
+ "hmac",
  "js-sys",
  "kaspa-addresses",
  "kaspa-bip32",
