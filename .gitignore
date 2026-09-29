@@ -92,3 +92,8 @@ battle-frontend/coverage/
 .vite/
 .eslintcache
 battle-frontend/*.timestamp-*.mjs
+
+# Claude Code (local instructions, settings, notes)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
