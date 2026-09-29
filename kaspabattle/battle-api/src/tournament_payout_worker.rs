@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use sqlx::PgPool;
-use uuid::Uuid;
-use battle_kaspa::watcher::BlockchainWatcher;
 use battle_kaspa::payout::{PayoutService, TournamentPayoutParams};
+use battle_kaspa::watcher::BlockchainWatcher;
+use sqlx::PgPool;
+use std::sync::Arc;
+use uuid::Uuid;
 
 // EscrowService reserved for Phase 5 key registration flow
 #[allow(dead_code)]
@@ -111,8 +111,6 @@ fn compute_confirmations(current_daa: u64, block_daa_score: u64) -> u64 {
     }
 }
 
-
-
 /// Upserts a tournament payment record (outside any transaction).
 async fn upsert_payment(
     pool: &PgPool,
@@ -212,17 +210,17 @@ pub fn spawn_tournament_workers(
 
 // ─── Deposit Watcher ──────────────────────────────────────────────────────────
 
-async fn run_deposit_watcher(
-    pool: Arc<PgPool>,
-    watcher: Arc<BlockchainWatcher>,
-) {
+async fn run_deposit_watcher(pool: Arc<PgPool>, watcher: Arc<BlockchainWatcher>) {
     let mut consecutive_errors: u32 = 0;
     loop {
         let cycle_start = std::time::Instant::now();
         match poll_tournament_deposits(&pool, &watcher).await {
             Ok(n) => {
                 if n > 0 {
-                    tracing::info!("\u{1F4B0} Tournament deposit watcher: {} deposit(s) confirmed", n);
+                    tracing::info!(
+                        "\u{1F4B0} Tournament deposit watcher: {} deposit(s) confirmed",
+                        n
+                    );
                 }
                 consecutive_errors = 0;
             }
@@ -239,7 +237,8 @@ async fn run_deposit_watcher(
                 elapsed_secs = elapsed.as_secs(),
                 interval_secs = DEPOSIT_POLL_INTERVAL_SECS,
                 "\u{26A0}\u{FE0F} Deposit poll cycle took {}s > {}s interval",
-                elapsed.as_secs(), DEPOSIT_POLL_INTERVAL_SECS
+                elapsed.as_secs(),
+                DEPOSIT_POLL_INTERVAL_SECS
             );
         }
         let sleep = match consecutive_errors {
@@ -365,7 +364,16 @@ async fn poll_tournament_deposits(
                     .execute(&mut *db_tx)
                     .await?;
 
-                    upsert_payment_in_tx(&mut db_tx, tournament_id, Some(team_id), &tx_id, amount_sompi, block_daa_score, confs_i32).await?;
+                    upsert_payment_in_tx(
+                        &mut db_tx,
+                        tournament_id,
+                        Some(team_id),
+                        &tx_id,
+                        amount_sompi,
+                        block_daa_score,
+                        confs_i32,
+                    )
+                    .await?;
                     db_tx.commit().await?;
 
                     tracing::info!(
@@ -378,7 +386,16 @@ async fn poll_tournament_deposits(
                 } else {
                     // No unclaimed PENDING team — track UTXO for UI without prize pool change.
                     db_tx.rollback().await.ok();
-                    upsert_payment(pool, tournament_id, None, &tx_id, amount_sompi, block_daa_score, confs_i32).await?;
+                    upsert_payment(
+                        pool,
+                        tournament_id,
+                        None,
+                        &tx_id,
+                        amount_sompi,
+                        block_daa_score,
+                        confs_i32,
+                    )
+                    .await?;
                 }
             } else {
                 // Below threshold — track for UI ("X/10 confs").
@@ -388,7 +405,16 @@ async fn poll_tournament_deposits(
                     amount_sompi, confirmations, needed = MIN_CONFIRMATIONS_TOURNAMENT,
                     "⏳ Deposit pending: {}/{} confs", confirmations, MIN_CONFIRMATIONS_TOURNAMENT
                 );
-                upsert_payment(pool, tournament_id, None, &tx_id, amount_sompi, block_daa_score, confs_i32).await?;
+                upsert_payment(
+                    pool,
+                    tournament_id,
+                    None,
+                    &tx_id,
+                    amount_sompi,
+                    block_daa_score,
+                    confs_i32,
+                )
+                .await?;
             }
         }
 
@@ -437,7 +463,10 @@ async fn run_payout_executor(pool: Arc<PgPool>, payout_service: Arc<PayoutServic
     }
 }
 
-async fn execute_pending_payouts(pool: &PgPool, payout_service: &PayoutService) -> Result<usize, BoxError> {
+async fn execute_pending_payouts(
+    pool: &PgPool,
+    payout_service: &PayoutService,
+) -> Result<usize, BoxError> {
     let treasury_address = std::env::var("TREASURY_ADDRESS").unwrap_or_default();
 
     // Fetch candidates without locking first (cheap read).
@@ -477,7 +506,7 @@ async fn execute_pending_payouts(pool: &PgPool, payout_service: &PayoutService) 
         let claimed: Option<Uuid> = sqlx::query_scalar(
             "UPDATE tournaments SET payout_tx_hash = 'PROCESSING' \
              WHERE id = $1 AND status = 'COMPLETED' AND payout_tx_hash IS NULL \
-             RETURNING id"
+             RETURNING id",
         )
         .bind(tournament_id)
         .fetch_optional(pool)
@@ -631,7 +660,10 @@ async fn run_refund_executor(pool: Arc<PgPool>, payout_service: Arc<PayoutServic
     }
 }
 
-async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) -> Result<usize, BoxError> {
+async fn execute_pending_refunds(
+    pool: &PgPool,
+    payout_service: &PayoutService,
+) -> Result<usize, BoxError> {
     let tournaments = sqlx::query(
         "SELECT t.id, t.escrow_address, t.total_prize_pool_sompi \
          FROM tournaments t \
@@ -654,7 +686,7 @@ async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) 
         let claimed: Option<Uuid> = sqlx::query_scalar(
             "UPDATE tournaments SET payout_tx_hash = 'PROCESSING' \
              WHERE id = $1 AND status = 'CANCELLED' AND payout_tx_hash IS NULL \
-             RETURNING id"
+             RETURNING id",
         )
         .bind(tournament_id)
         .fetch_optional(pool)
@@ -698,12 +730,15 @@ async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) 
             continue;
         }
 
-        let refund_outputs: Vec<(String, u64)> = teams.iter().filter_map(|r| {
-            use sqlx::Row;
-            let addr: Option<String> = r.try_get("kaspa_address").unwrap_or(None);
-            let amount: i64 = r.try_get("amount_sompi").unwrap_or(0);
-            addr.map(|a| (a, amount as u64))
-        }).collect();
+        let refund_outputs: Vec<(String, u64)> = teams
+            .iter()
+            .filter_map(|r| {
+                use sqlx::Row;
+                let addr: Option<String> = r.try_get("kaspa_address").unwrap_or(None);
+                let amount: i64 = r.try_get("amount_sompi").unwrap_or(0);
+                addr.map(|a| (a, amount as u64))
+            })
+            .collect();
 
         // I-04: Infinite Loop im Refund-Executor wenn Teams keine Kaspa-Adresse haben
         if refund_outputs.is_empty() {
@@ -733,7 +768,10 @@ async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) 
             "💸 Executing tournament refund"
         );
 
-        match payout_service.execute_tournament_refund(&escrow_address, refund_outputs).await {
+        match payout_service
+            .execute_tournament_refund(&escrow_address, refund_outputs)
+            .await
+        {
             Ok(result) => {
                 sqlx::query(
                     "UPDATE tournaments \
@@ -760,7 +798,9 @@ async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) 
                      VALUES ('tournament', $1, 'refund_executed', 'system', $2)",
                 )
                 .bind(tournament_id)
-                .bind(serde_json::json!({ "tx_id": result.tx_id, "total_sompi": result.total_sompi }))
+                .bind(
+                    serde_json::json!({ "tx_id": result.tx_id, "total_sompi": result.total_sompi }),
+                )
                 .execute(pool)
                 .await;
 

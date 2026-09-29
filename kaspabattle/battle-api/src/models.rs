@@ -22,10 +22,10 @@ pub enum MatchStatus {
     PaidOut,         // Payout executed
     Disputed,        // Dispute filed
     Cancelled,
-    Refunded,        // Refund executed — deposits returned to players
-    ReadyToPlay,     // NATIVE: both deposits confirmed, session created, waiting for start
-    FinishedGame,    // NATIVE: server engine decided the game, winner known (payout worker input)
-    RefundPending,   // NATIVE: draw — both stakes are to be refunded (refund worker input)
+    Refunded,      // Refund executed — deposits returned to players
+    ReadyToPlay,   // NATIVE: both deposits confirmed, session created, waiting for start
+    FinishedGame,  // NATIVE: server engine decided the game, winner known (payout worker input)
+    RefundPending, // NATIVE: draw — both stakes are to be refunded (refund worker input)
 }
 
 /// Who runs the game (snapshotted on the match when it is created).
@@ -252,12 +252,11 @@ impl Match {
                 faceit_id_a: self.faceit_match_id_player_a.clone(),
                 faceit_id_b: self.faceit_match_id_player_b.clone(),
             },
-            MatchStatus::InGame if self.provider == MatchProvider::Native => MatchState::NativeInGame,
+            MatchStatus::InGame if self.provider == MatchProvider::Native => {
+                MatchState::NativeInGame
+            }
             MatchStatus::InGame => MatchState::InGame {
-                faceit_match_id: self
-                    .faceit_match_id_final
-                    .clone()
-                    .unwrap_or_default(),
+                faceit_match_id: self.faceit_match_id_final.clone().unwrap_or_default(),
             },
             MatchStatus::FinishedFaceit => MatchState::FinishedFaceit {
                 winner_id: self

@@ -28,7 +28,11 @@ fn extract_origin(headers: &HeaderMap) -> Option<String> {
             if let Some(scheme_end) = referer_str.find("://") {
                 let after_scheme = &referer_str[scheme_end + 3..];
                 let authority_end = after_scheme.find('/').unwrap_or(after_scheme.len());
-                let origin = format!("{}{}", &referer_str[..scheme_end + 3], &after_scheme[..authority_end]);
+                let origin = format!(
+                    "{}{}",
+                    &referer_str[..scheme_end + 3],
+                    &after_scheme[..authority_end]
+                );
                 return Some(origin);
             }
         }
@@ -79,7 +83,11 @@ pub async fn csrf_protection_layer_multi(
                     path = %path,
                     "CSRF: origin mismatch — request blocked"
                 );
-                (StatusCode::FORBIDDEN, "CSRF validation failed: origin mismatch").into_response()
+                (
+                    StatusCode::FORBIDDEN,
+                    "CSRF validation failed: origin mismatch",
+                )
+                    .into_response()
             }
         }
         None => {
@@ -90,7 +98,11 @@ pub async fn csrf_protection_layer_multi(
                 method = %method,
                 "CSRF: missing Origin/Referer header — request blocked"
             );
-            (StatusCode::FORBIDDEN, "CSRF validation failed: missing Origin header").into_response()
+            (
+                StatusCode::FORBIDDEN,
+                "CSRF validation failed: missing Origin header",
+            )
+                .into_response()
         }
     }
 }
@@ -118,8 +130,14 @@ mod tests {
 
         assert!(is_allowed_origin_multi("http://localhost:5173", &origins));
         assert!(is_allowed_origin_multi("http://localhost:5173/", &origins));
-        assert!(is_allowed_origin_multi("https://app.kaspabattle.com", &origins));
-        assert!(is_allowed_origin_multi("https://app.kaspabattle.com/", &origins));
+        assert!(is_allowed_origin_multi(
+            "https://app.kaspabattle.com",
+            &origins
+        ));
+        assert!(is_allowed_origin_multi(
+            "https://app.kaspabattle.com/",
+            &origins
+        ));
         assert!(!is_allowed_origin_multi("https://evil.com", &origins));
         assert!(!is_allowed_origin_multi("http://localhost:3000", &origins));
     }
@@ -128,11 +146,22 @@ mod tests {
     fn test_extract_origin_from_headers() {
         let mut headers = HeaderMap::new();
         headers.insert("origin", "https://app.kaspabattle.com".parse().unwrap());
-        assert_eq!(extract_origin(&headers), Some("https://app.kaspabattle.com".to_string()));
+        assert_eq!(
+            extract_origin(&headers),
+            Some("https://app.kaspabattle.com".to_string())
+        );
 
         let mut headers = HeaderMap::new();
-        headers.insert("referer", "https://app.kaspabattle.com/dashboard?foo=bar".parse().unwrap());
-        assert_eq!(extract_origin(&headers), Some("https://app.kaspabattle.com".to_string()));
+        headers.insert(
+            "referer",
+            "https://app.kaspabattle.com/dashboard?foo=bar"
+                .parse()
+                .unwrap(),
+        );
+        assert_eq!(
+            extract_origin(&headers),
+            Some("https://app.kaspabattle.com".to_string())
+        );
     }
 
     #[test]

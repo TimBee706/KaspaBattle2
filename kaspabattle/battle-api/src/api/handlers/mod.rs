@@ -4,8 +4,8 @@
 //! All public symbols are re-exported from this module so that `mod.rs`
 //! routes continue to compile without changes.
 
-pub mod auth;
-pub mod matches;
-pub mod deposits;
 pub mod admin;
+pub mod auth;
+pub mod deposits;
+pub mod matches;
 pub mod ws;

@@ -10,9 +10,9 @@ use regex::Regex;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+use crate::constants::session_lifetime_days;
 use crate::models::faceit::FaceitLink;
 use crate::models::user::{AuthResponse, LoginRequest, RegisterRequest, User};
-use crate::constants::session_lifetime_days;
 
 pub struct AuthService {
     db: PgPool,
@@ -272,7 +272,7 @@ impl AuthService {
 
         if let Some(r) = row {
             let id: Uuid = r.try_get("id")?;
-            let user_id_res: Uuid = r.try_get("user_id")? ;
+            let user_id_res: Uuid = r.try_get("user_id")?;
             let linked_at: DateTime<Utc> = r.try_get("linked_at")?;
             let elo: Option<i32> = r.try_get("faceit_elo")?;
             let skill: Option<i32> = r.try_get("faceit_skill_level")?;

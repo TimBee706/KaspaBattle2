@@ -27,7 +27,11 @@ impl MatchStatus {
     pub fn allows_refund(&self) -> bool {
         matches!(
             self,
-            MatchStatus::Open | MatchStatus::Funded | MatchStatus::Locked | MatchStatus::Disputed | MatchStatus::Cancelled
+            MatchStatus::Open
+                | MatchStatus::Funded
+                | MatchStatus::Locked
+                | MatchStatus::Disputed
+                | MatchStatus::Cancelled
         )
     }
 }

@@ -1,10 +1,8 @@
 //! BattleEpisode — implements the kdapp `Episode` trait for KaspaBattle matches.
 
+use crate::commands::{BattleCommand, BattleRollback, GameType, MatchPhase, PlayerSide};
 use crate::kdapp_episode::{Episode, EpisodeError, PayloadMetadata};
 use crate::kdapp_pki::PubKey;
-use crate::commands::{
-    BattleCommand, BattleRollback, GameType, MatchPhase, PlayerSide,
-};
 
 /// On-chain state of a single KaspaBattle match.
 #[derive(Debug, Clone)]
@@ -61,7 +59,10 @@ impl Episode for BattleEpisode {
         _metadata: &PayloadMetadata,
     ) -> Result<Self::CommandRollback, EpisodeError<Self::CommandError>> {
         match cmd {
-            BattleCommand::CreateMatch { wager_sompi, game_type } => {
+            BattleCommand::CreateMatch {
+                wager_sompi,
+                game_type,
+            } => {
                 if !matches!(self.phase, MatchPhase::WaitingForOpponent) {
                     return Err(EpisodeError::InvalidCommand(
                         BattleError::InvalidTransition {
@@ -94,7 +95,9 @@ impl Episode for BattleEpisode {
                     a_deposited: false,
                     b_deposited: false,
                 };
-                Ok(BattleRollback::UndoJoinMatch { previous_phase: prev })
+                Ok(BattleRollback::UndoJoinMatch {
+                    previous_phase: prev,
+                })
             }
 
             BattleCommand::ConfirmDeposit { amount_sompi, .. } => {
@@ -205,24 +208,23 @@ impl Episode for BattleEpisode {
                 Ok(BattleRollback::UndoDispute)
             }
 
-            BattleCommand::CancelMatch { reason_code } => {
-                match &self.phase {
-                    MatchPhase::WaitingForOpponent
-                    | MatchPhase::WaitingForDeposits { .. } => {
-                        let prev = self.phase.clone();
-                        self.phase = MatchPhase::Cancelled {
-                            reason_code: *reason_code,
-                        };
-                        Ok(BattleRollback::UndoCancelMatch { previous_phase: prev })
-                    }
-                    _ => Err(EpisodeError::InvalidCommand(
-                        BattleError::InvalidTransition {
-                            from: format!("{:?}", self.phase),
-                            action: "CancelMatch".into(),
-                        },
-                    )),
+            BattleCommand::CancelMatch { reason_code } => match &self.phase {
+                MatchPhase::WaitingForOpponent | MatchPhase::WaitingForDeposits { .. } => {
+                    let prev = self.phase.clone();
+                    self.phase = MatchPhase::Cancelled {
+                        reason_code: *reason_code,
+                    };
+                    Ok(BattleRollback::UndoCancelMatch {
+                        previous_phase: prev,
+                    })
                 }
-            }
+                _ => Err(EpisodeError::InvalidCommand(
+                    BattleError::InvalidTransition {
+                        from: format!("{:?}", self.phase),
+                        action: "CancelMatch".into(),
+                    },
+                )),
+            },
         }
     }
 
@@ -277,10 +279,7 @@ impl Episode for BattleEpisode {
 }
 
 impl BattleEpisode {
-    fn identify_player(
-        &self,
-        pubkey: &PubKey,
-    ) -> Result<PlayerSide, EpisodeError<BattleError>> {
+    fn identify_player(&self, pubkey: &PubKey) -> Result<PlayerSide, EpisodeError<BattleError>> {
         if self.participants.first() == Some(pubkey) {
             Ok(PlayerSide::A)
         } else if self.participants.get(1) == Some(pubkey) {
@@ -316,46 +315,74 @@ mod tests {
 
         // CreateMatch
         ep.execute(
-            &BattleCommand::CreateMatch { wager_sompi: 5_000_000, game_type: GameType::CS2 },
-            Some(pk_a), &meta,
-        ).unwrap();
+            &BattleCommand::CreateMatch {
+                wager_sompi: 5_000_000,
+                game_type: GameType::CS2,
+            },
+            Some(pk_a),
+            &meta,
+        )
+        .unwrap();
         assert_eq!(ep.wager_sompi, 5_000_000);
 
         // JoinMatch
-        ep.execute(&BattleCommand::JoinMatch, Some(pk_b), &meta).unwrap();
+        ep.execute(&BattleCommand::JoinMatch, Some(pk_b), &meta)
+            .unwrap();
         assert!(matches!(
             ep.phase,
-            MatchPhase::WaitingForDeposits { a_deposited: false, b_deposited: false }
+            MatchPhase::WaitingForDeposits {
+                a_deposited: false,
+                b_deposited: false
+            }
         ));
 
         // ConfirmDeposit A
         ep.execute(
-            &BattleCommand::ConfirmDeposit { tx_hash: [2u8; 32], amount_sompi: 5_000_000 },
-            Some(pk_a), &meta,
-        ).unwrap();
+            &BattleCommand::ConfirmDeposit {
+                tx_hash: [2u8; 32],
+                amount_sompi: 5_000_000,
+            },
+            Some(pk_a),
+            &meta,
+        )
+        .unwrap();
         assert!(matches!(
             ep.phase,
-            MatchPhase::WaitingForDeposits { a_deposited: true, b_deposited: false }
+            MatchPhase::WaitingForDeposits {
+                a_deposited: true,
+                b_deposited: false
+            }
         ));
 
         // ConfirmDeposit B
         ep.execute(
-            &BattleCommand::ConfirmDeposit { tx_hash: [3u8; 32], amount_sompi: 5_000_000 },
-            Some(pk_b), &meta,
-        ).unwrap();
+            &BattleCommand::ConfirmDeposit {
+                tx_hash: [3u8; 32],
+                amount_sompi: 5_000_000,
+            },
+            Some(pk_b),
+            &meta,
+        )
+        .unwrap();
         assert!(matches!(ep.phase, MatchPhase::Locked));
 
         // ReportResult
         ep.execute(
             &BattleCommand::ReportResult {
-                winner_pubkey: pk_a, faceit_match_id: [4u8; 32], score_a: 16, score_b: 14,
+                winner_pubkey: pk_a,
+                faceit_match_id: [4u8; 32],
+                score_a: 16,
+                score_b: 14,
             },
-            Some(pk_a), &meta,
-        ).unwrap();
+            Some(pk_a),
+            &meta,
+        )
+        .unwrap();
         assert!(matches!(ep.phase, MatchPhase::Resolved { winner_idx: 0 }));
 
         // InitiatePayout
-        ep.execute(&BattleCommand::InitiatePayout, None, &meta).unwrap();
+        ep.execute(&BattleCommand::InitiatePayout, None, &meta)
+            .unwrap();
         assert!(matches!(ep.phase, MatchPhase::Completed));
     }
 
@@ -369,7 +396,9 @@ mod tests {
         let mut ep = BattleEpisode::initialize(vec![pk_a, pk_b], &meta);
         ep.phase = MatchPhase::Locked;
 
-        assert!(ep.execute(&BattleCommand::JoinMatch, Some(pk_c), &meta).is_err());
+        assert!(ep
+            .execute(&BattleCommand::JoinMatch, Some(pk_c), &meta)
+            .is_err());
     }
 
     #[test]
@@ -383,10 +412,20 @@ mod tests {
         ep.winner_idx = Some(0);
 
         ep.execute(
-            &BattleCommand::Dispute { reason_code: crate::commands::reason::DISPUTE_SCORE_MISMATCH },
-            Some(pk_b), &meta,
-        ).unwrap();
-        assert!(matches!(ep.phase, MatchPhase::Disputed { reason_code: 10, by_idx: 1 }));
+            &BattleCommand::Dispute {
+                reason_code: crate::commands::reason::DISPUTE_SCORE_MISMATCH,
+            },
+            Some(pk_b),
+            &meta,
+        )
+        .unwrap();
+        assert!(matches!(
+            ep.phase,
+            MatchPhase::Disputed {
+                reason_code: 10,
+                by_idx: 1
+            }
+        ));
     }
 
     #[test]
@@ -397,12 +436,21 @@ mod tests {
 
         let mut ep = BattleEpisode::initialize(vec![pk_a, pk_b], &meta);
         ep.wager_sompi = 5_000_000;
-        ep.phase = MatchPhase::WaitingForDeposits { a_deposited: false, b_deposited: false };
+        ep.phase = MatchPhase::WaitingForDeposits {
+            a_deposited: false,
+            b_deposited: false,
+        };
 
-        let rb = ep.execute(
-            &BattleCommand::ConfirmDeposit { tx_hash: [0u8; 32], amount_sompi: 5_000_000 },
-            Some(pk_a), &meta,
-        ).unwrap();
+        let rb = ep
+            .execute(
+                &BattleCommand::ConfirmDeposit {
+                    tx_hash: [0u8; 32],
+                    amount_sompi: 5_000_000,
+                },
+                Some(pk_a),
+                &meta,
+            )
+            .unwrap();
         assert_eq!(ep.deposits[0], 5_000_000);
 
         assert!(ep.rollback(rb));
@@ -416,16 +464,26 @@ mod tests {
         let meta = make_metadata();
 
         let mut ep = BattleEpisode::initialize(vec![pk_a, pk_b], &meta);
-        assert!(ep.execute(
-            &BattleCommand::CancelMatch { reason_code: crate::commands::reason::CANCEL_PLAYER_REQUEST },
-            Some(pk_a), &meta,
-        ).is_ok());
+        assert!(ep
+            .execute(
+                &BattleCommand::CancelMatch {
+                    reason_code: crate::commands::reason::CANCEL_PLAYER_REQUEST
+                },
+                Some(pk_a),
+                &meta,
+            )
+            .is_ok());
 
         ep.phase = MatchPhase::Locked;
-        assert!(ep.execute(
-            &BattleCommand::CancelMatch { reason_code: crate::commands::reason::CANCEL_PLAYER_REQUEST },
-            Some(pk_a), &meta,
-        ).is_err());
+        assert!(ep
+            .execute(
+                &BattleCommand::CancelMatch {
+                    reason_code: crate::commands::reason::CANCEL_PLAYER_REQUEST
+                },
+                Some(pk_a),
+                &meta,
+            )
+            .is_err());
     }
 
     #[test]
@@ -435,8 +493,13 @@ mod tests {
         let meta = make_metadata();
 
         let mut ep = BattleEpisode::initialize(vec![pk_a, pk_b], &meta);
-        ep.phase = MatchPhase::Disputed { reason_code: 10, by_idx: 1 };
+        ep.phase = MatchPhase::Disputed {
+            reason_code: 10,
+            by_idx: 1,
+        };
 
-        assert!(ep.execute(&BattleCommand::InitiatePayout, None, &meta).is_err());
+        assert!(ep
+            .execute(&BattleCommand::InitiatePayout, None, &meta)
+            .is_err());
     }
 }

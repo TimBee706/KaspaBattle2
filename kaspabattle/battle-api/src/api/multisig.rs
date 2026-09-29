@@ -8,7 +8,7 @@
 //! - Executing refunds
 
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
@@ -16,9 +16,9 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::api::AppState;
-use crate::api::auth_guard::SessionUser;
 use crate::api::admin_guard::AdminApiKey;
+use crate::api::auth_guard::SessionUser;
+use crate::api::AppState;
 
 // ─── Request / Response Types ─────────────────────────────────────────────
 
@@ -89,8 +89,10 @@ async fn create_escrow(
         .await
     {
         Ok(info) => {
-            tracing::info!("✅ Multisig escrow created: match={}, address={}",
-                info.match_id, info.escrow_address
+            tracing::info!(
+                "✅ Multisig escrow created: match={}, address={}",
+                info.match_id,
+                info.escrow_address
             );
             Ok(Json(serde_json::to_value(info).unwrap()))
         }
@@ -133,7 +135,10 @@ async fn get_escrow(
     State(state): State<AppState>,
     Path(match_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let multisig_svc = state.multisig_service.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let multisig_svc = state
+        .multisig_service
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     match multisig_svc.get_escrow(&match_id).await {
         Some(escrow) => Ok(Json(serde_json::json!({
@@ -173,8 +178,11 @@ async fn execute_payout(
         .await
     {
         Ok(result) => {
-            tracing::info!("✅ Multisig payout: match={}, tx={}, winner_sompi={}",
-                match_id, result.tx_id, result.winner_amount_sompi
+            tracing::info!(
+                "✅ Multisig payout: match={}, tx={}, winner_sompi={}",
+                match_id,
+                result.tx_id,
+                result.winner_amount_sompi
             );
 
             // Update match status in DB
@@ -218,8 +226,10 @@ async fn execute_refund(
         .await
     {
         Ok(result) => {
-            tracing::info!("💸 Multisig refund: match={}, tx={}",
-                match_id, result.tx_id
+            tracing::info!(
+                "💸 Multisig refund: match={}, tx={}",
+                match_id,
+                result.tx_id
             );
 
             // Update match status in DB

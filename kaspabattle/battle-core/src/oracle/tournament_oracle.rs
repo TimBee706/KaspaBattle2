@@ -87,7 +87,12 @@ pub async fn process_bracket_result(
                 %winner_faction,
                 "Tournament oracle: cannot map winner faction to team — marking DISPUTED"
             );
-            mark_slot_disputed(pool, bracket_slot_id, "Cannot map FaceIT winner faction to team").await?;
+            mark_slot_disputed(
+                pool,
+                bracket_slot_id,
+                "Cannot map FaceIT winner faction to team",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -162,8 +167,8 @@ fn determine_winner_team(
     winner_faction: &str,
     team_a_id: Option<Uuid>,
     team_b_id: Option<Uuid>,
-    faction_a: Option<&str>,  // what faction team_a was assigned
-    faction_b: Option<&str>,  // what faction team_b was assigned
+    faction_a: Option<&str>, // what faction team_a was assigned
+    faction_b: Option<&str>, // what faction team_b was assigned
 ) -> Option<Uuid> {
     match winner_faction {
         "faction1" => {
@@ -289,7 +294,6 @@ pub async fn advance_winner_for_admin(
 ) -> Result<(), sqlx::Error> {
     advance_winner(pool, tournament_id, round, slot_index, winner_team_id).await
 }
-
 
 async fn check_and_complete_tournament(
     pool: &PgPool,
@@ -431,7 +435,13 @@ mod tests {
     fn test_faction1_wins_maps_to_team_a_when_faction_stored() {
         let team_a = Uuid::new_v4();
         let team_b = Uuid::new_v4();
-        let winner = determine_winner_team("faction1", Some(team_a), Some(team_b), Some("faction1"), Some("faction2"));
+        let winner = determine_winner_team(
+            "faction1",
+            Some(team_a),
+            Some(team_b),
+            Some("faction1"),
+            Some("faction2"),
+        );
         assert_eq!(winner, Some(team_a));
     }
 
@@ -439,7 +449,13 @@ mod tests {
     fn test_faction2_wins_maps_to_team_b_when_faction_stored() {
         let team_a = Uuid::new_v4();
         let team_b = Uuid::new_v4();
-        let winner = determine_winner_team("faction2", Some(team_a), Some(team_b), Some("faction1"), Some("faction2"));
+        let winner = determine_winner_team(
+            "faction2",
+            Some(team_a),
+            Some(team_b),
+            Some("faction1"),
+            Some("faction2"),
+        );
         assert_eq!(winner, Some(team_b));
     }
 
@@ -463,8 +479,13 @@ mod tests {
     fn test_unknown_faction_returns_none() {
         let team_a = Uuid::new_v4();
         let team_b = Uuid::new_v4();
-        let winner = determine_winner_team("faction3", Some(team_a), Some(team_b), Some("faction1"), Some("faction2"));
+        let winner = determine_winner_team(
+            "faction3",
+            Some(team_a),
+            Some(team_b),
+            Some("faction1"),
+            Some("faction2"),
+        );
         assert!(winner.is_none());
     }
-
 }

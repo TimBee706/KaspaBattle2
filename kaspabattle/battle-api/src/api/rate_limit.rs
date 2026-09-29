@@ -30,11 +30,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use governor::{
-    clock::DefaultClock,
-    middleware::NoOpMiddleware,
-    Quota, RateLimiter,
-};
+use governor::{clock::DefaultClock, middleware::NoOpMiddleware, Quota, RateLimiter};
 
 /// Type alias for a per-IP rate limiter.
 pub type IpRateLimiter = Arc<
@@ -48,9 +44,7 @@ pub type IpRateLimiter = Arc<
 
 /// Build an IP-keyed rate limiter from a requests-per-minute value.
 pub fn build_ip_limiter(rpm: u32) -> IpRateLimiter {
-    let quota = Quota::per_minute(
-        NonZeroU32::new(rpm.max(1)).expect("rpm must be > 0"),
-    );
+    let quota = Quota::per_minute(NonZeroU32::new(rpm.max(1)).expect("rpm must be > 0"));
     Arc::new(RateLimiter::keyed(quota))
 }
 

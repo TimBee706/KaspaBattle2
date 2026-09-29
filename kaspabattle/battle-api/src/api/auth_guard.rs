@@ -35,7 +35,9 @@ impl FromRequestParts<AppState> for SessionUser {
             .and_then(|v| v.to_str().ok());
 
         let token_opt = if let Some(header) = auth_header {
-            header.strip_prefix("Bearer ").map(|stripped| stripped.to_string())
+            header
+                .strip_prefix("Bearer ")
+                .map(|stripped| stripped.to_string())
         } else {
             // Fallback: check "kaspabattle-auth" Cookie
             parts
@@ -100,7 +102,9 @@ impl FromRequestParts<AppState> for SessionUserNoWallet {
             .and_then(|v| v.to_str().ok());
 
         let token_opt = if let Some(header) = auth_header {
-            header.strip_prefix("Bearer ").map(|stripped| stripped.to_string())
+            header
+                .strip_prefix("Bearer ")
+                .map(|stripped| stripped.to_string())
         } else {
             parts
                 .headers

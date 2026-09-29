@@ -23,7 +23,7 @@ use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::api::{AppState, ApiErrorResponse, admin_guard::AdminApiKey};
+use crate::api::{admin_guard::AdminApiKey, ApiErrorResponse, AppState};
 use crate::tournament_payout_worker::calculate_prize_shares;
 
 type ApiError = (StatusCode, Json<ApiErrorResponse>);
@@ -294,13 +294,11 @@ pub async fn admin_resolve_bracket_dispute(
 
     // Re-run bracket advancement for this slot
     // Load slot info for advancement
-    let slot = sqlx::query(
-        "SELECT round, slot_index FROM tournament_bracket WHERE id = $1",
-    )
-    .bind(slot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(db_err)?;
+    let slot = sqlx::query("SELECT round, slot_index FROM tournament_bracket WHERE id = $1")
+        .bind(slot_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(db_err)?;
 
     if let Some(slot) = slot {
         let round: i32 = slot.try_get("round").unwrap_or(1);
@@ -388,11 +386,14 @@ pub async fn admin_force_cancel_tournament(
     .execute(&state.pool)
     .await;
 
-    let _ = state.tx.send(serde_json::json!({
-        "type": "tournament_cancelled",
-        "tournament_id": id,
-        "reason": req.reason,
-    }).to_string());
+    let _ = state.tx.send(
+        serde_json::json!({
+            "type": "tournament_cancelled",
+            "tournament_id": id,
+            "reason": req.reason,
+        })
+        .to_string(),
+    );
 
     tracing::info!(tournament_id = %id, reason = %req.reason, "🔨 Admin: tournament force-cancelled");
 
@@ -423,7 +424,10 @@ pub async fn admin_trigger_payout(
     .map_err(db_err)?
     .ok_or((
         StatusCode::NOT_FOUND,
-        Json(ApiErrorResponse { error: "not_found", message: "Tournament not found." }),
+        Json(ApiErrorResponse {
+            error: "not_found",
+            message: "Tournament not found.",
+        }),
     ))?;
 
     let status: String = row.try_get("status").unwrap_or_default();
@@ -462,7 +466,7 @@ pub async fn admin_trigger_payout(
     let claimed: Option<Uuid> = sqlx::query_scalar(
         "UPDATE tournaments SET payout_tx_hash = 'PROCESSING' \
          WHERE id = $1 AND status = 'COMPLETED' AND payout_tx_hash IS NULL \
-         RETURNING id"
+         RETURNING id",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -495,11 +499,21 @@ pub async fn admin_trigger_payout(
     ))?;
 
     // Resolve Kaspa addresses for winner and runner-up team captains
-    let winner_addr = resolve_captain_address(&state.pool, winner_team_id).await.map_err(db_err)?;
-    let runner_up_addr = resolve_captain_address(&state.pool, runner_up_team_id).await.map_err(db_err)?;
+    let winner_addr = resolve_captain_address(&state.pool, winner_team_id)
+        .await
+        .map_err(db_err)?;
+    let runner_up_addr = resolve_captain_address(&state.pool, runner_up_team_id)
+        .await
+        .map_err(db_err)?;
     // Use treasury address from env or derive from escrow wallet
-    let treasury_addr = state.escrow_wallet.as_ref()
-        .and_then(|w| w.derive_escrow_address("treasury").ok().map(|(a, _)| a.to_string()))
+    let treasury_addr = state
+        .escrow_wallet
+        .as_ref()
+        .and_then(|w| {
+            w.derive_escrow_address("treasury")
+                .ok()
+                .map(|(a, _)| a.to_string())
+        })
         .unwrap_or_else(|| std::env::var("TREASURY_ADDRESS").unwrap_or_default());
 
     if winner_addr.is_none() || runner_up_addr.is_none() {
@@ -555,12 +569,15 @@ pub async fn admin_trigger_payout(
             .execute(&state.pool)
             .await;
 
-            let _ = state.tx.send(serde_json::json!({
-                "type": "tournament_payout_sent",
-                "tournament_id": id,
-                "tx_id": result.tx_id,
-                "total_sompi": result.total_sompi,
-            }).to_string());
+            let _ = state.tx.send(
+                serde_json::json!({
+                    "type": "tournament_payout_sent",
+                    "tournament_id": id,
+                    "tx_id": result.tx_id,
+                    "total_sompi": result.total_sompi,
+                })
+                .to_string(),
+            );
 
             tracing::info!(
                 tournament_id = %id,
@@ -663,7 +680,10 @@ async fn resolve_captain_address(
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.and_then(|r| r.try_get::<Option<String>, _>("kaspa_address").unwrap_or(None)))
+    Ok(row.and_then(|r| {
+        r.try_get::<Option<String>, _>("kaspa_address")
+            .unwrap_or(None)
+    }))
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -674,9 +694,21 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/tournaments", get(admin_list_tournaments))
         .route("/tournaments/disputed", get(admin_list_disputed))
-        .route("/tournaments/:id/resolve-dispute", post(admin_resolve_tournament_dispute))
-        .route("/tournaments/:id/bracket/:slot_id/resolve", post(admin_resolve_bracket_dispute))
-        .route("/tournaments/:id/force-cancel", post(admin_force_cancel_tournament))
-        .route("/tournaments/:id/trigger-payout", post(admin_trigger_payout))
+        .route(
+            "/tournaments/:id/resolve-dispute",
+            post(admin_resolve_tournament_dispute),
+        )
+        .route(
+            "/tournaments/:id/bracket/:slot_id/resolve",
+            post(admin_resolve_bracket_dispute),
+        )
+        .route(
+            "/tournaments/:id/force-cancel",
+            post(admin_force_cancel_tournament),
+        )
+        .route(
+            "/tournaments/:id/trigger-payout",
+            post(admin_trigger_payout),
+        )
         .route("/audit-log", get(admin_audit_log))
 }

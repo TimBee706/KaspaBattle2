@@ -22,15 +22,15 @@ use crate::multisig::transaction::{
 use crate::multisig::types::*;
 use crate::rpc::KaspaBackend;
 
-use battle_core::types::SOMPI_PER_KAS;
 use battle_core::constants::PLATFORM_FEE_PERCENT;
+use battle_core::types::SOMPI_PER_KAS;
 
 // Kaspa mass-based fee calculation imports
-use kaspa_consensus_core::network::{NetworkId, NetworkType};
-use kaspa_consensus_core::tx::TransactionId;
+use kaspa_consensus_client::TransactionOutpoint as ClientOutpoint;
 use kaspa_consensus_client::UtxoEntry as ClientUtxoEntry;
 use kaspa_consensus_client::UtxoEntryReference;
-use kaspa_consensus_client::TransactionOutpoint as ClientOutpoint;
+use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_consensus_core::tx::TransactionId;
 use kaspa_wallet_core::tx::mass::MassCalculator;
 use kaspa_wallet_core::utxo::NetworkParams;
 
@@ -288,7 +288,10 @@ impl MultisigEscrowService {
             .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!("[FALLBACK] Fee calculation failed ({}), using conservative 5000 sompi", e);
+                tracing::warn!(
+                    "[FALLBACK] Fee calculation failed ({}), using conservative 5000 sompi",
+                    e
+                );
                 5000
             });
 
@@ -349,8 +352,8 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to assemble TX: {}", e))?;
 
         let rpc_tx = to_rpc_transaction(signed_tx);
-        let payload = serde_json::to_string(&rpc_tx)
-            .map_err(|e| anyhow!("Serialization failed: {}", e))?;
+        let payload =
+            serde_json::to_string(&rpc_tx).map_err(|e| anyhow!("Serialization failed: {}", e))?;
         let tx_id = self
             .rpc
             .submit_transaction(&payload)
@@ -466,7 +469,10 @@ impl MultisigEscrowService {
             .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!("[FALLBACK] Refund fee calc failed ({}), using conservative 5000 sompi", e);
+                tracing::warn!(
+                    "[FALLBACK] Refund fee calc failed ({}), using conservative 5000 sompi",
+                    e
+                );
                 5000
             });
 
@@ -499,8 +505,7 @@ impl MultisigEscrowService {
 
         let mut sigs_per_input = Vec::new();
         for sighash in &sighashes {
-            let sig1 = sign_sighash(sighash, sk_a)
-                .map_err(|e| anyhow!("Signing failed: {}", e))?;
+            let sig1 = sign_sighash(sighash, sk_a).map_err(|e| anyhow!("Signing failed: {}", e))?;
             let sig2 = sign_sighash(sighash, &self.oracle_private_key)
                 .map_err(|e| anyhow!("Signing failed: {}", e))?;
             sigs_per_input.push(vec![sig1, sig2]);
@@ -511,8 +516,8 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to assemble TX: {}", e))?;
 
         let rpc_tx = to_rpc_transaction(signed_tx);
-        let payload = serde_json::to_string(&rpc_tx)
-            .map_err(|e| anyhow!("Serialization failed: {}", e))?;
+        let payload =
+            serde_json::to_string(&rpc_tx).map_err(|e| anyhow!("Serialization failed: {}", e))?;
         let tx_id = self
             .rpc
             .submit_transaction(&payload)
@@ -526,7 +531,11 @@ impl MultisigEscrowService {
             }
         }
 
-        tracing::info!("💸 Multisig refund TX {} submitted for match {}", tx_id, match_id);
+        tracing::info!(
+            "💸 Multisig refund TX {} submitted for match {}",
+            tx_id,
+            match_id
+        );
 
         let net = total_balance.saturating_sub(network_fee);
         Ok(MultisigPayoutResult {
@@ -573,18 +582,16 @@ impl MultisigEscrowService {
     /// Format: `{oracle_sigs_hex}||{tx_bytes_hex}||{redeem_script_hex}||{fee_info_hex}`
     ///
     /// where `oracle_sigs_hex` is `serde_json` of `Vec<String>` (hex per input).
-    pub async fn create_pskt(
-        &self,
-        match_id: &Uuid,
-        winner_address: &str,
-    ) -> Result<PsktResult> {
+    pub async fn create_pskt(&self, match_id: &Uuid, winner_address: &str) -> Result<PsktResult> {
         // ── Load escrow ────────────────────────────────────────────────────
         let escrow = {
             let escrows = self.escrows.lock().await;
-            escrows
-                .get(match_id)
-                .cloned()
-                .ok_or_else(|| anyhow!("Escrow not found for match {} — may need recovery from DB", match_id))?
+            escrows.get(match_id).cloned().ok_or_else(|| {
+                anyhow!(
+                    "Escrow not found for match {} — may need recovery from DB",
+                    match_id
+                )
+            })?
         };
 
         // ── RPC: check node sync ───────────────────────────────────────────
@@ -637,7 +644,10 @@ impl MultisigEscrowService {
             .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!("[FALLBACK] PSKT fee calc failed ({}), using conservative 5000 sompi", e);
+                tracing::warn!(
+                    "[FALLBACK] PSKT fee calc failed ({}), using conservative 5000 sompi",
+                    e
+                );
                 5000
             });
 
@@ -789,11 +799,7 @@ impl MultisigEscrowService {
     /// (derives) all three key roles and could misbehave — but it removes the
     /// public/anyone-can-derive flaw. Full decentralization is deferred to the
     /// SilverScript L1 covenant migration (see `docs/LEARNINGS.md`).
-    fn derive_player_key(
-        &self,
-        match_id: &Uuid,
-        role: &str,
-    ) -> Result<(String, [u8; 32])> {
+    fn derive_player_key(&self, match_id: &Uuid, role: &str) -> Result<(String, [u8; 32])> {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
 
@@ -878,7 +884,11 @@ impl MultisigEscrowService {
 
         // 5. Calculate overall mass (compute mass + storage mass combined per KIP-9).
         let mass_unsigned = mass_calc
-            .calc_overall_mass_for_unsigned_consensus_transaction(tx, &utxo_refs, minimum_signatures)
+            .calc_overall_mass_for_unsigned_consensus_transaction(
+                tx,
+                &utxo_refs,
+                minimum_signatures,
+            )
             .map_err(|e| anyhow!("Mass calculation failed: {}", e))?;
 
         // Add 10% overhead to account for signature script bytes not present in the
@@ -1069,12 +1079,10 @@ mod tests {
         hasher.update(format!("{}-player_a-kaspabattle-multisig", match_id).as_bytes());
         let old_sk_a: [u8; 32] = hasher.finalize().into();
         let secp = secp256k1::Secp256k1::new();
-        let old_pk_a_hex = secp256k1::SecretKey::from_slice(&old_sk_a)
-            .ok()
-            .map(|sk| {
-                let kp = secp256k1::Keypair::from_secret_key(&secp, &sk);
-                hex::encode(kp.x_only_public_key().0.serialize())
-            });
+        let old_pk_a_hex = secp256k1::SecretKey::from_slice(&old_sk_a).ok().map(|sk| {
+            let kp = secp256k1::Keypair::from_secret_key(&secp, &sk);
+            hex::encode(kp.x_only_public_key().0.serialize())
+        });
         if let Some(old_pk_a_hex) = old_pk_a_hex {
             assert_ne!(
                 info_a.pubkeys[0], old_pk_a_hex,
@@ -1262,7 +1270,10 @@ mod tests {
 
         let (service, _mock) = make_service();
         let match_id = uuid::Uuid::new_v4();
-        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+        let info = service
+            .create_escrow(match_id, 5_000_000, None)
+            .await
+            .unwrap();
 
         let redeem_script = hex::decode(&info.redeem_script_hex).unwrap();
         let p2sh_spk = redeem_script_to_p2sh(&redeem_script);
@@ -1280,18 +1291,23 @@ mod tests {
 
         let addr_a = test_kaspatest_address();
         let addr_b = test_kaspatest_address_b();
-        let (tmp_tx, _) = create_unsigned_refund_tx(
-            &utxos, &addr_a, &addr_b, 10_000_000, 0, &p2sh_spk,
-        )
-        .unwrap();
+        let (tmp_tx, _) =
+            create_unsigned_refund_tx(&utxos, &addr_a, &addr_b, 10_000_000, 0, &p2sh_spk).unwrap();
 
         let fee = service
             .compute_network_fee_for_tx(&tmp_tx, &utxos, &p2sh_spk, 2)
             .await
             .expect("Fee calculation should succeed");
 
-        assert!(fee >= 1000, "Fee should be at least 1000 sompi, got {}", fee);
-        tracing::info!("Computed fee: {} sompi (old ESTIMATED_TX_MASS_GRAMS=3000 approach was ~3000)", fee);
+        assert!(
+            fee >= 1000,
+            "Fee should be at least 1000 sompi, got {}",
+            fee
+        );
+        tracing::info!(
+            "Computed fee: {} sompi (old ESTIMATED_TX_MASS_GRAMS=3000 approach was ~3000)",
+            fee
+        );
     }
 
     #[tokio::test]
@@ -1299,7 +1315,10 @@ mod tests {
         let (service, mock) = make_service();
         let match_id = uuid::Uuid::new_v4();
 
-        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+        let info = service
+            .create_escrow(match_id, 5_000_000, None)
+            .await
+            .unwrap();
 
         mock.add_utxo(
             &info.escrow_address,
@@ -1353,7 +1372,10 @@ mod tests {
         let (service, mock) = make_service();
         let match_id = uuid::Uuid::new_v4();
 
-        let info = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+        let info = service
+            .create_escrow(match_id, 5_000_000, None)
+            .await
+            .unwrap();
 
         mock.add_utxo(
             &info.escrow_address,
@@ -1395,7 +1417,10 @@ mod tests {
             "Fee should be >= 1000 sompi, got {}",
             result.network_fee_sompi
         );
-        assert!(result.winner_amount_sompi > 0, "Winner should receive something");
+        assert!(
+            result.winner_amount_sompi > 0,
+            "Winner should receive something"
+        );
 
         let submitted = mock.get_submitted_tx_ids();
         assert_eq!(submitted.len(), 1);

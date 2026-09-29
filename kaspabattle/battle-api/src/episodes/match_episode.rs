@@ -75,7 +75,9 @@ impl EpisodeTrait for MatchEpisode {
         .await?;
 
         let status: MatchStatus = row.try_get("status")?;
-        let provider: String = row.try_get("provider").unwrap_or_else(|_| "FACEIT".to_string());
+        let provider: String = row
+            .try_get("provider")
+            .unwrap_or_else(|_| "FACEIT".to_string());
         let is_native = provider == "NATIVE";
         // Work that must run *after* this transaction committed (it takes its own locks).
         let mut native_expiry_check = false;
@@ -89,8 +91,10 @@ impl EpisodeTrait for MatchEpisode {
                 // Timeout: cancel match if AWAITING_FUNDING for >60 min.
                 // Uses the dedicated `awaiting_funding_since` column (set at transition time).
                 // Falls back to created_at for rows that pre-date the Phase 0 migration.
-                let awaiting_since: Option<chrono::DateTime<chrono::Utc>> =
-                    row.try_get("awaiting_funding_since").ok().flatten()
+                let awaiting_since: Option<chrono::DateTime<chrono::Utc>> = row
+                    .try_get("awaiting_funding_since")
+                    .ok()
+                    .flatten()
                     .or_else(|| row.try_get("created_at").ok().flatten());
 
                 if let Some(since) = awaiting_since {
@@ -101,8 +105,10 @@ impl EpisodeTrait for MatchEpisode {
                             age_min = age.num_minutes(),
                             "AWAITING_FUNDING timeout reached (>60 min) — cancelling match"
                         );
-                        tracing::info!("⏰ Match {} cancelled (AWAITING_FUNDING timeout: {} min)",
-                            self.match_id, age.num_minutes()
+                        tracing::info!(
+                            "⏰ Match {} cancelled (AWAITING_FUNDING timeout: {} min)",
+                            self.match_id,
+                            age.num_minutes()
                         );
                         sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE id = $1")
                             .bind(self.match_id)
@@ -135,8 +141,10 @@ impl EpisodeTrait for MatchEpisode {
                 let opponent_id: Option<Uuid> = row.try_get("opponent_user_id")?;
 
                 // TX hashes recorded by submit_deposit API — used for deterministic attribution
-                let player_a_tx_hash: Option<String> = row.try_get("player_a_deposit_tx_hash").ok().flatten();
-                let player_b_tx_hash: Option<String> = row.try_get("player_b_deposit_tx_hash").ok().flatten();
+                let player_a_tx_hash: Option<String> =
+                    row.try_get("player_a_deposit_tx_hash").ok().flatten();
+                let player_b_tx_hash: Option<String> =
+                    row.try_get("player_b_deposit_tx_hash").ok().flatten();
 
                 // Fetch current DAA score for confirmation calculation
                 let current_daa = if let Some(ref rpc) = self.kaspa_rpc {
@@ -177,7 +185,8 @@ impl EpisodeTrait for MatchEpisode {
                                 current_daa,
                                 "Escrow balance checked"
                             );
-                            tracing::debug!("🔍 Match {}: {} UTXOs, balance={} sompi, current_daa={}",
+                            tracing::debug!(
+                                "🔍 Match {}: {} UTXOs, balance={} sompi, current_daa={}",
                                 self.match_id,
                                 escrow_status.utxos.len(),
                                 escrow_status.total_balance,
@@ -240,32 +249,46 @@ impl EpisodeTrait for MatchEpisode {
                                     "B"
                                 };
 
-                                tracing::info!("  🔬 UTXO: tx={} role={} amount={} confs={}/{}",
-                                    &utxo.tx_id[..12.min(utxo.tx_id.len())], role,
-                                    utxo.amount, confirmations, MIN_CONFIRMATIONS
+                                tracing::info!(
+                                    "  🔬 UTXO: tx={} role={} amount={} confs={}/{}",
+                                    &utxo.tx_id[..12.min(utxo.tx_id.len())],
+                                    role,
+                                    utxo.amount,
+                                    confirmations,
+                                    MIN_CONFIRMATIONS
                                 );
 
                                 match role {
                                     "A" => {
                                         a_total_sompi += utxo.amount;
                                         a_min_confs = a_min_confs.min(confirmations);
-                                        if a_first_tx.is_empty() { a_first_tx = utxo.tx_id.clone(); }
+                                        if a_first_tx.is_empty() {
+                                            a_first_tx = utxo.tx_id.clone();
+                                        }
                                     }
                                     "B" => {
                                         b_total_sompi += utxo.amount;
                                         b_min_confs = b_min_confs.min(confirmations);
-                                        if b_first_tx.is_empty() { b_first_tx = utxo.tx_id.clone(); }
+                                        if b_first_tx.is_empty() {
+                                            b_first_tx = utxo.tx_id.clone();
+                                        }
                                     }
                                     _ => {}
                                 }
                             }
 
                             // Normalize: if no UTXOs seen for a role, set confs to 0
-                            if a_total_sompi == 0 { a_min_confs = 0; }
-                            if b_total_sompi == 0 { b_min_confs = 0; }
+                            if a_total_sompi == 0 {
+                                a_min_confs = 0;
+                            }
+                            if b_total_sompi == 0 {
+                                b_min_confs = 0;
+                            }
 
-                            let a_confirmed = a_total_sompi >= wager_u64 && a_min_confs >= MIN_CONFIRMATIONS;
-                            let b_confirmed = b_total_sompi >= wager_u64 && b_min_confs >= MIN_CONFIRMATIONS;
+                            let a_confirmed =
+                                a_total_sompi >= wager_u64 && a_min_confs >= MIN_CONFIRMATIONS;
+                            let b_confirmed =
+                                b_total_sompi >= wager_u64 && b_min_confs >= MIN_CONFIRMATIONS;
 
                             tracing::info!("📊 Match {}: A={}/{} sompi ({} confs, {}), B={}/{} sompi ({} confs, {})",
                                 self.match_id,
@@ -364,8 +387,11 @@ impl EpisodeTrait for MatchEpisode {
                                 .execute(&mut *db_tx)
                                 .await?;
 
-                                tracing::info!("💰 Match {} → FUNDED (A={} confs, B={} confs)",
-                                    self.match_id, a_min_confs, b_min_confs
+                                tracing::info!(
+                                    "💰 Match {} → FUNDED (A={} confs, B={} confs)",
+                                    self.match_id,
+                                    a_min_confs,
+                                    b_min_confs
                                 );
                                 tracing::info!(
                                     match_id = %self.match_id,
@@ -413,10 +439,11 @@ impl EpisodeTrait for MatchEpisode {
                     // Fallback: use EscrowService simple balance check when no watcher
                     if let Some(ref svc) = self.escrow_service {
                         match svc.check_deposits(&addr, wager as u64).await {
-                            Ok(deposit_status) if deposit_status.status
-                                == battle_kaspa::escrow::DepositState::Complete =>
+                            Ok(deposit_status)
+                                if deposit_status.status
+                                    == battle_kaspa::escrow::DepositState::Complete =>
                             {
-                                 sqlx::query(
+                                sqlx::query(
                                     "UPDATE matches SET status = 'FUNDED', \
                                      player_a_deposit_confirmed = true, \
                                      player_b_deposit_confirmed = true \
@@ -452,11 +479,18 @@ impl EpisodeTrait for MatchEpisode {
                 let opponent_id: Option<Uuid> = row.try_get("opponent_user_id")?;
                 match opponent_id {
                     Some(opponent_id) => {
-                        crate::native_game::prepare_session_tx(&mut db_tx, self.match_id, creator_id, opponent_id)
-                            .await?;
+                        crate::native_game::prepare_session_tx(
+                            &mut db_tx,
+                            self.match_id,
+                            creator_id,
+                            opponent_id,
+                        )
+                        .await?;
                         tracing::info!(match_id = %self.match_id, "▶️ FUNDED → READY_TO_PLAY (native game session created)");
                     }
-                    None => tracing::error!(match_id = %self.match_id, "FUNDED native match without opponent"),
+                    None => {
+                        tracing::error!(match_id = %self.match_id, "FUNDED native match without opponent")
+                    }
                 }
             }
 
@@ -483,7 +517,8 @@ impl EpisodeTrait for MatchEpisode {
                     match_id = %self.match_id,
                     "▶️ FUNDED → GAME_ID_INPUT (waiting for both players to submit FaceIT match ID)"
                 );
-                tracing::info!("▶️ Match {} → GAME_ID_INPUT: deposits confirmed, waiting for FaceIT match IDs",
+                tracing::info!(
+                    "▶️ Match {} → GAME_ID_INPUT: deposits confirmed, waiting for FaceIT match IDs",
                     self.match_id
                 );
             }
@@ -492,8 +527,10 @@ impl EpisodeTrait for MatchEpisode {
             // Uses `game_id_input_since` column set at FUNDED→GAME_ID_INPUT transition.
             // Falls back to created_at for legacy rows that pre-date the Phase 0 migration.
             MatchStatus::GameIdInput => {
-                let since: Option<chrono::DateTime<chrono::Utc>> =
-                    row.try_get("game_id_input_since").ok().flatten()
+                let since: Option<chrono::DateTime<chrono::Utc>> = row
+                    .try_get("game_id_input_since")
+                    .ok()
+                    .flatten()
                     .or_else(|| row.try_get("created_at").ok().flatten());
 
                 if let Some(since) = since {
@@ -537,7 +574,8 @@ impl EpisodeTrait for MatchEpisode {
             // Phase 6.2: Timeout check. If the match has been in READY_FOR_PAYOUT
             // for more than 7 days, transition to DISPUTED to allow admin intervention.
             MatchStatus::ReadyForPayout => {
-                let finished_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("faceit_finished_at").ok().flatten();
+                let finished_at: Option<chrono::DateTime<chrono::Utc>> =
+                    row.try_get("faceit_finished_at").ok().flatten();
                 if let Some(finished) = finished_at {
                     let age = chrono::Utc::now() - finished;
                     if age > chrono::Duration::days(7) {
@@ -576,20 +614,36 @@ impl EpisodeTrait for MatchEpisode {
         if native_autostart_check {
             match crate::native_game::autostart_if_due(&self.db_pool, self.match_id).await {
                 Ok(Some(outcome)) => {
-                    crate::native_game::publish(&self.db_pool, &self.tx, self.match_id, &outcome.events).await;
+                    crate::native_game::publish(
+                        &self.db_pool,
+                        &self.tx,
+                        self.match_id,
+                        &outcome.events,
+                    )
+                    .await;
                 }
                 Ok(None) => {}
-                Err(e) => tracing::error!(match_id = %self.match_id, error = %e, "native autostart failed"),
+                Err(e) => {
+                    tracing::error!(match_id = %self.match_id, error = %e, "native autostart failed")
+                }
             }
         }
         if native_expiry_check {
             match crate::native_game::expire_if_due(&self.db_pool, self.match_id).await {
                 Ok(Some(outcome)) => {
                     tracing::info!(match_id = %self.match_id, "⏰ native game turn timeout → forfeit");
-                    crate::native_game::publish(&self.db_pool, &self.tx, self.match_id, &outcome.events).await;
+                    crate::native_game::publish(
+                        &self.db_pool,
+                        &self.tx,
+                        self.match_id,
+                        &outcome.events,
+                    )
+                    .await;
                 }
                 Ok(None) => {}
-                Err(e) => tracing::error!(match_id = %self.match_id, error = %e, "native timeout check failed"),
+                Err(e) => {
+                    tracing::error!(match_id = %self.match_id, error = %e, "native timeout check failed")
+                }
             }
         }
 
@@ -626,14 +680,13 @@ impl EpisodeTrait for MatchEpisode {
         .execute(&self.db_pool)
         .await?;
 
-        if let Ok(updated) =
-            sqlx::query_as::<_, crate::models::Match>(&format!(
+        if let Ok(updated) = sqlx::query_as::<_, crate::models::Match>(&format!(
             "SELECT {} FROM matches WHERE id = $1",
             crate::models::MATCH_COLUMNS,
         ))
-            .bind(self.match_id)
-            .fetch_one(&self.db_pool)
-            .await
+        .bind(self.match_id)
+        .fetch_one(&self.db_pool)
+        .await
         {
             let mut m = updated;
             m.calculate_wager();
@@ -656,7 +709,6 @@ impl EpisodeTrait for MatchEpisode {
             MatchStatus::Resolved | MatchStatus::PaidOut | MatchStatus::Cancelled
         ))
     }
-
 }
 
 // NOTE: The old `determine_player_role()` function was removed because it tried

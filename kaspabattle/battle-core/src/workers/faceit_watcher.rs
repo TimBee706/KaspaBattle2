@@ -91,14 +91,23 @@ pub async fn run_faceit_watcher(
     faceit_data: Arc<FaceitDataService>,
     config: FaceitWatcherConfig,
 ) {
-    info!("🔍 FaceIT Watcher started (poll_interval={:?})", config.poll_interval);
-    tracing::debug!("🔍 FaceIT Watcher started (interval={:?})", config.poll_interval);
+    info!(
+        "🔍 FaceIT Watcher started (poll_interval={:?})",
+        config.poll_interval
+    );
+    tracing::debug!(
+        "🔍 FaceIT Watcher started (interval={:?})",
+        config.poll_interval
+    );
 
     loop {
         match fetch_active_jobs(&pool).await {
             Ok(jobs) => {
                 if !jobs.is_empty() {
-                    info!(job_count = jobs.len(), "FaceIT Watcher: processing active jobs");
+                    info!(
+                        job_count = jobs.len(),
+                        "FaceIT Watcher: processing active jobs"
+                    );
                     tracing::debug!("🔍 FaceIT Watcher: {} active job(s)", jobs.len());
                 }
                 for job in jobs {
@@ -226,10 +235,19 @@ async fn process_job(
             max_retries = job.max_retries,
             "⏰ FaceIT Watcher: max retries exceeded — cancelling match"
         );
-        tracing::info!("⏰ FaceIT Watcher: match {} timed out after {} retries — CANCELLED",
-            job.match_id, job.retry_count
+        tracing::info!(
+            "⏰ FaceIT Watcher: match {} timed out after {} retries — CANCELLED",
+            job.match_id,
+            job.retry_count
         );
-        cancel_match_and_job(pool, job.match_id, job.id, "TIMED_OUT", "FaceIT match polling timed out").await?;
+        cancel_match_and_job(
+            pool,
+            job.match_id,
+            job.id,
+            "TIMED_OUT",
+            "FaceIT match polling timed out",
+        )
+        .await?;
         return Ok(());
     }
 
@@ -250,7 +268,11 @@ async fn process_job(
                 );
                 mark_job_terminal(pool, job.id, "FAILED", Some(&err_str)).await?;
                 return Ok(());
-            } else if err_str.contains("500") || err_str.contains("502") || err_str.contains("503") || err_str.contains("504") {
+            } else if err_str.contains("500")
+                || err_str.contains("502")
+                || err_str.contains("503")
+                || err_str.contains("504")
+            {
                 (config.backoff_server_error, "server error (5xx)")
             } else {
                 (config.backoff_network_error, "network error")
@@ -277,15 +299,19 @@ async fn process_job(
         faceit_status,
         "FaceIT Watcher: poll result"
     );
-    tracing::debug!("🔍 FaceIT Watcher: match {} → faceit_status='{}'",
-        job.match_id, faceit_status
+    tracing::debug!(
+        "🔍 FaceIT Watcher: match {} → faceit_status='{}'",
+        job.match_id,
+        faceit_status
     );
 
     match faceit_status {
         // ── Match finished: route to correct handler ─────────────────────────
         "finished" => {
             // Phase 4: if this is a tournament bracket job, use the bracket oracle
-            if let (Some(slot_id), Some(tournament_id)) = (job.tournament_bracket_slot_id, job.tournament_id) {
+            if let (Some(slot_id), Some(tournament_id)) =
+                (job.tournament_bracket_slot_id, job.tournament_id)
+            {
                 handle_bracket_finished(pool, job, &details, slot_id, tournament_id).await?;
             } else {
                 handle_match_finished(pool, job, &details).await?;
@@ -300,8 +326,10 @@ async fn process_job(
                 faceit_status,
                 "FaceIT Watcher: match was cancelled on FaceIT — cancelling KaspaBattle match"
             );
-            tracing::error!("❌ FaceIT Watcher: FaceIT match {} cancelled — cancelling KB match {}",
-                job.faceit_match_id, job.match_id
+            tracing::error!(
+                "❌ FaceIT Watcher: FaceIT match {} cancelled — cancelling KB match {}",
+                job.faceit_match_id,
+                job.match_id
             );
             cancel_match_and_job(
                 pool,
@@ -358,7 +386,8 @@ async fn handle_match_finished(
         faceit_match_id = %job.faceit_match_id,
         "FaceIT Watcher: match finished — running winner mapping"
     );
-    tracing::info!("🏆 FaceIT Watcher: match {} finished — running winner mapping",
+    tracing::info!(
+        "🏆 FaceIT Watcher: match {} finished — running winner mapping",
         job.match_id
     );
 
@@ -370,7 +399,13 @@ async fn handle_match_finished(
                 match_id = %job.match_id,
                 "FaceIT Watcher: match finished but results.winner is missing — marking DISPUTED"
             );
-            mark_match_disputed(pool, job.match_id, job.id, "FaceIT results.winner field missing").await?;
+            mark_match_disputed(
+                pool,
+                job.match_id,
+                job.id,
+                "FaceIT results.winner field missing",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -415,7 +450,13 @@ async fn handle_match_finished(
                 creator_user_id = %creator_user_id,
                 "FaceIT Watcher: creator has no linked FaceIT account — DISPUTED"
             );
-            mark_match_disputed(pool, job.match_id, job.id, "Creator has no linked FaceIT account").await?;
+            mark_match_disputed(
+                pool,
+                job.match_id,
+                job.id,
+                "Creator has no linked FaceIT account",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -435,7 +476,13 @@ async fn handle_match_finished(
                 opponent_user_id = %opp_user_id,
                 "FaceIT Watcher: opponent has no linked FaceIT account — DISPUTED"
             );
-            mark_match_disputed(pool, job.match_id, job.id, "Opponent has no linked FaceIT account").await?;
+            mark_match_disputed(
+                pool,
+                job.match_id,
+                job.id,
+                "Opponent has no linked FaceIT account",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -487,8 +534,12 @@ async fn handle_match_finished(
         score = %score_str,
         "🏆 FaceIT Watcher: winner mapped successfully"
     );
-    tracing::info!("🏆 FaceIT Watcher: match {} — winner={} loser={} score={}",
-        job.match_id, winner_id, loser_id, score_str
+    tracing::info!(
+        "🏆 FaceIT Watcher: match {} — winner={} loser={} score={}",
+        job.match_id,
+        winner_id,
+        loser_id,
+        score_str
     );
 
     // ── Step 4: Atomic DB update ─────────────────────────────────────────────
@@ -573,17 +624,27 @@ async fn handle_bracket_finished(
             .bind(bracket_slot_id)
             .execute(pool)
             .await;
-            mark_job_terminal(pool, job.id, "FAILED", Some("Bracket: results.winner missing")).await?;
+            mark_job_terminal(
+                pool,
+                job.id,
+                "FAILED",
+                Some("Bracket: results.winner missing"),
+            )
+            .await?;
             return Ok(());
         }
     };
 
     // Build score string
-    let score_str = details.results.as_ref().map(|r| {
-        let s1 = r.score.get("faction1").copied().unwrap_or(0);
-        let s2 = r.score.get("faction2").copied().unwrap_or(0);
-        format!("{}:{}", s1, s2)
-    }).unwrap_or_else(|| "?:?".to_string());
+    let score_str = details
+        .results
+        .as_ref()
+        .map(|r| {
+            let s1 = r.score.get("faction1").copied().unwrap_or(0);
+            let s2 = r.score.get("faction2").copied().unwrap_or(0);
+            format!("{}:{}", s1, s2)
+        })
+        .unwrap_or_else(|| "?:?".to_string());
 
     // Create a dummy broadcast sender (oracle only uses it for WebSocket events;
     // the main WS channel is not accessible here — Phase 5 will wire this properly).
@@ -615,7 +676,13 @@ async fn handle_bracket_finished(
                 "❌ Bracket oracle failed — slot may need admin review"
             );
             // Mark job FAILED but don't dispute the slot — admin can review
-            mark_job_terminal(pool, job.id, "FAILED", Some(&format!("Oracle error: {}", e))).await?;
+            mark_job_terminal(
+                pool,
+                job.id,
+                "FAILED",
+                Some(&format!("Oracle error: {}", e)),
+            )
+            .await?;
         }
     }
 
@@ -664,8 +731,12 @@ fn match_winner_to_user(
         return (None, None, score_str);
     };
 
-    let creator_won = winning_roster.iter().any(|p| p.player_id == creator_faceit_id);
-    let opponent_won = winning_roster.iter().any(|p| p.player_id == opponent_faceit_id);
+    let creator_won = winning_roster
+        .iter()
+        .any(|p| p.player_id == creator_faceit_id);
+    let opponent_won = winning_roster
+        .iter()
+        .any(|p| p.player_id == opponent_faceit_id);
 
     if creator_won && !opponent_won {
         (Some(creator_user_id), Some(opponent_user_id), score_str)
@@ -746,7 +817,9 @@ async fn mark_match_disputed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::faceit_data::{FaceitMatchResults, FaceitMatchTeams, FaceitMatchFaction, FaceitMatchRosterPlayer};
+    use crate::models::faceit_data::{
+        FaceitMatchFaction, FaceitMatchResults, FaceitMatchRosterPlayer, FaceitMatchTeams,
+    };
     use std::collections::HashMap;
 
     fn make_results(winner: &str, f1: i32, f2: i32) -> Option<FaceitMatchResults> {

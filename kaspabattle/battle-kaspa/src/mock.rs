@@ -51,7 +51,6 @@ impl MockKaspaClient {
         *s = score;
     }
 
-
     /// Set the balance for an address (in sompi).
     pub fn set_balance(&self, address: &str, balance: u64) {
         let mut balances = self.balances.lock().expect("lock poisoned");
@@ -147,17 +146,15 @@ impl KaspaBackend for MockKaspaClient {
     }
 
     /// Accept a serialized TX payload, derive a mock TX ID, and record it.
-    async fn submit_transaction(
-        &self,
-        tx_payload: &str,
-    ) -> Result<String, KaspaError> {
+    async fn submit_transaction(&self, tx_payload: &str) -> Result<String, KaspaError> {
         let synced = *self.synced.lock().expect("lock poisoned");
         if !synced {
             return Err(KaspaError::NodeNotSynced);
         }
 
-        let tx: RpcTransaction = serde_json::from_str(tx_payload)
-            .map_err(|e| KaspaError::TransactionFailed(format!("Failed to parse mock tx json: {}", e)))?;
+        let tx: RpcTransaction = serde_json::from_str(tx_payload).map_err(|e| {
+            KaspaError::TransactionFailed(format!("Failed to parse mock tx json: {}", e))
+        })?;
 
         // Deterministic mock TX ID from inputs
         let mut hasher = Sha256::new();
@@ -204,10 +201,7 @@ impl KaspaBackend for MockKaspaClient {
         Ok(())
     }
 
-    async fn get_transaction(
-        &self,
-        tx_id: &str,
-    ) -> Result<Option<Vec<TxInputInfo>>, KaspaError> {
+    async fn get_transaction(&self, tx_id: &str) -> Result<Option<Vec<TxInputInfo>>, KaspaError> {
         let txs = self.registered_transactions.lock().expect("lock poisoned");
         Ok(txs.get(tx_id).cloned())
     }

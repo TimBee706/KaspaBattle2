@@ -6,8 +6,8 @@
 
 use kaspa_hashes::Hash;
 
-use crate::kdapp_episode::Episode;
 use crate::kdapp_engine::EpisodeMessage;
+use crate::kdapp_episode::Episode;
 
 pub type PatternType = [(u8, u8); 10];
 pub type PrefixType = u32;
