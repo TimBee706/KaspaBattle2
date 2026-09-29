@@ -125,11 +125,15 @@ contract MatchEscrow(
         int a_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
         int b_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
 
-        byte[] a_spk = byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
+        // NOTE (Gate 3 finding): a real `tx.outputs[idx].scriptPubKey` is
+        // `version (2 bytes, big-endian) || script bytes` (kaspa-txscript's
+        // ScriptPublicKey::to_bytes(), verified against the pinned rev) --
+        // NOT just the raw script. Version 0 is Kaspa's standard/default.
+        byte[] a_spk = byte[2](0x0000) + byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
         require(tx.outputs[a_output_idx].value == a_amount_sompi);
         require(tx.outputs[a_output_idx].scriptPubKey == a_spk);
 
-        byte[] b_spk = byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
+        byte[] b_spk = byte[2](0x0000) + byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
         require(tx.outputs[b_output_idx].value == b_amount_sompi);
         require(tx.outputs[b_output_idx].scriptPubKey == b_spk);
     }
@@ -182,7 +186,7 @@ contract MatchEscrow(
         int winner_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
         int treasury_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
 
-        byte[] winner_spk = byte[1](0x20) + byte[](winner_pk) + byte[1](0xac);
+        byte[] winner_spk = byte[2](0x0000) + byte[1](0x20) + byte[](winner_pk) + byte[1](0xac);
         require(tx.outputs[winner_output_idx].value == payout_sompi);
         require(tx.outputs[winner_output_idx].scriptPubKey == winner_spk);
 
@@ -205,11 +209,15 @@ contract MatchEscrow(
         int a_output_idx = OpAuthOutputIdx(this.activeInputIndex, 0);
         int b_output_idx = OpAuthOutputIdx(this.activeInputIndex, 1);
 
-        byte[] a_spk = byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
+        // NOTE (Gate 3 finding): a real `tx.outputs[idx].scriptPubKey` is
+        // `version (2 bytes, big-endian) || script bytes` (kaspa-txscript's
+        // ScriptPublicKey::to_bytes(), verified against the pinned rev) --
+        // NOT just the raw script. Version 0 is Kaspa's standard/default.
+        byte[] a_spk = byte[2](0x0000) + byte[1](0x20) + byte[](a_pk) + byte[1](0xac);
         require(tx.outputs[a_output_idx].value == stake_sompi);
         require(tx.outputs[a_output_idx].scriptPubKey == a_spk);
 
-        byte[] b_spk = byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
+        byte[] b_spk = byte[2](0x0000) + byte[1](0x20) + byte[](b_pk) + byte[1](0xac);
         require(tx.outputs[b_output_idx].value == stake_sompi);
         require(tx.outputs[b_output_idx].scriptPubKey == b_spk);
     }

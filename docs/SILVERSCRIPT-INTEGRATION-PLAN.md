@@ -1,6 +1,6 @@
 # SilverScript L1 Escrow — Integration Plan
 
-Status: **Phase 0–3 abgeschlossen, Gate 1 freigegeben (2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) von Timo freigegeben (2026-09-29, Dispute-Scope und Fee-Modell wie entworfen bestätigt). Erste echte Kompilierung von `match_escrow.sil` gegen den realen `silverc`-Compiler erfolgreich (Abschnitt 7.7) — Interpreter-/Simnet-Tests (restlicher Gate-3-Umfang) stehen noch aus.**
+Status: **Phase 0–3 abgeschlossen, Gate 1 freigegeben (2026-09-29). Gate 2 (Contract-Spec + Threat Model, Abschnitte 7–11) von Timo freigegeben (2026-09-29, Dispute-Scope und Fee-Modell wie entworfen bestätigt). `match_escrow.sil` kompiliert erfolgreich UND besteht 10/10 Tests gegen den echten Interpreter für `join`/`cancel_unjoined`/`mutual_settle`/`oracle_settle` (Abschnitt 7.7/7.8, zwei reale Bugs dabei gefunden und gefixt). Noch offen: `refund_timeout` interpreter-/simnet-testen, Attestation-Referenzimplementierung (8.3), dann Gate 3 (echte Testnet-TX) selbst.**
 Branch: `feature/silverscript-l1-escrow`. Scope: nur 1v1-Matches, Turniere werden nicht migriert.
 
 Diese Datei wird mit jeder Phase weitergeschrieben (siehe [CLAUDE.md](../CLAUDE.md) → „Memory & Learnings"). Abschnitte ab „Contract-State" sind Platzhalter, bis Gate 2 ansteht.
@@ -291,9 +291,22 @@ Beim ersten echten Kompilierversuch (siehe 7.7) stellte sich heraus: `this.ageDa
 | `oracle_settle` | `414681ad` |
 | `refund_timeout` | `54b3d885` |
 
-Template-Hash: `8d96afea1e22818ec3f9b6781e8e41a8721f87b8245bfabe069d5701acb5d357` (mit Test-Konstruktor-Argumenten aus `contracts/silverscript/tests/match_escrow.ctor.json` — **ändert sich**, sobald echte Konstruktor-Werte oder der Contract-Code selbst sich ändern; kein fester Wert für „den" Contract, sondern für genau diese kompilierte Instanz). Kompilierter Bytecode: 1213 Bytes — deutlich unter jedem bekannten Größenlimit.
+Template-Hash (Stand vor 7.8-Fixes): `8d96afea1e22818ec3f9b6781e8e41a8721f87b8245bfabe069d5701acb5d357`. Kompilierter Bytecode: 1213 Bytes — deutlich unter jedem bekannten Größenlimit.
 
-**Noch nicht verifiziert (verbleibender Gate-3-Umfang):** keine Ausführung gegen den echten Interpreter (`cli-debugger`/`TxScriptEngine` mit `covenants_enabled: true`) für auch nur einen der fünf Entry-Points — die erfolgreiche Kompilierung beweist nur, dass der Quelltext syntaktisch/typmäßig gültig ist, **nicht**, dass die Logik zur Laufzeit wie beabsichtigt funktioniert (siehe Issue #252 — genau diese Art Fehler zeigt sich erst zur Laufzeit, nicht beim Kompilieren). Rust-/TypeScript-Attestation-Referenzimplementierung (8.3) ebenfalls noch offen.
+### 7.8 Gate-3-Fortschritt: Interpreter-Tests — 10/10 grün (zwei weitere reale Bugs gefunden und gefixt)
+
+Ausführung gegen den **echten Interpreter** (`kaspa_txscript::TxScriptEngine`, `covenants_enabled: true`, reale Schnorr-Signaturen, reale Sighashes) mit einer eigenen Rust-Testsuite nach exakt dem Muster von SilverScripts eigenem `chess_apps_tests.rs` — siehe `contracts/silverscript/tests/interpreter_tests.rs` + `README.md` dort für Details und Ausführungsanleitung (läuft **nicht** in diesem Repo, da `kaspabattle`'s eigener Cargo-Workspace mit dem alten 0.15er-rusty-kaspa kollidiert — erfordert eine separate Checkout gegen den gepinnten SilverScript-Rev).
+
+**Ergebnis: 10/10 Tests grün** für `join`, `cancel_unjoined`, `mutual_settle`, `oracle_settle` (happy path + jeweils 1-2 gezielte Angriffs-/Fehlerfälle, u. a. „Output substitution" aus dem Threat Model in Abschnitt 10 direkt am Interpreter widerlegt). `refund_timeout` ist **nicht** interpreter-getestet — `this.ageDaa` braucht einen echten/Simnet-Konsens-Kontext, den der leichtgewichtige Test-Harness nicht liefert (SilverScripts eigene Testsuite testet `this.ageDaa`-Entries aus demselben Grund auch nicht auf diesem Weg).
+
+Dabei zwei weitere reale, vorher nicht bekannte Bugs gefunden (beide **vor** diesem Stand bereits im Contract-Quelltext gefixt, nicht offen gelassen):
+
+1. **`tx.outputs[idx].scriptPubKey` enthält ein 2-Byte-Big-Endian-Versionspräfix** (`ScriptPublicKeyVersion = u16`), nicht nur die rohen Skript-Bytes — verifiziert gegen `kaspa_txscript`s `SpkEncoding::to_bytes()` am gepinnten Rev (`self.version.to_be_bytes().chain(script bytes)`). Die in 7.3 beschriebene P2PK-Konstruktion war dadurch anfangs **falsch** (34 statt 36 Bytes) und ließ jeden scriptPubKey-Vergleich fehlschlagen. Fix: `byte[2](0x0000) + byte[1](0x20) + byte[](pk) + byte[1](0xac)` in allen betroffenen Entries (`mutual_settle`, `oracle_settle`, `refund_timeout`).
+2. **`covenant_id` auf einem Output ist kein frei wählbares Tag.** Verifiziert gegen `kaspa_txscript::covenants::CovenantsContext::from_tx`: Stimmt ein Output-`covenant_id` mit dem `covenant_id` des autorisierenden (gespenten) Inputs überein, zählt er als **Fortsetzung** (wird von `OpAuthOutputCount`/`OpAuthOutputIdx` gezählt) — unabhängig davon, ob sein `scriptPubKey` selbst ein Covenant-Skript ist oder ein simpler P2PK-Payout. Weicht er ab, gilt er als **Genesis** (neuer Covenant) und muss einen protokoll-abgeleiteten Wert tragen (aus dem gespenten Outpoint berechnet); ein frei gewählter Wert wird mit `CovenantsError::WrongGenesisCovenantId` abgelehnt und **taucht in keinem Auth-Output-Kontext auf**. Für terminale Payout-Outputs (`mutual_settle`/`oracle_settle`/`refund_timeout`) muss deshalb dieselbe `covenant_id` wie das gespente Input-UTXO verwendet werden — eine erste Testvariante mit je einer eigenen ID pro Output schlug genau deshalb fehl.
+
+**Aktualisierter Template-Hash nach beiden Fixes:** `53acf11fd0d084048188db58b71277eb5eca2373a2a9e0068569caf6c2e8cc7d` (`contracts/artifacts/match_escrow.abi.json`/`match_escrow.manifest.json` sind auf diesem Stand).
+
+**Noch offen (verbleibender Gate-3-Umfang):** `refund_timeout` interpreter-/simnet-testen; Rust-/TypeScript-Attestation-Referenzimplementierung mit Testvektoren (8.3); danach erst eine echte kleine Testnet-10-Transaktion (Gate 3 selbst, Freigabe nötig).
 
 ---
 
@@ -363,7 +376,7 @@ signature = SchnorrSign(oracle_privkey, digest)   // kompatibel mit OpCheckSigFr
 | Bedrohung | Betroffene Entry(s) | Mitigation im Design | Restrisiko |
 |---|---|---|---|
 | **Contract transition substitution** (falscher Entry-Typ akzeptiert) | alle | Dispatch-Tag ist `blake3(entry_name + Typsignatur)` (5.3), Kollisionen sind Compile-Fehler; jede Entry prüft `status` explizit | gering |
-| **Output substitution** (Geld an falsche Adresse) | `join`, `mutual_settle`, `oracle_settle`, `refund_timeout` | explizite `scriptPubKey`-Prüfung gegen committete Pubkey-Hashes (7.3) — **bewusste Abweichung von Chess**, s. 7.1 | **hoch, bis 7.3s offene P2PK-Byte-Frage in Gate 3 verifiziert ist** — vorher nicht implementieren |
+| **Output substitution** (Geld an falsche Adresse) | `join`, `mutual_settle`, `oracle_settle`, `refund_timeout` | explizite `scriptPubKey`-Prüfung gegen committete Pubkey-Hashes (7.3) — **bewusste Abweichung von Chess**, s. 7.1 | **gering für `mutual_settle`/`oracle_settle`** — am echten Interpreter widerlegt (7.8, `oracle_settle_rejects_redirected_winner_output`); für `refund_timeout` **noch nicht interpreter-getestet** (this.ageDaa-Limitierung, 7.8) |
 | **Double payout** (UTXO zweimal ausgegeben) | alle terminalen | strukturell durch Kaspas UTXO-Modell ausgeschlossen (Input ist nach einem Spend weg); kein zusätzlicher Schutz nötig | sehr gering |
 | **Fee siphoning** (Fee-Betrag manipuliert) | `oracle_settle` | `fee`/`payout` werden **im Contract** aus `stake_sompi`/`fee_bps` berechnet, nicht vom TX-Ersteller vorgegeben; `require(tx.outputs[idx].value == payout)` exakt | gering |
 | **Oracle key compromise** | `oracle_settle` | Schaden ist **pro Match begrenzt** (ein `result_oracle_commitment` pro Contract-Instanz, kein globaler Oracle-Key, der alle Matches gleichzeitig betrifft, sofern man den Oracle-Key rotiert) — aber MVP nutzt vermutlich denselben Oracle-Pubkey für alle Matches (siehe „keine dynamische Oracle-Governance"), also **de facto global** trotz Pro-Match-Commitment | **hoch, wie im bestehenden System auch (unverändert ggü. Multisig-Modell)** — außerhalb des MVP-Scopes lösbar (Oracle-Rotation bräuchte neue Matches mit neuem committetem Key; bestehende FUNDED-Matches bleiben am alten Key hängen bis Settlement/Timeout) |

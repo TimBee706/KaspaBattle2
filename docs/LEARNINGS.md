@@ -6,6 +6,18 @@ Laufendes, geteiltes Protokoll nicht-offensichtlicher Erkenntnisse und Entscheid
 
 ---
 
+### 2026-09-29 — 10/10 Interpreter-Tests grün, zwei weitere reale Bugs gefunden (Gate 3 läuft)  [silverscript]
+
+Fortsetzung des vorherigen Eintrags. Eigene Rust-Testsuite (`contracts/silverscript/tests/interpreter_tests.rs`, Muster von SilverScripts eigenem `chess_apps_tests.rs`) gegen den **echten Interpreter** (`TxScriptEngine`, `covenants_enabled: true`, reale Schnorr-Signaturen/Sighashes) — nicht nur Compiler-Check. Ergebnis: **10/10 Tests grün** für `join`, `cancel_unjoined`, `mutual_settle`, `oracle_settle` (je 1-3 Fälle inkl. gezielter Angriffe: Selbst-Beitritt, unterfinanzierter Output, Betragssumme falsch, gefälschte Oracle-Signatur, **umgeleiteter Gewinner-Payout trotz gültiger Attestation** — die zentrale „Output substitution"-Bedrohung aus dem Threat Model ist damit nicht nur auf Papier, sondern am echten Interpreter widerlegt). `refund_timeout` bleibt interpreter-ungetestet — `this.ageDaa` braucht einen Simnet-/Konsens-Kontext, den der leichte Test-Harness nicht bietet (SilverScripts eigene Suite testet `this.ageDaa`-Entries aus demselben Grund auch nicht so).
+
+Auf dem Weg zwei weitere reale, vorher unbekannte Bugs gefunden und **vor** diesem Stand im Contract gefixt (Testergebnis zeigte erst generisches `VerifyError`, dann `CovenantsError(WrongGenesisCovenantId)` nach einem Fehlversuch, dann die richtige Ursache):
+
+1. **`tx.outputs[idx].scriptPubKey` = 2-Byte-Big-Endian-Version + rohe Skript-Bytes**, nicht nur die rohen Bytes (verifiziert: `kaspa_txscript`s privater `SpkEncoding::to_bytes()`). Jede in-Contract gebaute P2PK-Vergleichs-Bytefolge (`mutual_settle`, `oracle_settle`, `refund_timeout`) brauchte ein vorangestelltes `byte[2](0x0000)`.
+2. **`covenant_id` auf einem Output ist protokoll-bedeutsam, kein freies Tag.** Verifiziert gegen `kaspa_txscript::covenants::CovenantsContext::from_tx`: Output-`covenant_id` == Input-`covenant_id` → „Fortsetzung" (wird von `OpAuthOutputCount`/`OpAuthOutputIdx` gezählt, unabhängig vom `scriptPubKey`-Typ); jede Abweichung → „Genesis", verlangt einen aus dem gespenten Outpoint abgeleiteten Wert, sonst `WrongGenesisCovenantId` **und taucht in keinem Auth-Output-Kontext auf**. Terminale Payout-Outputs müssen deshalb dieselbe `covenant_id` wie das gespente Input-UTXO tragen — nicht, wie zunächst angenommen, eine je eigene/beliebige ID.
+3. Nebenbefund: `actor_from_seed(0xFF)` (32× Byte `0xFF` als Secret Key) ist ein ungültiger secp256k1-Key (≥ Kurvenordnung) — beim Erzeugen deterministischer Test-Keys Bytewerte nahe `0xFF` meiden.
+
+Aktualisierter Template-Hash nach beiden Fixes: `53acf11fd0d084048188db58b71277eb5eca2373a2a9e0068569caf6c2e8cc7d`. Werkzeug-Notiz: `librocksdb-sys` (Dev-Dependency von `kaspa-consensus`, für `cargo test` im SilverScript-Repo) braucht `libclang` — auf dieser Windows-Maschine fehlte das; behoben mit `winget install --id LLVM.LLVM` + `LIBCLANG_PATH="C:\Program Files\LLVM\bin"` (mit Timo abgestimmt vor der Installation).
+
 ### 2026-09-29 — Gate 2 freigegeben + erste kompilierende MatchEscrow-Contract (Gate 3 gestartet)  [silverscript]
 
 - **Gate 2 (Contract-Spec + Threat Model) von Timo freigegeben**, inkl. zweier bestätigter Entscheidungen: kein Dispute-Entry-Point im MVP (nur die 5 vorgegebenen Entries), `mutual_settle` erhebt keine Plattform-Fee (nur `oracle_settle`).
