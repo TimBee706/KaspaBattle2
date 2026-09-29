@@ -203,7 +203,12 @@ byte[] expected_spk = <Standard-P2PK-scriptPubKey-Bytes für pk>;
 require(tx.outputs[idx].scriptPubKey == expected_spk);
 ```
 
-**Offene Verifikationsaufgabe für Gate 3:** die exakten Byte-Konstanten des Standard-P2PK-`scriptPubKey` (Push-Opcode + 32-Byte-Pubkey + `OP_CHECKSIG`-Byte) müssen aus dem gepinnten `kaspa-txscript`-Rev (`a41a333b…`) übernommen werden (unser eigenes `battle-kaspa/src/multisig/scripts.rs` und `kaspa_addresses::Address` zeigen das Muster für den alten 0.15-Baum, aber die exakte Byte-Sequenz ist am gepinnten Rev zu verifizieren, nicht zu raten). Bis dahin ist `expected_spk` ein Platzhalter für „das on-chain aus `pk` ableitbare Standard-Empfänger-Skript".
+**Verifiziert gegen `kaspa-txscript` @ `a41a333b…` (`src/standard.rs`, `src/opcodes/mod.rs`):** Kaspas Standard-P2PK-`scriptPubKey` ist `pay_to_pub_key(pubkey) = OpData32 (0x20) || <32-Byte x-only Pubkey> || OpCheckSig (0xac)` — 34 Bytes, exakt wie Bitcoins klassisches Pay-to-Pubkey-Muster. In SilverScript entspricht das:
+```
+byte[] expected_spk = byte[1](0x20) + byte[](pk) + byte[1](0xac);
+require(tx.outputs[idx].scriptPubKey == expected_spk);
+```
+`byte[1](0x20)`-Literalsyntax und `byte[](pk)`-Cast sind direkt aus dem realen Chess-Code übernommen (Abschnitt 5.4/6). Verbleibt für Gate 3: das tatsächliche Kompilieren dieses Ausdrucks gegen den echten `silverc`-Compiler bestätigen (Typinferenz von `byte[1](...)`-Konkatenation zu `byte[]` ist im Chess-Code nur für andere Feldbreiten belegt, nicht exakt in dieser 34-Byte-Kombination).
 
 ### 7.4 Entry-Points
 
@@ -282,16 +287,16 @@ Deterministische Byte-Konkatenation (keine JSON-Serialisierung — vermeidet jed
 msg = "KASPABATTLE_RESULT_V1"      (22 ASCII-Bytes, Domain-Separator)
     || network_domain              (32 Bytes — blake2b("KASPABATTLE_MATCH_V1" + network_id_string), MUSS mit dem
                                      Contract-State-Feld übereinstimmen, siehe 7.2)
-    || contract_version             (4 Bytes, big-endian i32)
+    || contract_version             (4 Bytes — SilverScripts `int as byte[4]`-Encoding, s.u.)
     || match_id                     (16 Bytes, rohe UUID — aus dem Contract-State, nicht separat übergeben)
     || game_id_hash                 (32 Bytes — aus dem Contract-State)
     || winner_selector               (1 Byte: 0x00 = player_a, 0x01 = player_b)
     || result_hash                  (32 Bytes — off-chain Commitment auf die vollständigen FACEIT-Match-Details:
                                      blake2b(faceit_match_id || score_string || …); Detailformat ist Backend-intern,
                                      nur der Hash geht on-chain)
-    || observed_at                  (8 Bytes, big-endian u64 — DAA-Score oder Unix-Zeit zum Beobachtungszeitpunkt
-                                     des Oracles; rein informativ, nicht konsensrelevant außer als Teil des
-                                     signierten Digests)
+    || observed_at                  (8 Bytes — `int as byte[8]`-Encoding, s.u. — DAA-Score oder Unix-Zeit zum
+                                     Beobachtungszeitpunkt des Oracles; rein informativ, nicht konsensrelevant
+                                     außer als Teil des signierten Digests)
     || nonce                        (32 Bytes — vom Oracle zufällig gewählt, macht jede Signatur eindeutig, falls
                                      vor der On-Chain-Einreichung mehrfach signiert wird, z. B. nach Korrektur)
 
@@ -299,6 +304,8 @@ digest = blake2b(msg)               // 32 Bytes — DAS wird signiert, nicht `ms
                                      // `checkMsgSig`/OpCheckSigFromStack: exakt byte[32])
 signature = SchnorrSign(oracle_privkey, digest)   // kompatibel mit OpCheckSigFromStack (KIP-17, 0xd7)
 ```
+
+**Int-Encoding, präzise verifiziert (nicht angenommen):** SilverScripts `int as byte[N]`-Cast kompiliert zu `OpNum2Bin` (`kaspa-txscript` @ gepinntem Rev, `opcodes/mod.rs`), was wiederum `serialize_i64(value, Some(N))` aufruft. Das ist **Bitcoins klassisches `CScriptNum`-Little-Endian-Encoding**: Little-Endian-Bytes des Betrags, rechts mit Nullen auf `N` Bytes aufgefüllt, und falls negativ, wird Bit `0x80` im **letzten** Byte gesetzt. **Nicht** big-endian, wie eine erste Entwurfsfassung dieses Dokuments fälschlich annahm — das war eine unverifizierte Annahme und wurde hier korrigiert, bevor Code entstand. Für unsere ausschließlich nicht-negativen Werte (`contract_version`, `winner_selector`, `observed_at`) ist das äquivalent zu "Little-Endian, mit Nullen aufgefüllt", **aber** die Rust-/TypeScript-Referenzimplementierung (8.3) muss exakt `serialize_i64` nachbauen (nicht naives `to_le_bytes()`), um Byte-für-Byte-Übereinstimmung mit dem kompilierten Contract zu garantieren — insbesondere die Sonderbehandlung, wenn das natürliche Minimal-Encoding bereits Bit `0x80` gesetzt hätte.
 
 **Netzwerk-Bindung:** `network_domain` verhindert Replay einer testnet-10-Attestation auf einem späteren Mainnet-Contract (unterschiedliche `network_id_string` → anderer Digest → Signatur passt nicht). Zusätzlich verhindert der unterschiedliche kompilierte Bytecode/Template-Hash pro Netzwerk (Abschnitt 5.1) ohnehin, dass ein testnet-10-Contract auf Mainnet überhaupt als "derselbe" Contract-Typ akzeptiert würde.
 
