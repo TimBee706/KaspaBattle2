@@ -71,7 +71,10 @@ jobs:
       - name: Validate compose file
         env:
           POSTGRES_PASSWORD: ci-placeholder-not-a-secret
-        run: docker compose config --quiet
+        # `env_file: .env.production` is deliberately untracked, so create an empty stand-in.
+        run: |
+          touch .env.production
+          docker compose config --quiet
 
   security:
     name: Security Audit
