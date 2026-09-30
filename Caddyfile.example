@@ -21,8 +21,26 @@
 www.{$DOMAIN} {
 	tls {$TLS_EMAIL}
 
+	# ── Baseline security headers (AUDIT) ───────────────────────────────────
+	# HSTS without includeSubDomains/preload on purpose: safe to enable now, can be tightened
+	# later. A Content-Security-Policy is deliberately NOT set here yet: the app needs
+	# 'wasm-unsafe-eval' (kaspa-wasm) and connect-src for wss://<this host>/kaspa-rpc and /ws,
+	# so it must be rolled out Report-Only and tested against the real bundle first.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
 	# ── API: preserve full path, proxy to backend ──────────────────────────
 	handle /api/* {
+		# JSON API: cap request bodies (wallet-verify, deposits, ... are all tiny).
+		request_body {
+			max_size 1MB
+		}
 		reverse_proxy backend:8080
 	}
 
