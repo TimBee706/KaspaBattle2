@@ -6,6 +6,23 @@ Laufendes, geteiltes Protokoll nicht-offensichtlicher Erkenntnisse und Entscheid
 
 ---
 
+### 2026-09-29 — Full-System-Audit: wiederkehrende Fehlermuster + ein offener Critical  [security, deploy, decision]
+
+Vollständiger Bericht: [FULL_SYSTEM_AUDIT_2026-09-29.md](FULL_SYSTEM_AUDIT_2026-09-29.md). Nicht-offensichtliches daraus:
+
+- **`Testdata.txt` liegt in der Historie eines öffentlichen Repos** (`822b830`, `a1df5cd`; entfernt in `ece6a46`, aber weiter erreichbar). Form deutet auf Seed-Phrases. Entfernen aus dem Tree reicht nicht; die Rotation der betroffenen Wallets ist die Maßnahme, History-Rewrite nur Hygiene (und braucht Freigabe). **Offen bis Timo entschieden hat.**
+- **Muster 1 — „eingeloggt" ≠ „berechtigt":** `SessionUser` beweist nur eine Session. Jeder Endpunkt, der eine `match_id` nimmt, muss zusätzlich Teilnehmerschaft prüfen und Terms aus der DB lesen, nicht aus dem Request (F-01). Reine Entscheidungsfunktionen (`authorize_escrow_request`) machen das ohne DB testbar.
+- **Muster 2 — Read-then-Write:** Vorab-Lesen ist nur Fast-Path; die Wahrheit muss ein bedingtes `UPDATE … WHERE <Vorbedingung>` mit `rows_affected()`-Prüfung sein (Challenge, Deposit-Slot).
+- **Muster 3 — zu breite Serialisierung:** `Match` geht an öffentliche Endpunkte *und* den WebSocket. Neue serverinterne Spalten gehören nicht ins Struct/`MATCH_COLUMNS`, sondern in eigene Queries.
+- **Docker-Ports umgehen `ufw`.** `"8080:8080"` ist öffentlich, egal was die Firewall sagt. App-Ports immer `127.0.0.1:…`, wenn Caddy davor sitzt.
+- **`no-new-privileges` bricht Caddy** (bindet :80/:443 über eine File-Capability) — dort nicht setzen.
+- **Rate-Limit hinter Proxy:** ohne `TRUST_X_FORWARDED_FOR=true` teilen sich alle Nutzer *einen* Bucket; mit `true` muss der **letzte** XFF-Eintrag gelten (der erste ist client-kontrolliert) und das Backend darf nur über den Proxy erreichbar sein.
+- **`cargo audit`-Treffer prüfen, bevor man Pins löst:** `quinn-proto`/`rsa` stehen nur im Lockfile (`cargo tree --target all --all-features -i <crate>` leer). Der Fix für quinn wäre am `js-sys = "=0.3.72"`-Pin gescheitert.
+- **`cargo clippy --all-targets` war auf `main` rot** (nur Test-Code) — CI lief ohne `--all-targets`. Jetzt gleichgezogen.
+- **Lokale DB-Tests zählen ohne `DATABASE_URL` als „passed"** (früher Return). Ein grüner lokaler Lauf beweist für `native_tests.rs` nichts; erst die CI (Postgres-Service) tut es.
+
+---
+
 ### 2026-09-29 — Deploy von `main` auf IONOS: fehlendes Secret + Merge-Regression  [deploy, security]
 
 - **`MULTISIG_KEY_DERIVATION_SECRET` fehlte auf dem Server.** Der SEC-MULTISIG-01-Fix (`ca586bc`) macht dieses Env-Var in `main.rs` zur Startvoraussetzung (`panic!` wenn nicht gesetzt) — jede Umgebung, die vor diesem Commit deployt wurde, braucht es nachträglich (`openssl rand -hex 32` in `.env.production`), sonst crash-looped der Backend-Container beim ersten Start nach dem Update.
