@@ -71,7 +71,6 @@ pub const MATCH_COLUMNS: &str = concat!(
     "COALESCE(wager_amount_sompi, wager_sompi) AS wager_amount_sompi, ",
     "player_a_deposit_tx_hash, player_b_deposit_tx_hash, ",
     "player_a_deposit_confirmed, player_b_deposit_confirmed, ",
-    "player_a_faceid_hash, player_b_faceid_hash, ",
     "player_a_deposit_amount_sompi, player_b_deposit_amount_sompi, ",
     "faceit_match_id_player_a, faceit_match_id_player_b, ",
     "faceit_match_id_final, faceit_match_status, ",
@@ -111,11 +110,9 @@ pub struct Match {
     #[sqlx(default)]
     pub player_b_deposit_confirmed: Option<bool>,
 
-    // ── v0.2 FaceID (optional, off-chain hash) ──
-    #[sqlx(default)]
-    pub player_a_faceid_hash: Option<String>,
-    #[sqlx(default)]
-    pub player_b_faceid_hash: Option<String>,
+    // NOTE (AUDIT F-09): `player_{a,b}_faceid_hash` (biometric-derived) are deliberately NOT
+    // part of this struct / MATCH_COLUMNS. `Match` is returned by unauthenticated endpoints and
+    // broadcast over the WebSocket; the columns are write-only via POST /matches/:id/faceid.
 
     // ── v0.4 Per-player deposit amount tracking ──
     #[sqlx(default)]
@@ -153,6 +150,7 @@ pub struct Match {
     // ── v1.0 Payout PSKT (F-010) ──
     /// Hex-encoded Partially Signed Kaspa Transaction (with Oracle signature)
     #[sqlx(default)]
+    #[serde(skip_serializing)] // AUDIT F-09: only served by the participant-guarded /payout/pskt endpoint
     pub payout_pskt_hex: Option<String>,
     /// Payout TX hash after broadcast
     #[sqlx(default)]
@@ -320,5 +318,39 @@ impl Match {
             opponent_id.as_deref(),
         )
         .map_err(|e| format!("{:?}", e))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// AUDIT F-09: `Match` is returned by unauthenticated endpoints and broadcast over the
+    /// WebSocket, so fields that must stay server-side may never serialize.
+    #[test]
+    fn match_json_never_contains_server_side_only_fields() {
+        let mut v = serde_json::json!({
+            "id": Uuid::new_v4(),
+            "creator_user_id": Uuid::new_v4(),
+            "game_id": "cs2",
+            "wager_sompi": 1,
+            "wager_amount_sompi": 1,
+            "mode": "BO1",
+            "status": "OPEN",
+            "provider": "FACEIT",
+        });
+        // Present on the wire from the DB side → must deserialize, but not serialize again.
+        v["player_a_faceid_hash"] = "deadbeef".into(); // unknown field: ignored, never round-trips
+        v["player_b_faceid_hash"] = "cafebabe".into();
+        v["payout_pskt_hex"] = "00ff".into();
+
+        let m: Match = serde_json::from_value(v).expect("Match deserializes");
+        assert_eq!(m.payout_pskt_hex.as_deref(), Some("00ff"));
+
+        let out = serde_json::to_value(&m).unwrap();
+        for key in ["player_a_faceid_hash", "player_b_faceid_hash", "payout_pskt_hex"] {
+            assert!(out.get(key).is_none(), "{key} must not be serialized");
+        }
+        assert_eq!(out["game_id"], "cs2");
     }
 }
