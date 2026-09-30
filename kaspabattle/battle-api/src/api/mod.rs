@@ -675,14 +675,14 @@ pub async fn verify_wallet_login(
     let (user_id, display_name_str) = if let Some(r) = row {
         let uid: uuid::Uuid = r.try_get("id").unwrap_or_else(|_| uuid::Uuid::new_v4());
         let dn: String = r.try_get("display_name").unwrap_or_else(|_|
-            format!("Player_{}", &payload.kaspa_address.chars().skip(6).take(6).collect::<String>())
+            format!("Player_{}", payload.kaspa_address.chars().skip(6).take(6).collect::<String>())
         );
         (uid, dn)
     } else {
         let new_user_id = uuid::Uuid::new_v4();
         let display_name = format!(
             "Player_{}",
-            &payload.kaspa_address.chars().skip(6).take(6).collect::<String>()
+            payload.kaspa_address.chars().skip(6).take(6).collect::<String>()
         );
         let email = format!("{}@wallet.local", new_user_id);
         let password_hash = battle_core::auth::AuthService::hash_password(&uuid::Uuid::new_v4().to_string())

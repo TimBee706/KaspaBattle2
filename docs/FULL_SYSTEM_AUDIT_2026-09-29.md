@@ -83,7 +83,8 @@ Neue Tests (13 reine + 3 DB-gestützte): `authorize_escrow_request` (3), Service
 
 | Befehl | Ergebnis |
 |---|---|
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | ✅ sauber |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` (rustc 1.95 lokal) | ✅ sauber |
+| dasselbe mit `cargo +1.98.1` (= CI-Toolchain, floating `stable`) | ✅ sauber — **auf `main` war die CI deshalb seit mind. 2026-09-29 rot** (5 neue Lints: `result_large_err`, `iter_kv_map` ×2 in `kdapp_proxy.rs`, `useless_borrows_in_formatting` ×2 in `api/mod.rs`); behoben. Empfehlung: Toolchain per `rust-toolchain.toml` pinnen. |
 | `cargo test --workspace --all-features` | ✅ 276 passed, 0 failed (3 DB-Tests lokal ohne Wirkung, s. o.) |
 | `cargo check --workspace --all-targets --all-features` | ✅ |
 | `cargo audit` | 6 → 3 (alle 3 unerreichbar, s. F-17); 14 Warnungen (unmaintained/unsound, transitiv) |
