@@ -10,3 +10,6 @@ compile_err.txt
 .env.example
 tests
 **/.git
+
+# Real env files (.env.production, .env.docker, ...) must never enter a build layer.
+.env.*

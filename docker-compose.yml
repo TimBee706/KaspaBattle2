@@ -1,8 +1,16 @@
+# Bound container logs: the default json-file driver is unbounded and can fill the disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-bookworm
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kaspabattle}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
@@ -46,8 +54,14 @@ services:
       context: ./kaspabattle
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    # Loopback only: production traffic reaches the backend through Caddy over the compose
+    # network (backend:8080). Docker-published ports bypass host firewalls such as ufw, so
+    # "0.0.0.0:8080" would expose the plain-HTTP API to the internet.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
       - .env.production
     environment:
@@ -90,8 +104,12 @@ services:
         # never a private address, see battle-frontend/.env.example.
         VITE_PUBLIC_CONTACT_EMAIL: ${VITE_PUBLIC_CONTACT_EMAIL:-}
     restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    # Loopback only (see backend): the Vite dev server must never be internet-facing.
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     environment:
       # Local-dev-friendly defaults; override in .env/.env.production for a real domain.
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
@@ -123,7 +141,10 @@ services:
   caddy:
     image: caddy:2.7-alpine
     restart: unless-stopped
+    logging: *default-logging
     profiles: ["proxy"]
+    # No `no-new-privileges` here on purpose: the Caddy image binds :80/:443 via a file
+    # capability (cap_net_bind_service), which that option would disable.
     ports:
       - "80:80"
       - "443:443"
