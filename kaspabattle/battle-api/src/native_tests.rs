@@ -269,14 +269,12 @@ fn draw_columns() -> Vec<usize> {
         if g.move_count() as usize == 42 {
             return matches!(g.status(), GameStatus::Draw);
         }
-        let p = if g.move_count() % 2 == 0 { "a" } else { "b" };
+        let p = if g.move_count().is_multiple_of(2) { "a" } else { "b" };
         for col in 0..COLUMNS {
             if let Ok(m) = g.execute(p, col) {
                 out.push(col);
-                if !m.status.is_finished() || matches!(m.status, GameStatus::Draw) {
-                    if dfs(g, out) {
-                        return true;
-                    }
+                if (!m.status.is_finished() || matches!(m.status, GameStatus::Draw)) && dfs(g, out) {
+                    return true;
                 }
                 out.pop();
                 g.rollback(&m.rollback).unwrap();
@@ -1226,6 +1224,126 @@ async fn http_native_flow_needs_no_faceit_and_faceit_flow_still_requires_it() {
     assert_eq!(st, StatusCode::FORBIDDEN, "native games are testnet-only");
     std::env::remove_var("KASPA_NETWORK");
     std::env::remove_var("NATIVE_GAMES_ENABLED");
+
+    db.teardown().await;
+}
+
+// ── Audit regressions (docs/FULL_SYSTEM_AUDIT_2026-09-29.md) ─────────────────
+
+/// F-08: one signed wallet-login challenge must yield exactly one session, even when
+/// several verify requests race; expired challenges are never claimable.
+#[tokio::test]
+async fn wallet_challenge_is_claimed_exactly_once_under_concurrency() {
+    let Some(db) = TestDb::new().await else {
+        return;
+    };
+    let pool = db.pool.clone();
+
+    let fresh = Uuid::new_v4();
+    let expired = Uuid::new_v4();
+    for (id, interval) in [(fresh, "+ INTERVAL '5 minutes'"), (expired, "- INTERVAL '1 minute'")] {
+        sqlx::query(&format!(
+            "INSERT INTO wallet_login_challenges (id, kaspa_address, challenge_message, expires_at) \
+             VALUES ($1, $2, 'msg', NOW() {interval})"
+        ))
+        .bind(id)
+        .bind(kaspa_test_address(9))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let mut tasks = Vec::new();
+    for _ in 0..16 {
+        let pool = pool.clone();
+        tasks.push(tokio::spawn(async move {
+            crate::api::consume_wallet_challenge(&pool, fresh).await.unwrap()
+        }));
+    }
+    let mut winners = 0;
+    for t in tasks {
+        if t.await.unwrap() {
+            winners += 1;
+        }
+    }
+    assert_eq!(winners, 1, "exactly one concurrent claim may succeed");
+    assert!(
+        !crate::api::consume_wallet_challenge(&pool, fresh).await.unwrap(),
+        "replay after use must fail"
+    );
+    assert!(
+        !crate::api::consume_wallet_challenge(&pool, expired).await.unwrap(),
+        "expired challenge must not be claimable"
+    );
+    assert!(
+        !crate::api::consume_wallet_challenge(&pool, Uuid::new_v4()).await.unwrap(),
+        "unknown challenge must not be claimable"
+    );
+
+    db.teardown().await;
+}
+
+/// F-01: `POST /multisig/create` is bound to the match row — strangers are rejected,
+/// unknown matches 404, mismatching wagers 400, and a legitimate repeat call cannot
+/// rewrite the stored escrow terms.
+#[tokio::test]
+async fn multisig_create_is_bound_to_match_participants_and_cannot_overwrite() {
+    let Some(db) = TestDb::new().await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let (svc, _mock) = mock_multisig();
+    let app = crate::api::router().with_state(app_state(pool.clone(), svc.clone()));
+
+    let a = make_user(&pool, "Alice", 1).await;
+    let b = make_user(&pool, "Bob", 2).await;
+    let x = make_user(&pool, "Mallory", 3).await;
+    let (ta, tx_) = (make_session(&pool, a).await, make_session(&pool, x).await);
+    let (mid, _addr) = native_match(&pool, &svc, a, b, "OPEN").await;
+
+    let body = |wager: u64| {
+        serde_json::json!({ "match_id": mid, "wager_per_player_sompi": wager, "timelock_timestamp": 42 })
+    };
+
+    let (st, _) = call(&app, "POST", "/multisig/create", Some(&tx_), Some(body(WAGER as u64))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "non-participant");
+
+    let unknown = serde_json::json!({ "match_id": Uuid::new_v4(), "wager_per_player_sompi": 1 });
+    let (st, _) = call(&app, "POST", "/multisig/create", Some(&ta), Some(unknown)).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    let (st, _) = call(&app, "POST", "/multisig/create", Some(&ta), Some(body(1))).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "wager must equal the match row");
+    let (st, _) = call(&app, "POST", "/multisig/create", Some(&ta), Some(body(u64::MAX / 2 + 1))).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "overflowing wager");
+
+    let (st, j) = call(&app, "POST", "/multisig/create", Some(&ta), Some(body(WAGER as u64))).await;
+    assert_eq!(st, StatusCode::OK, "{j}");
+    let stored = svc.get_escrow(&mid).await.unwrap();
+    assert_eq!(stored.wager_per_player_sompi, WAGER as u64);
+    assert_eq!(stored.timelock_timestamp, None, "client timelock must be ignored");
+
+    db.teardown().await;
+}
+
+/// F-02: wagers outside 1..=MAX_WAGER_KAS are rejected before any DB/escrow work.
+#[tokio::test]
+async fn create_challenge_rejects_out_of_range_wagers() {
+    let Some(db) = TestDb::new().await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let (svc, _mock) = mock_multisig();
+    let app = crate::api::router().with_state(app_state(pool.clone(), svc));
+    let a = make_user(&pool, "Alice", 1).await;
+    let ta = make_session(&pool, a).await;
+
+    let max = (battle_core::types::MAX_WAGER_KAS * battle_core::types::SOMPI_PER_KAS) as i64;
+    for bad in [i64::MIN, -1, 0, max + 1, i64::MAX] {
+        let req = serde_json::json!({ "game_id": "connect-four", "wager_sompi": bad, "mode": "BO1" });
+        let (st, _) = call(&app, "POST", "/challenges", Some(&ta), Some(req)).await;
+        assert_eq!(st, StatusCode::BAD_REQUEST, "wager {bad} must be rejected");
+    }
 
     db.teardown().await;
 }
