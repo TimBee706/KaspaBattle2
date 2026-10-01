@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# AUDIT: least privilege for every job (the default GITHUB_TOKEN can be read/write).
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Rust Backend Tests
@@ -34,7 +38,7 @@ jobs:
         run: cargo test --workspace --all-features
       - name: Run Clippy
         working-directory: ./kaspabattle
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   frontend:
     name: Frontend Lint & Test
@@ -44,7 +48,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # 20 reached end-of-life in April 2026
       - name: Install dependencies
         working-directory: ./battle-frontend
         run: npm ci
@@ -55,11 +59,30 @@ jobs:
         working-directory: ./battle-frontend
         run: npm run test
 
+  frontend-image:
+    name: Frontend Docker image (prod target builds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Build only (no push): catches Dockerfile/lockfile drift such as `npm ci` failures
+      # that the plain `npm run build` job cannot see.
+      - name: Build prod image
+        run: docker build -f battle-frontend/Dockerfile --target prod -t kaspabattle-frontend:ci .
+      - name: Validate compose file
+        env:
+          POSTGRES_PASSWORD: ci-placeholder-not-a-secret
+        # `env_file: .env.production` is deliberately untracked, so create an empty stand-in.
+        run: |
+          touch .env.production
+          docker compose config --quiet
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the secret scan can see past commits
 
       # ── Rust dependency audit ──
       - name: Setup Rust
@@ -75,7 +98,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # 20 reached end-of-life in April 2026
       - name: Install frontend deps
         working-directory: ./battle-frontend
         run: npm ci
@@ -86,7 +109,8 @@ jobs:
 
       # ── Secret Scan ──
       - name: Secret Scan (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
+        # Pinned to a release commit (was the moving `main` branch).
+        uses: trufflesecurity/trufflehog@4dd8831c5f12599465d4d45c3c447b4018a34c85 # v3.97.9
         with:
           extra_args: --only-verified
         continue-on-error: true

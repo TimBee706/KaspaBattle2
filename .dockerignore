@@ -10,3 +10,12 @@ kaspabattle/.env.local
 kaspabattle/.env.example
 docs
 concept
+
+# Never send real secrets to the Docker daemon as build context (the frontend image is
+# built with the repo root as context). Order matters: the "!" lines re-include templates.
+.env
+.env.*
+!.env.example
+!.env.docker.example
+Testdata.txt
+kaspabattle/.env.*

@@ -39,6 +39,8 @@ fn connect_options() -> ConnectOptions {
 ///
 /// If `rpc_url` is `None`, the Resolver automatically finds the best node.
 /// This replaces the hardcoded `wss://photon-10.kaspa.red/...` URL.
+// The error type is external (kaspa_wrpc_client); boxing it would change every caller.
+#[allow(clippy::result_large_err)]
 pub async fn connect_client(
     network_id: NetworkId,
     rpc_url: Option<String>,
@@ -135,7 +137,7 @@ pub async fn run_listener(kaspad: KaspaRpcClient, engines: EngineMap, exit_signa
 
         // Handle reverted blocks
         for rcb in vcb.removed_chain_block_hashes {
-            for (_, (_, sender)) in engines.iter() {
+            for (_, sender) in engines.values() {
                 let msg = Msg::BlkReverted {
                     accepting_hash: rcb,
                 };
@@ -255,7 +257,7 @@ pub async fn run_listener(kaspad: KaspaRpcClient, engines: EngineMap, exit_signa
     }
 
     // Signal all engines to exit
-    for (_, (_, sender)) in engines.iter() {
+    for (_, sender) in engines.values() {
         let _ = sender.send(Msg::Exit);
     }
 }

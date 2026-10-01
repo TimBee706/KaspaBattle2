@@ -1,5 +1,5 @@
-# ─── Base: Node 20 ─────────────────────────────────────────────────────────────
-FROM node:20-slim AS base
+# ─── Base: Node 22 (LTS; Node 20 reached end-of-life in April 2026) ─────────────
+FROM node:22-slim AS base
 WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
@@ -11,7 +11,9 @@ COPY battle-frontend/package*.json ./
 # Copy the vendor directory which contains kaspa-wasm
 COPY battle-frontend/vendor ./vendor
 
-RUN npm install
+# `npm ci` installs exactly what package-lock.json pins (and fails on drift); plain
+# `npm install` could silently resolve newer versions into a production image.
+RUN npm ci
 
 # ─── Development target (used by docker-compose default) ───────────────────────
 FROM base AS dev
@@ -50,7 +52,7 @@ RUN npm run build
 FROM base AS prod
 RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 appuser && \
-    npm install -g serve
+    npm install -g serve@14.2.6
 COPY --from=build /app/dist ./dist
 USER appuser
 EXPOSE 5173

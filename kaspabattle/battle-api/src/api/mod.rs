@@ -355,6 +355,22 @@ fn challenge_is_active(
     used_at.is_none() && expires_at > now
 }
 
+/// Atomically marks a wallet-login challenge as used. Returns `true` only for the single
+/// caller that flipped `used_at` from NULL on a not-yet-expired row (AUDIT F-08).
+pub(crate) async fn consume_wallet_challenge(
+    pool: &PgPool,
+    challenge_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query(
+        "UPDATE wallet_login_challenges SET used_at = NOW() \
+         WHERE id = $1 AND used_at IS NULL AND expires_at > NOW()",
+    )
+    .bind(challenge_id)
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected() == 1)
+}
+
 fn parse_xonly_public_key(public_key_hex: &str) -> Result<XOnlyPublicKey, StatusCode> {
     let public_key_bytes =
         hex::decode(public_key_hex.trim()).map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -554,14 +570,19 @@ pub async fn verify_wallet_login(
     })?;
     tracing::info!("[wallet-verify] ✅ Signature valid for {}", payload.kaspa_address);
 
-    sqlx::query("UPDATE wallet_login_challenges SET used_at = NOW() WHERE id = $1")
-        .bind(challenge_id)
-        .execute(&state.pool)
+    // AUDIT F-08: claim the challenge atomically. The earlier `challenge_is_active` read is
+    // only a fast pre-check; two parallel requests could both pass it, so exactly one may win
+    // the conditional UPDATE below.
+    let claimed = consume_wallet_challenge(&state.pool, challenge_id)
         .await
         .map_err(|e| {
             tracing::error!("[wallet-verify] DB update failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    if !claimed {
+        tracing::info!("[wallet-verify] Challenge already used or expired (lost claim race)");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     tracing::info!("[wallet-verify] Challenge marked as used, proceeding to user lookup...");
 
     // 2. Prüfen ob der Caller BEREITS authentifiziert ist (FaceIT-Session aktiv?)
@@ -654,14 +675,14 @@ pub async fn verify_wallet_login(
     let (user_id, display_name_str) = if let Some(r) = row {
         let uid: uuid::Uuid = r.try_get("id").unwrap_or_else(|_| uuid::Uuid::new_v4());
         let dn: String = r.try_get("display_name").unwrap_or_else(|_|
-            format!("Player_{}", &payload.kaspa_address.chars().skip(6).take(6).collect::<String>())
+            format!("Player_{}", payload.kaspa_address.chars().skip(6).take(6).collect::<String>())
         );
         (uid, dn)
     } else {
         let new_user_id = uuid::Uuid::new_v4();
         let display_name = format!(
             "Player_{}",
-            &payload.kaspa_address.chars().skip(6).take(6).collect::<String>()
+            payload.kaspa_address.chars().skip(6).take(6).collect::<String>()
         );
         let email = format!("{}@wallet.local", new_user_id);
         let password_hash = battle_core::auth::AuthService::hash_password(&uuid::Uuid::new_v4().to_string())
@@ -848,13 +869,22 @@ pub async fn get_history(State(state): State<AppState>) -> Result<Json<Vec<Match
     Ok(Json(matches))
 }
 
+/// Upper wager bound in sompi, from the documented `MAX_WAGER_KAS` (AUDIT F-02).
+/// Previously only `> 0` was checked, so `i64::MAX` reached the escrow arithmetic.
+const MAX_WAGER_SOMPI: i64 =
+    (battle_core::types::MAX_WAGER_KAS * battle_core::types::SOMPI_PER_KAS) as i64;
+
+fn wager_within_max(wager_sompi: i64) -> bool {
+    (1..=MAX_WAGER_SOMPI).contains(&wager_sompi)
+}
+
 pub async fn create_challenge(
     State(state): State<AppState>,
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<CreateReq>,
 ) -> Result<Json<Match>, StatusCode> {
-    if payload.wager_sompi <= 0 {
-        tracing::warn!("create_challenge: wager_sompi must be > 0");
+    if !wager_within_max(payload.wager_sompi) {
+        tracing::warn!("create_challenge: wager_sompi must be in 1..={} sompi", MAX_WAGER_SOMPI);
         return Err(StatusCode::BAD_REQUEST);
     }
     let user_id = user.id;
@@ -1070,6 +1100,11 @@ pub async fn join_challenge(
     Ok(Json(updated))
 }
 
+/// A Kaspa transaction id: 64 hex characters (32 bytes).
+fn is_valid_tx_hash(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 pub async fn submit_deposit(
     State(state): State<AppState>,
     session: SessionUser, // M-05: authentication required
@@ -1083,6 +1118,13 @@ pub async fn submit_deposit(
         payload.player_role,
         caller_id
     );
+
+    // AUDIT F-06: a Kaspa transaction id is exactly 32 bytes of hex. Anything else would
+    // occupy the one-shot deposit slot with junk and block the real hash afterwards.
+    if !is_valid_tx_hash(&payload.tx_hash) {
+        tracing::warn!(match_id = %id, "Deposit rejected: malformed tx_hash");
+        return Err(StatusCode::BAD_REQUEST);
+    }
 
     // Step 1: Fetch the current match to determine player roles and current state
     let m: Match = sqlx::query_as(
@@ -1135,8 +1177,11 @@ pub async fn submit_deposit(
                 );
                 return Err(StatusCode::CONFLICT);
             }
-            sqlx::query(
-                "UPDATE matches SET player_a_deposit_tx_hash = $1 WHERE id = $2"
+            // AUDIT F-06: the read above is only a fast pre-check; the `IS NULL` predicate makes
+            // the claim atomic so two concurrent submissions cannot both record a hash.
+            let res = sqlx::query(
+                "UPDATE matches SET player_a_deposit_tx_hash = $1 \
+                 WHERE id = $2 AND player_a_deposit_tx_hash IS NULL"
             )
             .bind(&payload.tx_hash)
             .bind(id)
@@ -1146,6 +1191,9 @@ pub async fn submit_deposit(
                 tracing::error!("❌ SQL error recording deposit (player A): {:?}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
+            if res.rows_affected() == 0 {
+                return Err(StatusCode::CONFLICT);
+            }
         }
         "B" => {
             if let Some(ref existing) = m.player_b_deposit_tx_hash {
@@ -1157,8 +1205,9 @@ pub async fn submit_deposit(
                 );
                 return Err(StatusCode::CONFLICT);
             }
-            sqlx::query(
-                "UPDATE matches SET player_b_deposit_tx_hash = $1 WHERE id = $2"
+            let res = sqlx::query(
+                "UPDATE matches SET player_b_deposit_tx_hash = $1 \
+                 WHERE id = $2 AND player_b_deposit_tx_hash IS NULL"
             )
             .bind(&payload.tx_hash)
             .bind(id)
@@ -1168,6 +1217,9 @@ pub async fn submit_deposit(
                 tracing::error!("❌ SQL error recording deposit (player B): {:?}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
+            if res.rows_affected() == 0 {
+                return Err(StatusCode::CONFLICT);
+            }
         }
         _ => {
             tracing::error!("❌ submit_deposit: invalid player_role '{}'", payload.player_role);
@@ -1401,12 +1453,14 @@ pub async fn admin_resolve_match(
     // Execute payout via PayoutService
     let result = execute_payout_for_match(&state, &m, &escrow_address, winner_address).await?;
 
-    // Update match status to PAID_OUT
-    sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
+    // Update match status to PAID_OUT. The payout already happened, so a failure must be loud.
+    if let Err(e) = sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
         .await
-        .ok();
+    {
+        tracing::error!(match_id = %id, error = %e, "Payout done but marking PAID_OUT failed — reconcile manually");
+    }
 
     Ok(Json(result))
 }
@@ -1450,7 +1504,7 @@ pub async fn faceit_webhook(
         "Faceit webhook verified: event={}, match_id={}, winner={}",
         event,
         match_id,
-        winner_faceit_id
+        mask_id(&winner_faceit_id)
     );
 
     if event != "match_status_finished" && !event.is_empty() {
@@ -1493,12 +1547,11 @@ pub async fn faceit_webhook(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let winner_address = match winner_user {
-        Some((_uid, addr)) if !addr.is_empty() => addr,
+    let (winner_uid, winner_address) = match winner_user {
+        Some((uid, addr)) if !addr.is_empty() => (uid, addr),
         Some((_uid, _)) => {
             tracing::warn!(
-                winner_faceit_id = %winner_faceit_id,
-                winner_faceit_id = %winner_faceit_id,
+                winner_faceit_id = %mask_id(&winner_faceit_id),
                 "⚠️ Webhook winner has no Kaspa address linked"
             );
             return Ok(Json(serde_json::json!({
@@ -1509,7 +1562,7 @@ pub async fn faceit_webhook(
         None => {
             tracing::warn!(
                 "⚠️ Winner faceit_player_id {} not found in faceit_links",
-                winner_faceit_id
+                mask_id(&winner_faceit_id)
             );
             return Ok(Json(serde_json::json!({
                 "status": "winner_not_found",
@@ -1518,17 +1571,46 @@ pub async fn faceit_webhook(
         }
     };
 
+    // AUDIT F-03: a valid HMAC only proves the event came from FACEIT — not that this
+    // winner belongs to *this* match, nor that the match may still be paid out.
+    if !is_match_participant(winner_uid, m.creator_user_id, m.opponent_user_id) {
+        tracing::warn!(match_id = %m.id, "Webhook winner is not a participant of the match — refusing payout");
+        return Ok(Json(serde_json::json!({ "status": "winner_not_participant" })));
+    }
+    use battle_core::match_state::MatchAction;
+    m.validate_action(&MatchAction::ResolveWinner {
+        winner_id: winner_uid.to_string(),
+    })
+    .map_err(|e| {
+        tracing::warn!(match_id = %m.id, "State machine rejected webhook ResolveWinner: {}", e);
+        StatusCode::CONFLICT
+    })?;
+
     // Execute payout
     let result = execute_payout_for_match(&state, &m, &escrow_address, &winner_address).await?;
 
-    // Update match status
-    sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
+    // Update match status. The payout already happened, so a failure here must be loud:
+    // a stale status would let a repeated webhook delivery attempt a second payout.
+    if let Err(e) = sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
         .bind(m.id)
         .execute(&state.pool)
         .await
-        .ok();
+    {
+        tracing::error!(match_id = %m.id, error = %e, "Payout done but marking PAID_OUT failed — reconcile manually");
+    }
 
     Ok(Json(result))
+}
+
+/// True if `user` is the creator or the joined opponent of a match.
+fn is_match_participant(user: Uuid, creator: Uuid, opponent: Option<Uuid>) -> bool {
+    user == creator || Some(user) == opponent
+}
+
+/// Log-safe short form of an external identifier (never log full FACEIT player IDs).
+fn mask_id(id: &str) -> String {
+    let head: String = id.chars().take(4).collect();
+    format!("{head}…")
 }
 
 /// Helper: get a user's Kaspa address from their UUID
@@ -1985,6 +2067,49 @@ mod tests {
         );
 
         assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
+    fn webhook_winner_must_be_a_participant() {
+        let (a, b, x) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        assert!(is_match_participant(a, a, Some(b)));
+        assert!(is_match_participant(b, a, Some(b)));
+        assert!(!is_match_participant(x, a, Some(b)));
+        assert!(!is_match_participant(x, a, None));
+    }
+
+    #[test]
+    fn mask_id_never_returns_the_full_identifier() {
+        let full = "0123456789abcdef";
+        let masked = mask_id(full);
+        assert!(!masked.contains(full));
+        assert!(masked.starts_with("0123"));
+        assert_eq!(mask_id(""), "…");
+        assert_eq!(mask_id("äö"), "äö…"); // char-boundary safe
+    }
+
+    #[test]
+    fn tx_hash_must_be_64_hex_chars() {
+        assert!(is_valid_tx_hash(&"ab".repeat(32)));
+        assert!(is_valid_tx_hash(&"AB".repeat(32)));
+        assert!(!is_valid_tx_hash(""));
+        assert!(!is_valid_tx_hash("tx123"));
+        assert!(!is_valid_tx_hash(&"ab".repeat(31))); // too short
+        assert!(!is_valid_tx_hash(&"ab".repeat(33))); // too long
+        assert!(!is_valid_tx_hash(&format!("{}zz", "ab".repeat(31)))); // non-hex
+        assert!(!is_valid_tx_hash(&format!("{} ", "a".repeat(63)))); // whitespace
+        assert!(!is_valid_tx_hash(&"é".repeat(32))); // 64 bytes but not ASCII hex
+    }
+
+    #[test]
+    fn wager_bounds_are_enforced() {
+        assert!(wager_within_max(1));
+        assert!(wager_within_max(MAX_WAGER_SOMPI));
+        assert!(!wager_within_max(0));
+        assert!(!wager_within_max(-1));
+        assert!(!wager_within_max(MAX_WAGER_SOMPI + 1));
+        assert!(!wager_within_max(i64::MAX));
+        assert!(!wager_within_max(i64::MIN));
     }
 
     #[test]

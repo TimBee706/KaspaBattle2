@@ -78,10 +78,22 @@ pub fn match_rpm() -> u32 {
         .unwrap_or(3)
 }
 
+/// Picks the client IP out of an `X-Forwarded-For` value: the **last** entry.
+///
+/// AUDIT F-16: the leftmost entries are whatever the client sent, so trusting the first one
+/// lets anybody dodge (or poison) the per-IP limits by prepending a fake address. The last
+/// entry is the one appended by our own trusted reverse proxy (Caddy) for the peer it saw.
+/// Only meaningful with `TRUST_X_FORWARDED_FOR=true` and the backend reachable exclusively
+/// through that proxy.
+fn client_ip_from_xff(value: &str) -> Option<IpAddr> {
+    value.rsplit(',').next()?.trim().parse::<IpAddr>().ok()
+}
+
 /// Extract the client IP from the request.
 ///
-/// Checks `X-Forwarded-For` first (for reverse-proxy setups), then falls back
-/// to the TCP peer address from `ConnectInfo<SocketAddr>`.
+/// With `TRUST_X_FORWARDED_FOR=true` (required behind Caddy, otherwise every user shares the
+/// proxy's IP and therefore one rate-limit bucket) the proxy-appended `X-Forwarded-For` entry
+/// is used; otherwise the TCP peer address from `ConnectInfo<SocketAddr>`.
 fn extract_ip(req: &Request<Body>) -> Option<IpAddr> {
     // Check if TRUST_X_FORWARDED_FOR is set
     let trust_proxy = std::env::var("TRUST_X_FORWARDED_FOR")
@@ -89,15 +101,13 @@ fn extract_ip(req: &Request<Body>) -> Option<IpAddr> {
         .unwrap_or(false);
 
     if trust_proxy {
-        // Try X-Forwarded-For first (first IP in comma-separated list)
-        if let Some(forwarded) = req.headers().get("x-forwarded-for") {
-            if let Ok(val) = forwarded.to_str() {
-                if let Some(first) = val.split(',').next() {
-                    if let Ok(ip) = first.trim().parse::<IpAddr>() {
-                        return Some(ip);
-                    }
-                }
-            }
+        if let Some(ip) = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(client_ip_from_xff)
+        {
+            return Some(ip);
         }
     }
 
@@ -146,5 +156,44 @@ pub async fn rate_limit_middleware(
             );
             too_many_requests()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn xff_uses_the_proxy_appended_last_entry() {
+        // A client-supplied fake address in front must not win.
+        assert_eq!(
+            client_ip_from_xff("1.2.3.4, 203.0.113.7"),
+            Some("203.0.113.7".parse().unwrap())
+        );
+        assert_eq!(
+            client_ip_from_xff("203.0.113.7"),
+            Some("203.0.113.7".parse().unwrap())
+        );
+        assert_eq!(
+            client_ip_from_xff("evil, 2001:db8::1"),
+            Some("2001:db8::1".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn xff_garbage_yields_none_so_the_peer_address_is_used() {
+        assert_eq!(client_ip_from_xff(""), None);
+        assert_eq!(client_ip_from_xff("1.2.3.4, not-an-ip"), None);
+        assert_eq!(client_ip_from_xff("unknown"), None);
+    }
+
+    #[test]
+    fn distinct_ips_get_distinct_buckets() {
+        let limiter = build_ip_limiter(1);
+        let a: IpAddr = "203.0.113.1".parse().unwrap();
+        let b: IpAddr = "203.0.113.2".parse().unwrap();
+        assert!(limiter.check_key(&a).is_ok());
+        assert!(limiter.check_key(&a).is_err(), "second hit from the same IP is limited");
+        assert!(limiter.check_key(&b).is_ok(), "another IP is unaffected");
     }
 }

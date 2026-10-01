@@ -43,59 +43,6 @@ pub(crate) fn calculate_prize_shares(
     (winner, runner_up, fee)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn prize_shares_standard() {
-        let (w, r, f) = calculate_prize_shares(1_000_000, 70, 20);
-        assert_eq!(w, 700_000);
-        assert_eq!(r, 200_000);
-        assert_eq!(f, 100_000);
-    }
-
-    #[test]
-    fn prize_shares_rounding_dust_goes_to_fee() {
-        // pool=101, 70%=70, 20%=20, fee absorbs the 11 remainder
-        let (w, r, f) = calculate_prize_shares(101, 70, 20);
-        assert_eq!(w, 70);
-        assert_eq!(r, 20);
-        assert_eq!(f, 11);
-    }
-
-    #[test]
-    fn prize_shares_zero_pool() {
-        assert_eq!(calculate_prize_shares(0, 70, 20), (0, 0, 0));
-    }
-
-    #[test]
-    fn daa_confirmation_ibd_fallback() {
-        // current_daa == 0 but block_daa_score > 0 → treat as MIN_CONFIRMATIONS_TOURNAMENT
-        let block_daa: u64 = 1_000_000;
-        let current_daa: u64 = 0;
-        let confs: u64 = if current_daa > 0 {
-            current_daa.saturating_sub(block_daa)
-        } else if block_daa > 0 {
-            MIN_CONFIRMATIONS_TOURNAMENT
-        } else {
-            0
-        };
-        assert_eq!(confs, MIN_CONFIRMATIONS_TOURNAMENT);
-    }
-
-    #[test]
-    fn daa_confirmation_threshold() {
-        let block_daa: u64 = 1_000;
-        let current_daa: u64 = 1_009; // 9 confs — not enough
-        let confs = current_daa.saturating_sub(block_daa);
-        assert!(confs < MIN_CONFIRMATIONS_TOURNAMENT);
-
-        let current_daa2: u64 = 1_010; // exactly 10 — sufficient
-        let confs2 = current_daa2.saturating_sub(block_daa);
-        assert!(confs2 >= MIN_CONFIRMATIONS_TOURNAMENT);
-    }
-}
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -783,4 +730,58 @@ async fn execute_pending_refunds(pool: &PgPool, payout_service: &PayoutService) 
     }
 
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prize_shares_standard() {
+        let (w, r, f) = calculate_prize_shares(1_000_000, 70, 20);
+        assert_eq!(w, 700_000);
+        assert_eq!(r, 200_000);
+        assert_eq!(f, 100_000);
+    }
+
+    #[test]
+    fn prize_shares_rounding_dust_goes_to_fee() {
+        // pool=101, 70%=70, 20%=20, fee absorbs the 11 remainder
+        let (w, r, f) = calculate_prize_shares(101, 70, 20);
+        assert_eq!(w, 70);
+        assert_eq!(r, 20);
+        assert_eq!(f, 11);
+    }
+
+    #[test]
+    fn prize_shares_zero_pool() {
+        assert_eq!(calculate_prize_shares(0, 70, 20), (0, 0, 0));
+    }
+
+    #[test]
+    fn daa_confirmation_ibd_fallback() {
+        // current_daa == 0 but block_daa_score > 0 → treat as MIN_CONFIRMATIONS_TOURNAMENT
+        let block_daa: u64 = 1_000_000;
+        let current_daa: u64 = 0;
+        let confs: u64 = if current_daa > 0 {
+            current_daa.saturating_sub(block_daa)
+        } else if block_daa > 0 {
+            MIN_CONFIRMATIONS_TOURNAMENT
+        } else {
+            0
+        };
+        assert_eq!(confs, MIN_CONFIRMATIONS_TOURNAMENT);
+    }
+
+    #[test]
+    fn daa_confirmation_threshold() {
+        let block_daa: u64 = 1_000;
+        let current_daa: u64 = 1_009; // 9 confs — not enough
+        let confs = current_daa.saturating_sub(block_daa);
+        assert!(confs < MIN_CONFIRMATIONS_TOURNAMENT);
+
+        let current_daa2: u64 = 1_010; // exactly 10 — sufficient
+        let confs2 = current_daa2.saturating_sub(block_daa);
+        assert!(confs2 >= MIN_CONFIRMATIONS_TOURNAMENT);
+    }
 }

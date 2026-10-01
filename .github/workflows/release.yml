@@ -40,7 +40,8 @@ jobs:
 
       # ── Image Security Scan (Trivy) ──
       - name: Scan Backend Image with Trivy
-        uses: aquasecurity/trivy-action@master
+        # Pinned to a release commit (was the moving `master` branch, in a job holding packages:write).
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ github.ref_name }}
           format: 'sarif'

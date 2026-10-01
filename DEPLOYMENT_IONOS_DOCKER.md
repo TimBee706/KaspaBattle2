@@ -71,6 +71,7 @@ In `.env` **und** `.env.production` (siehe `.env.docker.example` für alle Varia
 | `ADMIN_API_KEY`, `ORACLE_API_KEYS`, `FACEIT_WEBHOOK_SECRET` | Je `openssl rand -hex 32` |
 | `DOMAIN`, `TLS_EMAIL` | Nur für `--profile proxy` (Caddy) relevant |
 | `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` | Echte Domain statt `localhost` |
+| `TRUST_X_FORWARDED_FOR` | `true` hinter Caddy: sonst sehen alle Nutzer dieselbe Proxy-IP und teilen sich **einen** Rate-Limit-Topf. Nur setzen, wenn das Backend ausschließlich über Caddy erreichbar ist (Compose bindet 8080/5173 an `127.0.0.1`). |
 
 Alle Platzhalter im Template sind bewusst offensichtlich ungültig (`CHANGE_ME_*`) — es sind **keine**
 Dummy-Mnemonics oder Test-Secrets im Repo in produktiven Pfaden hinterlegt (verifiziert: `.env`,

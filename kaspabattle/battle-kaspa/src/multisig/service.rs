@@ -110,7 +110,28 @@ impl MultisigEscrowService {
         })
     }
 
+    /// Builds the public info view of a stored escrow record.
+    fn escrow_info(escrow: &MultisigEscrow) -> MultisigEscrowInfo {
+        MultisigEscrowInfo {
+            match_id: escrow.match_id.to_string(),
+            escrow_address: escrow.p2sh_address.clone(),
+            redeem_script_hex: escrow.redeem_script_hex.clone(),
+            pubkeys: vec![
+                escrow.pubkey_a_hex.clone(),
+                escrow.pubkey_b_hex.clone(),
+                escrow.pubkey_oracle_hex.clone(),
+            ],
+            threshold: 2,
+            wager_per_player_sompi: escrow.wager_per_player_sompi,
+            wager_per_player_kas: escrow.wager_per_player_sompi as f64 / SOMPI_PER_KAS as f64,
+            timelock_timestamp: escrow.timelock_timestamp,
+        }
+    }
+
     /// Create a new 2-of-3 multisig escrow for a match.
+    ///
+    /// Idempotent: if an escrow already exists for `match_id` it is returned unchanged
+    /// and the passed wager/timelock are ignored.
     ///
     /// Generates key pairs for both players (backend-held model), builds
     /// the redeem script, and derives the P2SH escrow address.
@@ -125,6 +146,15 @@ impl MultisigEscrowService {
         wager_per_player_sompi: u64,
         timelock_timestamp: Option<u64>,
     ) -> Result<MultisigEscrowInfo> {
+        // The payout/refund paths compute `wager * 2`; reject amounts that could overflow
+        // (a wrapped product would defeat the "escrow is fully funded" balance check).
+        if wager_per_player_sompi == 0 || wager_per_player_sompi.checked_mul(2).is_none() {
+            return Err(anyhow!(
+                "Invalid wager: {} sompi (must be > 0 and fit twice into u64)",
+                wager_per_player_sompi
+            ));
+        }
+
         // Generate deterministic player keys from match_id
         let (pk_a_hex, sk_a) = self.derive_player_key(&match_id, "player_a")?;
         let (pk_b_hex, sk_b) = self.derive_player_key(&match_id, "player_b")?;
@@ -165,9 +195,18 @@ impl MultisigEscrowService {
             created_at: Utc::now(),
         };
 
-        // Store escrow
+        // Store escrow. get-or-create: never replace an existing record, otherwise a repeated
+        // call with different wager/timelock values would silently rewrite the terms of a
+        // live escrow (payout/refund read `wager_per_player_sompi` from this record).
         {
             let mut escrows = self.escrows.lock().await;
+            if let Some(existing) = escrows.get(&match_id) {
+                tracing::warn!(
+                    "Escrow for match {} already exists — returning existing record unchanged",
+                    match_id
+                );
+                return Ok(Self::escrow_info(existing));
+            }
             escrows.insert(match_id, escrow);
         }
 
@@ -254,7 +293,8 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to get UTXOs: {}", e))?;
 
         let total_balance: u64 = utxos.iter().map(|u| u.amount).sum();
-        let expected = escrow.wager_per_player_sompi * 2;
+        // saturating: an (impossible-by-construction) overflow must fail closed, not wrap to a tiny value
+        let expected = escrow.wager_per_player_sompi.saturating_mul(2);
         if total_balance < expected {
             return Err(anyhow!(
                 "Insufficient escrow balance: have {} sompi, need {}",
@@ -605,7 +645,8 @@ impl MultisigEscrowService {
             .map_err(|e| anyhow!("Failed to get UTXOs for escrow: {}", e))?;
 
         let total_balance: u64 = utxos.iter().map(|u| u.amount).sum();
-        let expected = escrow.wager_per_player_sompi * 2;
+        // saturating: an (impossible-by-construction) overflow must fail closed, not wrap to a tiny value
+        let expected = escrow.wager_per_player_sompi.saturating_mul(2);
         if total_balance < expected {
             return Err(anyhow!(
                 "Insufficient escrow balance for PSKT: have {} sompi, need {}",
@@ -978,6 +1019,42 @@ mod tests {
         assert_eq!(info.pubkeys.len(), 3);
         assert!(!info.redeem_script_hex.is_empty());
         assert_eq!(info.wager_per_player_sompi, 5_000_000);
+    }
+
+    /// AUDIT F-01: a second create_escrow call for an existing match must not rewrite
+    /// the stored wager/timelock (previously `escrows.insert` overwrote the record).
+    #[tokio::test]
+    async fn test_create_escrow_is_idempotent_and_does_not_overwrite() {
+        let (service, _mock) = make_service();
+        let match_id = Uuid::new_v4();
+
+        let first = service.create_escrow(match_id, 5_000_000, None).await.unwrap();
+        let second = service
+            .create_escrow(match_id, 1, Some(42))
+            .await
+            .unwrap();
+
+        assert_eq!(second.wager_per_player_sompi, 5_000_000);
+        assert_eq!(second.timelock_timestamp, None);
+        assert_eq!(second.escrow_address, first.escrow_address);
+        let stored = service.get_escrow(&match_id).await.unwrap();
+        assert_eq!(stored.wager_per_player_sompi, 5_000_000);
+        assert_eq!(stored.timelock_timestamp, None);
+    }
+
+    /// AUDIT F-02: wagers whose double overflows u64 (or zero) must be rejected.
+    #[tokio::test]
+    async fn test_create_escrow_rejects_zero_and_overflowing_wager() {
+        let (service, _mock) = make_service();
+        for bad in [0u64, u64::MAX / 2 + 1, u64::MAX] {
+            let res = service.create_escrow(Uuid::new_v4(), bad, None).await;
+            assert!(res.is_err(), "wager {} must be rejected", bad);
+        }
+        // Boundary: largest value whose double still fits is accepted.
+        assert!(service
+            .create_escrow(Uuid::new_v4(), u64::MAX / 2, None)
+            .await
+            .is_ok());
     }
 
     #[tokio::test]

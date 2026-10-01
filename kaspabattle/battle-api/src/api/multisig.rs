@@ -26,6 +26,8 @@ use crate::api::admin_guard::AdminApiKey;
 pub struct CreateEscrowReq {
     pub match_id: Uuid,
     pub wager_per_player_sompi: u64,
+    /// Accepted for wire compatibility only; deliberately ignored (see `create_escrow`).
+    #[allow(dead_code)]
     pub timelock_timestamp: Option<u64>,
 }
 
@@ -64,6 +66,27 @@ pub fn router() -> Router<AppState> {
         .route("/:match_id/refund", post(execute_refund))
 }
 
+/// Decides whether `caller` may request the escrow of a match (AUDIT F-01).
+///
+/// Pure so the rule is unit-testable without a database: the caller must be the
+/// creator or the joined opponent, and the requested wager must equal the wager
+/// stored on the match row.
+fn authorize_escrow_request(
+    caller: Uuid,
+    creator: Uuid,
+    opponent: Option<Uuid>,
+    db_wager_sompi: i64,
+    requested_wager_sompi: u64,
+) -> Result<(), StatusCode> {
+    if caller != creator && Some(caller) != opponent {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if db_wager_sompi <= 0 || db_wager_sompi as u64 != requested_wager_sompi {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    Ok(())
+}
+
 // ─── Handlers ────────────────────────────────────────────────────────────
 
 /// POST /api/v1/multisig/create
@@ -72,7 +95,7 @@ pub fn router() -> Router<AppState> {
 /// Returns the P2SH escrow address, redeem script, and public keys.
 async fn create_escrow(
     State(state): State<AppState>,
-    SessionUser(_user): SessionUser,
+    SessionUser(user): SessionUser,
     Json(payload): Json<CreateEscrowReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let multisig_svc = state.multisig_service.as_ref().ok_or_else(|| {
@@ -80,12 +103,31 @@ async fn create_escrow(
         StatusCode::SERVICE_UNAVAILABLE
     })?;
 
+    // AUDIT F-01: the escrow terms come from the match row, never from the client.
+    // Only a participant of an existing match may (re-)request its escrow.
+    let row: Option<(Uuid, Option<Uuid>, i64)> = sqlx::query_as(
+        "SELECT creator_user_id, opponent_user_id, wager_sompi FROM matches WHERE id = $1",
+    )
+    .bind(payload.match_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("create_escrow: match lookup failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let (creator, opponent, db_wager) = row.ok_or(StatusCode::NOT_FOUND)?;
+    authorize_escrow_request(
+        user.id,
+        creator,
+        opponent,
+        db_wager,
+        payload.wager_per_player_sompi,
+    )?;
+
+    // The client-supplied timelock is deliberately ignored (escrows are created with none
+    // by `create_challenge`; the service returns the existing record if there is one).
     match multisig_svc
-        .create_escrow(
-            payload.match_id,
-            payload.wager_per_player_sompi,
-            payload.timelock_timestamp,
-        )
+        .create_escrow(payload.match_id, payload.wager_per_player_sompi, None)
         .await
     {
         Ok(info) => {
@@ -178,10 +220,20 @@ async fn execute_payout(
             );
 
             // Update match status in DB
-            let _ = sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
+            // The TX is already broadcast: a failed status write must be loud (a stale
+            // status invites a second payout attempt), so log at error level.
+            if let Err(e) = sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE id = $1")
                 .bind(match_id)
                 .execute(&state.pool)
-                .await;
+                .await
+            {
+                tracing::error!(
+                    match_id = %match_id,
+                    tx = %result.tx_id,
+                    error = %e,
+                    "TX broadcast but marking match PAID_OUT failed — reconcile manually"
+                );
+            }
 
             Ok(Json(serde_json::to_value(result).unwrap()))
         }
@@ -223,10 +275,18 @@ async fn execute_refund(
             );
 
             // Update match status in DB
-            let _ = sqlx::query("UPDATE matches SET status = 'REFUNDED' WHERE id = $1")
+            if let Err(e) = sqlx::query("UPDATE matches SET status = 'REFUNDED' WHERE id = $1")
                 .bind(match_id)
                 .execute(&state.pool)
-                .await;
+                .await
+            {
+                tracing::error!(
+                    match_id = %match_id,
+                    tx = %result.tx_id,
+                    error = %e,
+                    "TX broadcast but marking match REFUNDED failed — reconcile manually"
+                );
+            }
 
             Ok(Json(serde_json::to_value(result).unwrap()))
         }
@@ -234,5 +294,48 @@ async fn execute_refund(
             tracing::error!("❌ Multisig refund failed: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id() -> Uuid {
+        Uuid::new_v4()
+    }
+
+    #[test]
+    fn creator_and_opponent_may_request_escrow() {
+        let (a, b) = (id(), id());
+        assert_eq!(authorize_escrow_request(a, a, Some(b), 100, 100), Ok(()));
+        assert_eq!(authorize_escrow_request(b, a, Some(b), 100, 100), Ok(()));
+        assert_eq!(authorize_escrow_request(a, a, None, 100, 100), Ok(()));
+    }
+
+    #[test]
+    fn stranger_is_forbidden() {
+        let (a, b, x) = (id(), id(), id());
+        assert_eq!(
+            authorize_escrow_request(x, a, Some(b), 100, 100),
+            Err(StatusCode::FORBIDDEN)
+        );
+        // No opponent yet: a stranger must not match `None`.
+        assert_eq!(
+            authorize_escrow_request(x, a, None, 100, 100),
+            Err(StatusCode::FORBIDDEN)
+        );
+    }
+
+    #[test]
+    fn wager_must_match_the_match_row() {
+        let a = id();
+        assert_eq!(authorize_escrow_request(a, a, None, 100, 1), Err(StatusCode::BAD_REQUEST));
+        assert_eq!(
+            authorize_escrow_request(a, a, None, 100, u64::MAX),
+            Err(StatusCode::BAD_REQUEST)
+        );
+        assert_eq!(authorize_escrow_request(a, a, None, 0, 0), Err(StatusCode::BAD_REQUEST));
+        assert_eq!(authorize_escrow_request(a, a, None, -5, 5), Err(StatusCode::BAD_REQUEST));
     }
 }
