@@ -69,14 +69,15 @@ pub trait KaspaBackend: Send + Sync {
     async fn disconnect(&self) -> std::result::Result<(), KaspaError>;
     async fn is_connected(&self) -> bool;
     async fn is_synced(&self) -> std::result::Result<bool, KaspaError>;
-    
+
     async fn get_balance(&self, address: &str) -> std::result::Result<u64, KaspaError>;
     async fn get_utxos(&self, address: &str) -> std::result::Result<Vec<UtxoInfo>, KaspaError>;
-    
+
     /// Abstract transaction submission: Avoids leaking kaspa_rpc_core types.
     /// Expects a fully assembled, serialized Kaspa transaction encoded as a Hex string
     /// or JSON payload. JSON of RpcTransaction is standard.
-    async fn submit_transaction(&self, tx_payload: &str) -> std::result::Result<String, KaspaError>;
+    async fn submit_transaction(&self, tx_payload: &str)
+        -> std::result::Result<String, KaspaError>;
 
     /// Fetch transaction details by TX ID.
     ///

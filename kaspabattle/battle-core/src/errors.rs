@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -7,16 +7,29 @@ pub enum MatchError {
     MatchNotFound,
     NotAPlayer,
     SamePlayerCannotJoin,
-    InvalidTransition { from: String, action: String },
-    InvalidWagerAmount { min: u64, max: u64, provided: u64 },
+    InvalidTransition {
+        from: String,
+        action: String,
+    },
+    InvalidWagerAmount {
+        min: u64,
+        max: u64,
+        provided: u64,
+    },
     InvalidGameType(String),
     AlreadyDeposited,
-    DepositAmountMismatch { expected: u64, received: u64 },
+    DepositAmountMismatch {
+        expected: u64,
+        received: u64,
+    },
     MatchAlreadyResolved,
     CannotCancelLockedMatch,
     InternalError(String),
     /// F-010: Both players submitted FaceIT match IDs but they don't match.
-    FaceitMatchIdMismatch { id_a: String, id_b: String },
+    FaceitMatchIdMismatch {
+        id_a: String,
+        id_b: String,
+    },
 }
 
 impl fmt::Display for MatchError {
@@ -41,7 +54,11 @@ impl fmt::Display for MatchError {
             MatchError::CannotCancelLockedMatch => write!(f, "Cannot cancel a locked match"),
             MatchError::InternalError(e) => write!(f, "Internal error: {}", e),
             MatchError::FaceitMatchIdMismatch { id_a, id_b } => {
-                write!(f, "FaceIT match ID mismatch: player A entered '{}', player B entered '{}'", id_a, id_b)
+                write!(
+                    f,
+                    "FaceIT match ID mismatch: player A entered '{}', player B entered '{}'",
+                    id_a, id_b
+                )
             }
         }
     }

@@ -5,9 +5,16 @@ use crate::kdapp_generator::{PatternType, PrefixType};
 /// KaspaBattle-specific bit-pattern for TX-ID filtering.
 /// 10-bit pattern → ~1:1024 collision rate.
 pub const BATTLE_PATTERN: PatternType = [
-    (0, 1), (1, 0), (2, 1), (3, 1),
-    (4, 0), (5, 1), (6, 0), (7, 1),
-    (8, 1), (9, 0),
+    (0, 1),
+    (1, 0),
+    (2, 1),
+    (3, 1),
+    (4, 0),
+    (5, 1),
+    (6, 0),
+    (7, 1),
+    (8, 1),
+    (9, 0),
 ];
 
 /// 4-byte payload prefix: "KBT2" = 0x4B425432

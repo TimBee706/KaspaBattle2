@@ -22,10 +22,10 @@ pub enum MatchStatus {
     PaidOut,         // Payout executed
     Disputed,        // Dispute filed
     Cancelled,
-    Refunded,        // Refund executed — deposits returned to players
-    ReadyToPlay,     // NATIVE: both deposits confirmed, session created, waiting for start
-    FinishedGame,    // NATIVE: server engine decided the game, winner known (payout worker input)
-    RefundPending,   // NATIVE: draw — both stakes are to be refunded (refund worker input)
+    Refunded,      // Refund executed — deposits returned to players
+    ReadyToPlay,   // NATIVE: both deposits confirmed, session created, waiting for start
+    FinishedGame,  // NATIVE: server engine decided the game, winner known (payout worker input)
+    RefundPending, // NATIVE: draw — both stakes are to be refunded (refund worker input)
 }
 
 /// Who runs the game (snapshotted on the match when it is created).
@@ -150,7 +150,8 @@ pub struct Match {
     // ── v1.0 Payout PSKT (F-010) ──
     /// Hex-encoded Partially Signed Kaspa Transaction (with Oracle signature)
     #[sqlx(default)]
-    #[serde(skip_serializing)] // AUDIT F-09: only served by the participant-guarded /payout/pskt endpoint
+    #[serde(skip_serializing)]
+    // AUDIT F-09: only served by the participant-guarded /payout/pskt endpoint
     pub payout_pskt_hex: Option<String>,
     /// Payout TX hash after broadcast
     #[sqlx(default)]
@@ -250,12 +251,11 @@ impl Match {
                 faceit_id_a: self.faceit_match_id_player_a.clone(),
                 faceit_id_b: self.faceit_match_id_player_b.clone(),
             },
-            MatchStatus::InGame if self.provider == MatchProvider::Native => MatchState::NativeInGame,
+            MatchStatus::InGame if self.provider == MatchProvider::Native => {
+                MatchState::NativeInGame
+            }
             MatchStatus::InGame => MatchState::InGame {
-                faceit_match_id: self
-                    .faceit_match_id_final
-                    .clone()
-                    .unwrap_or_default(),
+                faceit_match_id: self.faceit_match_id_final.clone().unwrap_or_default(),
             },
             MatchStatus::FinishedFaceit => MatchState::FinishedFaceit {
                 winner_id: self
@@ -348,7 +348,11 @@ mod tests {
         assert_eq!(m.payout_pskt_hex.as_deref(), Some("00ff"));
 
         let out = serde_json::to_value(&m).unwrap();
-        for key in ["player_a_faceid_hash", "player_b_faceid_hash", "payout_pskt_hex"] {
+        for key in [
+            "player_a_faceid_hash",
+            "player_b_faceid_hash",
+            "payout_pskt_hex",
+        ] {
             assert!(out.get(key).is_none(), "{key} must not be serialized");
         }
         assert_eq!(out["game_id"], "cs2");

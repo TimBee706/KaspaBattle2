@@ -55,9 +55,12 @@ impl RealKaspaClient {
     /// # Arguments
     /// * `node_url` - Optional explicit wRPC endpoint. If `None`, Resolver is used.
     /// * `network` - Network identifier (e.g. "testnet-10")
-    pub async fn new_with_resolver(node_url: Option<&str>, network: &str) -> std::result::Result<Self, KaspaError> {
-        use kaspa_wrpc_client::WrpcEncoding;
+    pub async fn new_with_resolver(
+        node_url: Option<&str>,
+        network: &str,
+    ) -> std::result::Result<Self, KaspaError> {
         use kaspa_wrpc_client::prelude::Resolver;
+        use kaspa_wrpc_client::WrpcEncoding;
 
         let network_id = Self::parse_network_id(network)?;
 
@@ -163,17 +166,13 @@ impl RealKaspaClient {
     /// Uses get_server_info() as a lightweight health-check ping.
     async fn ensure_connected(&self) -> std::result::Result<(), KaspaError> {
         use kaspa_rpc_core::api::rpc::RpcApi;
-        match tokio::time::timeout(
-            Duration::from_secs(5),
-            self.inner.get_server_info(),
-        )
-        .await
-        {
+        match tokio::time::timeout(Duration::from_secs(5), self.inner.get_server_info()).await {
             Ok(Ok(_)) => Ok(()),
             Ok(Err(e)) => {
                 tracing::warn!(
                     "🔄 RPC call failed ({}), reconnecting to {}",
-                    e, self.node_url
+                    e,
+                    self.node_url
                 );
                 self.connect_with_retry(3).await
             }
@@ -283,11 +282,16 @@ impl KaspaBackend for RealKaspaClient {
     }
 
     /// F-003: Real transaction submission to the Kaspa node using JSON deserialization.
-    async fn submit_transaction(&self, tx_payload: &str) -> std::result::Result<String, KaspaError> {
+    async fn submit_transaction(
+        &self,
+        tx_payload: &str,
+    ) -> std::result::Result<String, KaspaError> {
         use kaspa_rpc_core::api::rpc::RpcApi;
-        
+
         let tx: kaspa_rpc_core::model::tx::RpcTransaction = serde_json::from_str(tx_payload)
-            .map_err(|e| KaspaError::TransactionFailed(format!("Invalid TX payload JSON: {}", e)))?;
+            .map_err(|e| {
+                KaspaError::TransactionFailed(format!("Invalid TX payload JSON: {}", e))
+            })?;
 
         // Pre-flight: refuse to submit if node is not synced
         let synced = self.is_synced().await?;
@@ -415,23 +419,27 @@ impl KaspaBackend for RealKaspaClient {
             }
             match self.get_node_info().await {
                 Ok(info) => {
-                    tracing::debug!("🔍 Node status: synced={}, utxo_indexed={}, version={}",
-                        info.is_synced, info.is_utxo_indexed, info.server_version
+                    tracing::debug!(
+                        "🔍 Node status: synced={}, utxo_indexed={}, version={}",
+                        info.is_synced,
+                        info.is_utxo_indexed,
+                        info.server_version
                     );
                     if info.is_synced && info.is_utxo_indexed {
                         tracing::info!(
                             "✅ Kaspa node ready: synced={}, utxo_indexed={}",
-                            info.is_synced, info.is_utxo_indexed
+                            info.is_synced,
+                            info.is_utxo_indexed
                         );
                         return Ok(());
                     }
                     if !info.is_utxo_indexed {
-                        tracing::info!("🚨 UTXO index NOT enabled — start kaspad with --utxoindex"
-                        );
+                        tracing::info!("🚨 UTXO index NOT enabled — start kaspad with --utxoindex");
                     }
                     tracing::info!(
                         "⏳ Waiting for node: synced={}, utxo_indexed={}",
-                        info.is_synced, info.is_utxo_indexed
+                        info.is_synced,
+                        info.is_utxo_indexed
                     );
                 }
                 Err(e) => {

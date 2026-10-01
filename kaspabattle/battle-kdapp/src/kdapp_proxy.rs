@@ -9,16 +9,16 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::time::Duration;
 
 use kaspa_consensus_core::network::NetworkId;
+use kaspa_hashes::Hash;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wrpc_client::prelude::*;
 use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding};
-use kaspa_hashes::Hash;
 use log::{debug, info, warn};
 use tokio::time::{sleep_until, Instant};
 
@@ -54,8 +54,13 @@ pub async fn connect_client(
     };
 
     debug!("Connecting to Kaspad {}", url);
-    let client =
-        KaspaRpcClient::new_with_args(WrpcEncoding::Borsh, Some(&url), None, Some(network_id), None)?;
+    let client = KaspaRpcClient::new_with_args(
+        WrpcEncoding::Borsh,
+        Some(&url),
+        None,
+        Some(network_id),
+        None,
+    )?;
     client.connect(Some(connect_options())).await.map_err(|e| {
         warn!("Kaspad connection failed: {e}");
         e
@@ -97,7 +102,11 @@ pub type EngineMap = HashMap<PrefixType, (PatternType, Sender<Msg>)>;
 /// and forwarding matching payloads to the appropriate Engine.
 ///
 /// This replaces the 5-second UTXO polling in `BlockchainWatcher`.
-pub async fn run_listener(kaspad: KaspaRpcClient, engines: EngineMap, exit_signal: Arc<AtomicBool>) {
+pub async fn run_listener(
+    kaspad: KaspaRpcClient,
+    engines: EngineMap,
+    exit_signal: Arc<AtomicBool>,
+) {
     let info = kaspad.get_block_dag_info().await.unwrap();
     let mut sink = info.sink;
     let mut now = Instant::now();
@@ -155,7 +164,11 @@ pub async fn run_listener(kaspad: KaspaRpcClient, engines: EngineMap, exit_signa
                 .iter()
                 .copied()
                 .skip(1)
-                .filter(|&id| engines.values().any(|(pattern, _)| check_pattern(id, pattern)))
+                .filter(|&id| {
+                    engines
+                        .values()
+                        .any(|(pattern, _)| check_pattern(id, pattern))
+                })
                 .collect();
 
             if required_txs.is_empty() {

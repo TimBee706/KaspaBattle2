@@ -17,10 +17,10 @@
 //! - `proxy_config` — Pattern/Prefix constants
 
 // ── kdapp framework (inlined) ───────────────────────────────────────────
-pub mod kdapp_pki;
+pub mod kdapp_engine;
 pub mod kdapp_episode;
 pub mod kdapp_generator;
-pub mod kdapp_engine;
+pub mod kdapp_pki;
 pub mod kdapp_proxy;
 
 // ── KaspaBattle application modules ─────────────────────────────────────
@@ -33,7 +33,6 @@ pub mod startup;
 // ── Tournament modules (Phase 1) ─────────────────────────────────────────
 pub mod tournament_commands;
 pub mod tournament_episode;
-
 
 #[cfg(test)]
 mod engine_integration_test;

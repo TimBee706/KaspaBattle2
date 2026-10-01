@@ -131,9 +131,7 @@ pub enum TournamentCommand {
     ///
     /// Triggers refund of all confirmed deposits.
     /// Authorized by: Organizer pubkey.
-    CancelTournament {
-        reason_code: u8,
-    },
+    CancelTournament { reason_code: u8 },
 }
 
 /// Supported game types for tournaments.
@@ -157,18 +155,14 @@ pub enum TournamentPhase {
         total_rounds: u8,
     },
     /// Matches in progress.
-    InProgress {
-        current_round: u8,
-    },
+    InProgress { current_round: u8 },
     /// Tournament complete, payout executed.
     Completed {
         winner_team_idx: u8,
         runner_up_team_idx: u8,
     },
     /// Cancelled, refunds triggered.
-    Cancelled {
-        reason_code: u8,
-    },
+    Cancelled { reason_code: u8 },
     /// A bracket slot result is disputed — admin must resolve.
     Disputed {
         round: u8,
@@ -206,15 +200,36 @@ pub enum BracketSlotStatus {
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum TournamentRollback {
     UndoCreateTournament,
-    UndoRegisterTeam { team_idx: u8 },
-    UndoConfirmTeamDeposit { team_idx: u8, previous_amount: u64 },
-    UndoLockBracket { previous_phase: TournamentPhase },
-    UndoSubmitMatchId { round: u8, slot_index: u8 },
-    UndoReportBracketResult { round: u8, slot_index: u8 },
-    UndoDisputeResult { previous_phase: TournamentPhase },
-    UndoResolveDispute { round: u8, slot_index: u8, previous_winner: Option<u8> },
+    UndoRegisterTeam {
+        team_idx: u8,
+    },
+    UndoConfirmTeamDeposit {
+        team_idx: u8,
+        previous_amount: u64,
+    },
+    UndoLockBracket {
+        previous_phase: TournamentPhase,
+    },
+    UndoSubmitMatchId {
+        round: u8,
+        slot_index: u8,
+    },
+    UndoReportBracketResult {
+        round: u8,
+        slot_index: u8,
+    },
+    UndoDisputeResult {
+        previous_phase: TournamentPhase,
+    },
+    UndoResolveDispute {
+        round: u8,
+        slot_index: u8,
+        previous_winner: Option<u8>,
+    },
     UndoInitiatePayout,
-    UndoCancelTournament { previous_phase: TournamentPhase },
+    UndoCancelTournament {
+        previous_phase: TournamentPhase,
+    },
 }
 
 /// Reason codes for CancelTournament and DisputeResult.
@@ -271,7 +286,12 @@ mod tests {
         let encoded = borsh::to_vec(&cmd).unwrap();
         let decoded: TournamentCommand = borsh::from_slice(&encoded).unwrap();
         match decoded {
-            TournamentCommand::ReportBracketResult { round, slot_index, winner_team_idx, .. } => {
+            TournamentCommand::ReportBracketResult {
+                round,
+                slot_index,
+                winner_team_idx,
+                ..
+            } => {
                 assert_eq!(round, 1);
                 assert_eq!(slot_index, 0);
                 assert_eq!(winner_team_idx, 0);
@@ -313,7 +333,10 @@ mod tests {
         let encoded = borsh::to_vec(&rb).unwrap();
         let decoded: TournamentRollback = borsh::from_slice(&encoded).unwrap();
         match decoded {
-            TournamentRollback::UndoConfirmTeamDeposit { team_idx, previous_amount } => {
+            TournamentRollback::UndoConfirmTeamDeposit {
+                team_idx,
+                previous_amount,
+            } => {
                 assert_eq!(team_idx, 2);
                 assert_eq!(previous_amount, 50_000_000_000);
             }

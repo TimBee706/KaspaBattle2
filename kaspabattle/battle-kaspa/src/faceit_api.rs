@@ -336,7 +336,13 @@ mod tests {
     #[test]
     fn test_determine_winner_guid_invalid_faction() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("invalid_faction"), "guid-A", "guid-B", "cs2");
+        let details = fake_details(
+            "FINISHED",
+            Some("invalid_faction"),
+            "guid-A",
+            "guid-B",
+            "cs2",
+        );
         let res = client.determine_winner_guid(&details, "guid-A", "guid-B");
         assert!(res.is_err());
         assert!(res
@@ -349,10 +355,14 @@ mod tests {
     fn test_verify_players_in_match_requires_1v1_rosters() {
         let client = FaceitApiClient::new("".to_string());
         let mut details = fake_details("ONGOING", None, "guid-1", "guid-2", "cs2");
-        details.teams.faction1.roster.push(crate::models::faceit_data::FaceitPlayer {
-            player_id: "extra".to_string(),
-            nickname: "Extra".to_string(),
-        });
+        details
+            .teams
+            .faction1
+            .roster
+            .push(crate::models::faceit_data::FaceitPlayer {
+                player_id: "extra".to_string(),
+                nickname: "Extra".to_string(),
+            });
 
         assert!(!client.verify_players_in_match(&details, "guid-1", "guid-2"));
     }
@@ -377,14 +387,26 @@ mod tests {
     #[test]
     fn test_verify_players_in_match_rocket_league_1v1() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("faction1"), "guid-X", "guid-Y", "rocket_league");
+        let details = fake_details(
+            "FINISHED",
+            Some("faction1"),
+            "guid-X",
+            "guid-Y",
+            "rocket_league",
+        );
         assert!(client.verify_players_in_match(&details, "guid-X", "guid-Y"));
     }
 
     #[test]
     fn test_determine_winner_guid_rocket_league() {
         let client = FaceitApiClient::new("".to_string());
-        let details = fake_details("FINISHED", Some("faction1"), "guid-X", "guid-Y", "rocket_league");
+        let details = fake_details(
+            "FINISHED",
+            Some("faction1"),
+            "guid-X",
+            "guid-Y",
+            "rocket_league",
+        );
         let winner = client
             .determine_winner_guid(&details, "guid-X", "guid-Y")
             .unwrap();

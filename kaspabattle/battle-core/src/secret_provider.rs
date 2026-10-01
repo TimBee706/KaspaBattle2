@@ -54,10 +54,7 @@ const DOCKER_SECRETS_PATH: &str = "/run/secrets";
 #[derive(Debug, thiserror::Error)]
 pub enum SecretError {
     #[error("Required secret '{name}' not found in any configured backend ({backends})")]
-    Missing {
-        name: String,
-        backends: String,
-    },
+    Missing { name: String, backends: String },
     #[error("Secret '{name}' from file '{path}' could not be read: {reason}")]
     FileReadError {
         name: String,

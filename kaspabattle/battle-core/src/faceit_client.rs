@@ -125,7 +125,9 @@ impl CircuitBreakerState {
             // Reset: Circuit schließt sich wieder
             self.open_since.store(0, Ordering::SeqCst);
             self.consecutive_errors.store(0, Ordering::SeqCst);
-            tracing::info!("⚡ FACEIT Circuit Breaker: CLOSED (timeout elapsed, resuming requests)");
+            tracing::info!(
+                "⚡ FACEIT Circuit Breaker: CLOSED (timeout elapsed, resuming requests)"
+            );
             None
         } else {
             Some(CIRCUIT_OPEN_DURATION_SECS - elapsed)
@@ -221,10 +223,7 @@ impl FaceitClient {
     }
 
     /// Führt einen GET-Request aus und verarbeitet Fehler inkl. Circuit-Breaker-Aktualisierung.
-    async fn get<T: serde::de::DeserializeOwned>(
-        &self,
-        url: &str,
-    ) -> Result<T, FaceitApiError> {
+    async fn get<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T, FaceitApiError> {
         self.check_circuit()?;
 
         let response = self
@@ -288,10 +287,9 @@ impl FaceitClient {
             return Err(err);
         }
 
-        let result = response
-            .json::<T>()
-            .await
-            .map_err(|e| FaceitApiError::ParseError(format!("JSON parse error for {}: {}", url, e)))?;
+        let result = response.json::<T>().await.map_err(|e| {
+            FaceitApiError::ParseError(format!("JSON parse error for {}: {}", url, e))
+        })?;
 
         self.circuit.record_success();
         Ok(result)
@@ -302,7 +300,10 @@ impl FaceitClient {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// `GET /players/{player_id}` — Spielerprofil inkl. ELO und Level.
-    pub async fn get_player_by_id(&self, player_id: &str) -> Result<FaceitPlayerProfile, FaceitApiError> {
+    pub async fn get_player_by_id(
+        &self,
+        player_id: &str,
+    ) -> Result<FaceitPlayerProfile, FaceitApiError> {
         let url = format!("{}/players/{}", self.base_url, player_id);
         self.get(&url).await
     }
@@ -333,7 +334,10 @@ impl FaceitClient {
     }
 
     /// `GET /matches/{match_id}` — Match-Details inkl. Status, Teams und Results.
-    pub async fn get_match_details(&self, match_id: &str) -> Result<FaceitMatchDetails, FaceitApiError> {
+    pub async fn get_match_details(
+        &self,
+        match_id: &str,
+    ) -> Result<FaceitMatchDetails, FaceitApiError> {
         let url = format!("{}/matches/{}", self.base_url, match_id);
         self.get(&url).await
     }

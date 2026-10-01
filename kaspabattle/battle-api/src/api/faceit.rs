@@ -26,7 +26,9 @@ const FACEIT_CACHE_TTL_SECS: i64 = 300;
 const ALLOWED_GAME_IDS: &[&str] = &["cs2", "csgo", "dota2", "valorant", "lol", "rocket_league"];
 
 /// Prüft ob eine game_id erlaubt ist. Gibt bereinigten String zurück oder Fehler.
-fn validate_game_id(game_id: &str) -> Result<&str, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+fn validate_game_id(
+    game_id: &str,
+) -> Result<&str, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
     if ALLOWED_GAME_IDS.contains(&game_id) {
         Ok(game_id)
     } else {
@@ -106,7 +108,11 @@ fn post_login_url_for(origin: &str, return_path: Option<&str>) -> String {
 }
 
 fn error_redirect(code: &str) -> axum::response::Response {
-    let url = format!("{}/?error={}", default_frontend_url().trim_end_matches('/'), code);
+    let url = format!(
+        "{}/?error={}",
+        default_frontend_url().trim_end_matches('/'),
+        code
+    );
     Redirect::to(&url).into_response()
 }
 
@@ -212,14 +218,17 @@ async fn faceit_callback(
     };
 
     // 1. Redeem state (single use) + token exchange + userinfo
-    let (info, tokens, existing_user_id, return_to) =
-        match state.faceit_service.handle_callback(code, oauth_state).await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!("❌ FACEIT callback failed: {}", e);
-                return error_redirect("faceit_login_failed");
-            }
-        };
+    let (info, tokens, existing_user_id, return_to) = match state
+        .faceit_service
+        .handle_callback(code, oauth_state)
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("❌ FACEIT callback failed: {}", e);
+            return error_redirect("faceit_login_failed");
+        }
+    };
 
     let masked = mask_faceit_id(&info.guid);
 
@@ -360,13 +369,15 @@ async fn faceit_profile(
         })),
     ))?;
 
-    let row = row.ok_or_else(|| (
-        axum::http::StatusCode::NOT_FOUND,
-        Json(serde_json::json!({
-            "error": "faceit_not_linked",
-            "message": "No FACEIT account linked to this user."
-        })),
-    ))?;
+    let row = row.ok_or_else(|| {
+        (
+            axum::http::StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "faceit_not_linked",
+                "message": "No FACEIT account linked to this user."
+            })),
+        )
+    })?;
 
     let player_id: String = row.try_get("faceit_player_id").unwrap_or_default();
     let cached_nick: String = row.try_get("faceit_nickname").unwrap_or_default();
@@ -417,8 +428,19 @@ async fn faceit_profile(
                 .games
                 .get(requested_game_id)
                 .map(|g| (g.faceit_elo, g.skill_level))
-                .or_else(|| profile.games.get("cs2").map(|g| (g.faceit_elo, g.skill_level)))
-                .or_else(|| profile.games.values().next().map(|g| (g.faceit_elo, g.skill_level)))
+                .or_else(|| {
+                    profile
+                        .games
+                        .get("cs2")
+                        .map(|g| (g.faceit_elo, g.skill_level))
+                })
+                .or_else(|| {
+                    profile
+                        .games
+                        .values()
+                        .next()
+                        .map(|g| (g.faceit_elo, g.skill_level))
+                })
                 .unwrap_or((cached_elo.unwrap_or(0), cached_level.unwrap_or(0)));
 
             // Update cache in DB (including timestamp)
@@ -506,25 +528,29 @@ async fn faceit_stats(
     // Load player_id + existing stats cache from DB
     let row = sqlx::query(
         "SELECT faceit_player_id, stats_cache_json, stats_cache_game_id, stats_cache_updated_at \
-         FROM faceit_links WHERE user_id = $1::uuid"
+         FROM faceit_links WHERE user_id = $1::uuid",
     )
     .bind(u.id.to_string())
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({
-            "error": "db_error",
-            "message": "Failed to retrieve FACEIT link from database."
-        })),
-    ))?
-    .ok_or_else(|| (
-        axum::http::StatusCode::NOT_FOUND,
-        Json(serde_json::json!({
-            "error": "faceit_not_linked",
-            "message": "No FACEIT account linked to this user."
-        })),
-    ))?;
+    .map_err(|_| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "db_error",
+                "message": "Failed to retrieve FACEIT link from database."
+            })),
+        )
+    })?
+    .ok_or_else(|| {
+        (
+            axum::http::StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "faceit_not_linked",
+                "message": "No FACEIT account linked to this user."
+            })),
+        )
+    })?;
 
     let player_id: String = row.try_get("faceit_player_id").unwrap_or_default();
     let cached_stats: Option<serde_json::Value> = row.try_get("stats_cache_json").unwrap_or(None);
@@ -660,20 +686,24 @@ async fn faceit_matches(
             .bind(u.id.to_string())
             .fetch_optional(&state.pool)
             .await
-            .map_err(|_| (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "db_error",
-                    "message": "Failed to retrieve FACEIT link from database."
-                })),
-            ))?
-            .ok_or_else(|| (
-                axum::http::StatusCode::NOT_FOUND,
-                Json(serde_json::json!({
-                    "error": "faceit_not_linked",
-                    "message": "No FACEIT account linked to this user."
-                })),
-            ))?;
+            .map_err(|_| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "db_error",
+                        "message": "Failed to retrieve FACEIT link from database."
+                    })),
+                )
+            })?
+            .ok_or_else(|| {
+                (
+                    axum::http::StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({
+                        "error": "faceit_not_linked",
+                        "message": "No FACEIT account linked to this user."
+                    })),
+                )
+            })?;
 
     tracing::info!(
         "🌐 FACEIT matches [{}] game={} offset={} limit={}",
@@ -683,7 +713,10 @@ async fn faceit_matches(
         limit
     );
 
-    match faceit_data_svc.get_player_history(&player_id, game_id, offset, limit).await {
+    match faceit_data_svc
+        .get_player_history(&player_id, game_id, offset, limit)
+        .await
+    {
         Ok(history) => {
             let items = history
                 .items
@@ -749,28 +782,51 @@ mod tests {
 
     #[test]
     fn post_login_redirect_targets_lobby_with_linked_flag() {
-        assert_eq!(post_login_url_for(ORIGIN, None), "https://www.example.test/lobby?linked=1");
-        assert_eq!(post_login_url_for(ORIGIN, Some("/lobby")), "https://www.example.test/lobby?linked=1");
+        assert_eq!(
+            post_login_url_for(ORIGIN, None),
+            "https://www.example.test/lobby?linked=1"
+        );
+        assert_eq!(
+            post_login_url_for(ORIGIN, Some("/lobby")),
+            "https://www.example.test/lobby?linked=1"
+        );
         assert_eq!(
             post_login_url_for(ORIGIN, Some("/lobby?tab=2")),
             "https://www.example.test/lobby?tab=2&linked=1"
         );
         // landing/callback routes would loop -> lobby
-        assert_eq!(post_login_url_for(ORIGIN, Some("/")), "https://www.example.test/lobby?linked=1");
-        assert_eq!(post_login_url_for(ORIGIN, Some("/auth/faceit/callback")), "https://www.example.test/lobby?linked=1");
+        assert_eq!(
+            post_login_url_for(ORIGIN, Some("/")),
+            "https://www.example.test/lobby?linked=1"
+        );
+        assert_eq!(
+            post_login_url_for(ORIGIN, Some("/auth/faceit/callback")),
+            "https://www.example.test/lobby?linked=1"
+        );
     }
 
     #[test]
     fn post_login_redirect_never_leaves_canonical_origin() {
-        for evil in ["https://evil.example/x", "//evil.example", "/\\evil.example", "javascript:1"] {
+        for evil in [
+            "https://evil.example/x",
+            "//evil.example",
+            "/\\evil.example",
+            "javascript:1",
+        ] {
             let url = post_login_url_for(ORIGIN, Some(evil));
-            assert!(url.starts_with("https://www.example.test/lobby"), "{evil}: {url}");
+            assert!(
+                url.starts_with("https://www.example.test/lobby"),
+                "{evil}: {url}"
+            );
         }
     }
 
     #[test]
     fn referer_path_extracts_only_the_path() {
-        assert_eq!(referer_path("https://x.test/lobby?a=1").as_deref(), Some("/lobby?a=1"));
+        assert_eq!(
+            referer_path("https://x.test/lobby?a=1").as_deref(),
+            Some("/lobby?a=1")
+        );
         assert_eq!(referer_path("https://x.test").as_deref(), Some("/"));
         assert_eq!(referer_path("ftp://x.test/a"), None);
     }

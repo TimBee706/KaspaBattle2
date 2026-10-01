@@ -101,8 +101,10 @@ pub fn spawn_kdapp_services(
             }
         };
 
-        tracing::info!("🔄 kdapp Proxy listener started (prefix={:#010x}, pattern={} bits)",
-            BATTLE_PREFIX, BATTLE_PATTERN.len()
+        tracing::info!(
+            "🔄 kdapp Proxy listener started (prefix={:#010x}, pattern={} bits)",
+            BATTLE_PREFIX,
+            BATTLE_PATTERN.len()
         );
         kdapp_proxy::run_listener(client, engine_map, proxy_exit).await;
         tracing::info!("🌐 kdapp Proxy listener exited");
