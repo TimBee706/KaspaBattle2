@@ -56,11 +56,7 @@ impl BattleHandler {
 
     // ── DB operations per command ─────────────────────────────────────────
 
-    fn handle_create_match(
-        &self,
-        episode_id: EpisodeId,
-        episode: &BattleEpisode,
-    ) {
+    fn handle_create_match(&self, episode_id: EpisodeId, episode: &BattleEpisode) {
         let pool = self.pool.clone();
         let wager = episode.wager_sompi;
         let game_type = format!("{:?}", episode.game_type);
@@ -84,30 +80,34 @@ impl BattleHandler {
             }
         });
 
-        self.broadcast("match_created", episode_id, serde_json::json!({
-            "wager_sompi": episode.wager_sompi,
-            "game_type": game_type_ws,
-        }));
+        self.broadcast(
+            "match_created",
+            episode_id,
+            serde_json::json!({
+                "wager_sompi": episode.wager_sompi,
+                "game_type": game_type_ws,
+            }),
+        );
     }
 
-    fn handle_join_match(
-        &self,
-        episode_id: EpisodeId,
-        _episode: &BattleEpisode,
-    ) {
+    fn handle_join_match(&self, episode_id: EpisodeId, _episode: &BattleEpisode) {
         let pool = self.pool.clone();
 
         self.block_on(async move {
             let result = sqlx::query(
                 "UPDATE matches SET status = 'AWAITING_FUNDING' \
-                 WHERE onchain_match_id = $1"
+                 WHERE onchain_match_id = $1",
             )
             .bind(episode_id as i64)
             .execute(&pool)
             .await;
 
             match result {
-                Ok(r) => log::info!("DB: Match {} joined ({} rows)", episode_id, r.rows_affected()),
+                Ok(r) => log::info!(
+                    "DB: Match {} joined ({} rows)",
+                    episode_id,
+                    r.rows_affected()
+                ),
                 Err(e) => log::error!("DB: Failed to update join for match {}: {}", episode_id, e),
             }
         });
@@ -125,7 +125,9 @@ impl BattleHandler {
         let pool = self.pool.clone();
         let phase = episode.phase.clone();
         let is_locked = matches!(phase, MatchPhase::Locked);
-        let auth_str = authorization.map(|pk| format!("{}", pk)).unwrap_or_default();
+        let auth_str = authorization
+            .map(|pk| format!("{}", pk))
+            .unwrap_or_default();
 
         self.block_on(async move {
             // Upsert payment record
@@ -134,7 +136,7 @@ impl BattleHandler {
                  SELECT m.id, $2, $3, 'CONFIRMED', NOW() \
                  FROM matches m WHERE m.onchain_match_id = $1 \
                  ON CONFLICT (match_id, player_role) DO UPDATE SET \
-                 amount_sompi = payments.amount_sompi + $3, status = 'CONFIRMED'"
+                 amount_sompi = payments.amount_sompi + $3, status = 'CONFIRMED'",
             )
             .bind(episode_id as i64)
             .bind(&auth_str)
@@ -143,25 +145,32 @@ impl BattleHandler {
             .await;
 
             if let Err(e) = result {
-                log::error!("DB: Failed to upsert payment for match {}: {}", episode_id, e);
+                log::error!(
+                    "DB: Failed to upsert payment for match {}: {}",
+                    episode_id,
+                    e
+                );
             }
 
             // If both deposits confirmed → update match status to LOCKED
             if is_locked {
-                let _ = sqlx::query(
-                    "UPDATE matches SET status = 'LOCKED' WHERE onchain_match_id = $1"
-                )
-                .bind(episode_id as i64)
-                .execute(&pool)
-                .await;
+                let _ =
+                    sqlx::query("UPDATE matches SET status = 'LOCKED' WHERE onchain_match_id = $1")
+                        .bind(episode_id as i64)
+                        .execute(&pool)
+                        .await;
                 log::info!("DB: Match {} locked (both deposits confirmed)", episode_id);
             }
         });
 
-        self.broadcast("deposit_confirmed", episode_id, serde_json::json!({
-            "amount_sompi": amount_sompi,
-            "phase": format!("{:?}", phase),
-        }));
+        self.broadcast(
+            "deposit_confirmed",
+            episode_id,
+            serde_json::json!({
+                "amount_sompi": amount_sompi,
+                "phase": format!("{:?}", phase),
+            }),
+        );
     }
 
     fn handle_report_result(
@@ -175,39 +184,43 @@ impl BattleHandler {
         let winner_idx = episode.winner_idx;
 
         self.block_on(async move {
-            let result = sqlx::query(
-                "UPDATE matches SET status = 'RESOLVED' WHERE onchain_match_id = $1"
-            )
-            .bind(episode_id as i64)
-            .execute(&pool)
-            .await;
+            let result =
+                sqlx::query("UPDATE matches SET status = 'RESOLVED' WHERE onchain_match_id = $1")
+                    .bind(episode_id as i64)
+                    .execute(&pool)
+                    .await;
 
             match result {
-                Ok(_) => log::info!("DB: Match {} resolved ({}:{})", episode_id, score_a, score_b),
+                Ok(_) => log::info!(
+                    "DB: Match {} resolved ({}:{})",
+                    episode_id,
+                    score_a,
+                    score_b
+                ),
                 Err(e) => log::error!("DB: Failed to resolve match {}: {}", episode_id, e),
             }
         });
 
-        self.broadcast("result_reported", episode_id, serde_json::json!({
-            "score_a": score_a,
-            "score_b": score_b,
-            "winner_idx": winner_idx,
-        }));
+        self.broadcast(
+            "result_reported",
+            episode_id,
+            serde_json::json!({
+                "score_a": score_a,
+                "score_b": score_b,
+                "winner_idx": winner_idx,
+            }),
+        );
     }
 
-    fn handle_payout(
-        &self,
-        episode_id: EpisodeId,
-    ) {
+    fn handle_payout(&self, episode_id: EpisodeId) {
         let pool = self.pool.clone();
 
         self.block_on(async move {
-            let result = sqlx::query(
-                "UPDATE matches SET status = 'PAID_OUT' WHERE onchain_match_id = $1"
-            )
-            .bind(episode_id as i64)
-            .execute(&pool)
-            .await;
+            let result =
+                sqlx::query("UPDATE matches SET status = 'PAID_OUT' WHERE onchain_match_id = $1")
+                    .bind(episode_id as i64)
+                    .execute(&pool)
+                    .await;
 
             match result {
                 Ok(_) => log::info!("DB: Match {} paid out", episode_id),
@@ -218,20 +231,15 @@ impl BattleHandler {
         self.broadcast("payout_completed", episode_id, serde_json::json!({}));
     }
 
-    fn handle_dispute(
-        &self,
-        episode_id: EpisodeId,
-        reason_code: u8,
-    ) {
+    fn handle_dispute(&self, episode_id: EpisodeId, reason_code: u8) {
         let pool = self.pool.clone();
 
         self.block_on(async move {
-            let result = sqlx::query(
-                "UPDATE matches SET status = 'DISPUTED' WHERE onchain_match_id = $1"
-            )
-            .bind(episode_id as i64)
-            .execute(&pool)
-            .await;
+            let result =
+                sqlx::query("UPDATE matches SET status = 'DISPUTED' WHERE onchain_match_id = $1")
+                    .bind(episode_id as i64)
+                    .execute(&pool)
+                    .await;
 
             match result {
                 Ok(_) => log::info!("DB: Match {} disputed (reason={})", episode_id, reason_code),
@@ -239,35 +247,42 @@ impl BattleHandler {
             }
         });
 
-        self.broadcast("match_disputed", episode_id, serde_json::json!({
-            "reason_code": reason_code,
-        }));
+        self.broadcast(
+            "match_disputed",
+            episode_id,
+            serde_json::json!({
+                "reason_code": reason_code,
+            }),
+        );
     }
 
-    fn handle_cancel(
-        &self,
-        episode_id: EpisodeId,
-        reason_code: u8,
-    ) {
+    fn handle_cancel(&self, episode_id: EpisodeId, reason_code: u8) {
         let pool = self.pool.clone();
 
         self.block_on(async move {
-            let result = sqlx::query(
-                "UPDATE matches SET status = 'CANCELLED' WHERE onchain_match_id = $1"
-            )
-            .bind(episode_id as i64)
-            .execute(&pool)
-            .await;
+            let result =
+                sqlx::query("UPDATE matches SET status = 'CANCELLED' WHERE onchain_match_id = $1")
+                    .bind(episode_id as i64)
+                    .execute(&pool)
+                    .await;
 
             match result {
-                Ok(_) => log::info!("DB: Match {} cancelled (reason={})", episode_id, reason_code),
+                Ok(_) => log::info!(
+                    "DB: Match {} cancelled (reason={})",
+                    episode_id,
+                    reason_code
+                ),
                 Err(e) => log::error!("DB: Failed to cancel match {}: {}", episode_id, e),
             }
         });
 
-        self.broadcast("match_cancelled", episode_id, serde_json::json!({
-            "reason_code": reason_code,
-        }));
+        self.broadcast(
+            "match_cancelled",
+            episode_id,
+            serde_json::json!({
+                "reason_code": reason_code,
+            }),
+        );
     }
 }
 
@@ -275,7 +290,9 @@ impl EpisodeEventHandler<BattleEpisode> for BattleHandler {
     fn on_initialize(&self, episode_id: EpisodeId, episode: &BattleEpisode) {
         log::info!(
             "Episode {} initialized: phase={:?}, participants={}",
-            episode_id, episode.phase, episode.participants.len(),
+            episode_id,
+            episode.phase,
+            episode.participants.len(),
         );
     }
 
@@ -289,7 +306,9 @@ impl EpisodeEventHandler<BattleEpisode> for BattleHandler {
     ) {
         log::info!(
             "Episode {} command: {:?}, phase={:?}",
-            episode_id, cmd, episode.phase,
+            episode_id,
+            cmd,
+            episode.phase,
         );
 
         match cmd {
@@ -302,7 +321,9 @@ impl EpisodeEventHandler<BattleEpisode> for BattleHandler {
             BattleCommand::ConfirmDeposit { amount_sompi, .. } => {
                 self.handle_confirm_deposit(episode_id, episode, *amount_sompi, authorization);
             }
-            BattleCommand::ReportResult { score_a, score_b, .. } => {
+            BattleCommand::ReportResult {
+                score_a, score_b, ..
+            } => {
                 self.handle_report_result(episode_id, episode, *score_a, *score_b);
             }
             BattleCommand::InitiatePayout => {
@@ -320,7 +341,8 @@ impl EpisodeEventHandler<BattleEpisode> for BattleHandler {
     fn on_rollback(&self, episode_id: EpisodeId, episode: &BattleEpisode) {
         log::warn!(
             "Episode {} rolled back (DAG re-org): phase={:?}",
-            episode_id, episode.phase,
+            episode_id,
+            episode.phase,
         );
 
         // Revert DB status to match the rolled-back phase
@@ -336,17 +358,19 @@ impl EpisodeEventHandler<BattleEpisode> for BattleHandler {
         };
 
         self.block_on(async move {
-            let _ = sqlx::query(
-                "UPDATE matches SET status = $1 WHERE onchain_match_id = $2"
-            )
-            .bind(new_status)
-            .bind(episode_id as i64)
-            .execute(&pool)
-            .await;
+            let _ = sqlx::query("UPDATE matches SET status = $1 WHERE onchain_match_id = $2")
+                .bind(new_status)
+                .bind(episode_id as i64)
+                .execute(&pool)
+                .await;
         });
 
-        self.broadcast("episode_rollback", episode_id, serde_json::json!({
-            "reverted_to": new_status,
-        }));
+        self.broadcast(
+            "episode_rollback",
+            episode_id,
+            serde_json::json!({
+                "reverted_to": new_status,
+            }),
+        );
     }
 }

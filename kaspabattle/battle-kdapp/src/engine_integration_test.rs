@@ -37,7 +37,10 @@ mod tests {
 
     impl EpisodeEventHandler<BattleEpisode> for TestHandler {
         fn on_initialize(&self, episode_id: EpisodeId, _episode: &BattleEpisode) {
-            self.events.lock().unwrap().push(format!("init:{}", episode_id));
+            self.events
+                .lock()
+                .unwrap()
+                .push(format!("init:{}", episode_id));
         }
 
         fn on_command(
@@ -48,11 +51,17 @@ mod tests {
             _authorization: Option<PubKey>,
             _metadata: &PayloadMetadata,
         ) {
-            self.events.lock().unwrap().push(format!("cmd:{}:{:?}", episode_id, cmd));
+            self.events
+                .lock()
+                .unwrap()
+                .push(format!("cmd:{}:{:?}", episode_id, cmd));
         }
 
         fn on_rollback(&self, episode_id: EpisodeId, _episode: &BattleEpisode) {
-            self.events.lock().unwrap().push(format!("rollback:{}", episode_id));
+            self.events
+                .lock()
+                .unwrap()
+                .push(format!("rollback:{}", episode_id));
         }
     }
 
@@ -72,11 +81,7 @@ mod tests {
     }
 
     /// Helper: send a BlkAccepted with one TX to the engine.
-    fn send_block(
-        tx: &mpsc::Sender<EngineMsg>,
-        daa: u64,
-        payloads: Vec<(Hash, Vec<u8>)>,
-    ) {
+    fn send_block(tx: &mpsc::Sender<EngineMsg>, daa: u64, payloads: Vec<(Hash, Vec<u8>)>) {
         let meta = make_metadata(daa);
         tx.send(EngineMsg::BlkAccepted {
             accepting_hash: meta.accepting_hash,
@@ -127,7 +132,8 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         // 3. JoinMatch (signed by player B)
-        let join_msg = EpisodeMessage::new_signed_command(episode_id, BattleCommand::JoinMatch, sk_b, pk_b);
+        let join_msg =
+            EpisodeMessage::new_signed_command(episode_id, BattleCommand::JoinMatch, sk_b, pk_b);
         let payload = serialize_msg(&join_msg);
         let tx_hash = Hash::from_bytes([3u8; 32]);
         send_block(&tx, 102, vec![(tx_hash, payload)]);
@@ -184,12 +190,34 @@ mod tests {
 
         // Assert all events were recorded
         let recorded = events.lock().unwrap();
-        assert!(recorded.iter().any(|e| e.starts_with("init:42")), "Should have init event");
-        assert!(recorded.iter().any(|e| e.contains("CreateMatch")), "Should have CreateMatch");
-        assert!(recorded.iter().any(|e| e.contains("JoinMatch")), "Should have JoinMatch");
-        assert!(recorded.iter().filter(|e| e.contains("ConfirmDeposit")).count() == 2, "Should have 2 deposits");
-        assert!(recorded.iter().any(|e| e.contains("ReportResult")), "Should have ReportResult");
-        assert!(recorded.iter().any(|e| e.contains("InitiatePayout")), "Should have InitiatePayout");
+        assert!(
+            recorded.iter().any(|e| e.starts_with("init:42")),
+            "Should have init event"
+        );
+        assert!(
+            recorded.iter().any(|e| e.contains("CreateMatch")),
+            "Should have CreateMatch"
+        );
+        assert!(
+            recorded.iter().any(|e| e.contains("JoinMatch")),
+            "Should have JoinMatch"
+        );
+        assert!(
+            recorded
+                .iter()
+                .filter(|e| e.contains("ConfirmDeposit"))
+                .count()
+                == 2,
+            "Should have 2 deposits"
+        );
+        assert!(
+            recorded.iter().any(|e| e.contains("ReportResult")),
+            "Should have ReportResult"
+        );
+        assert!(
+            recorded.iter().any(|e| e.contains("InitiatePayout")),
+            "Should have InitiatePayout"
+        );
     }
 
     #[test]
@@ -242,8 +270,17 @@ mod tests {
 
         // Assert rollback was recorded
         let recorded = events.lock().unwrap();
-        assert!(recorded.iter().any(|e| e.starts_with("init:99")), "Should have init");
-        assert!(recorded.iter().any(|e| e.contains("CreateMatch")), "Should have CreateMatch");
-        assert!(recorded.iter().any(|e| e.starts_with("rollback:99")), "Should have rollback event");
+        assert!(
+            recorded.iter().any(|e| e.starts_with("init:99")),
+            "Should have init"
+        );
+        assert!(
+            recorded.iter().any(|e| e.contains("CreateMatch")),
+            "Should have CreateMatch"
+        );
+        assert!(
+            recorded.iter().any(|e| e.starts_with("rollback:99")),
+            "Should have rollback event"
+        );
     }
 }

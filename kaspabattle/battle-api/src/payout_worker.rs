@@ -67,20 +67,26 @@ pub(crate) async fn poll_finished_matches(
     .await?;
 
     if !rows.is_empty() {
-        info!(count = rows.len(), "Payout Worker: processing FINISHED_FACEIT matches");
+        info!(
+            count = rows.len(),
+            "Payout Worker: processing FINISHED_FACEIT matches"
+        );
     }
 
     for row in rows {
         let match_id: Uuid = row.try_get("id")?;
-        let winner_kaspa_address: Option<String> = row.try_get("winner_kaspa_address").ok().flatten();
+        let winner_kaspa_address: Option<String> =
+            row.try_get("winner_kaspa_address").ok().flatten();
         let pubkey_a_hex: Option<String> = row.try_get("pubkey_a_hex").ok().flatten();
         let pubkey_b_hex: Option<String> = row.try_get("pubkey_b_hex").ok().flatten();
         let pubkey_oracle_hex: Option<String> = row.try_get("pubkey_oracle_hex").ok().flatten();
         let redeem_script_hex: Option<String> = row.try_get("redeem_script_hex").ok().flatten();
         let escrow_p2sh: Option<String> = row.try_get("escrow_p2sh").ok().flatten();
-        let wager_per_player_sompi: Option<i64> = row.try_get("wager_per_player_sompi").ok().flatten();
+        let wager_per_player_sompi: Option<i64> =
+            row.try_get("wager_per_player_sompi").ok().flatten();
         let timelock_timestamp: Option<i64> = row.try_get("timelock_timestamp").ok().flatten();
-        let finished_at_opt: Option<chrono::DateTime<chrono::Utc>> = row.try_get("finished_at").ok().flatten();
+        let finished_at_opt: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("finished_at").ok().flatten();
 
         // Check if stuck in FINISHED_FACEIT for > 24 hours
         if let Some(finished_at) = finished_at_opt {
@@ -148,7 +154,10 @@ pub(crate) async fn poll_finished_matches(
         }
 
         // Create PSKT
-        match multisig_service.create_pskt(&match_id, &winner_address).await {
+        match multisig_service
+            .create_pskt(&match_id, &winner_address)
+            .await
+        {
             Ok(pskt) => {
                 info!(
                     match_id = %match_id,

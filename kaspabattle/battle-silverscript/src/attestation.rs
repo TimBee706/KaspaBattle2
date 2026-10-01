@@ -31,7 +31,7 @@
 //! contract will reconstruct.
 
 use blake2b_simd::Params as Blake2bParams;
-use secp256k1::{Keypair, Message, XOnlyPublicKey, schnorr::Signature};
+use secp256k1::{schnorr::Signature, Keypair, Message, XOnlyPublicKey};
 use thiserror::Error;
 
 pub const DOMAIN_TAG: &[u8] = b"KASPABATTLE_RESULT_V1";
@@ -135,7 +135,11 @@ pub fn script_num_bytes(value: i64, size: usize) -> Result<[u8; 8], AttestationE
 }
 
 fn blake2b32(data: &[u8]) -> [u8; 32] {
-    let hash = Blake2bParams::new().hash_length(32).to_state().update(data).finalize();
+    let hash = Blake2bParams::new()
+        .hash_length(32)
+        .to_state()
+        .update(data)
+        .finalize();
     let mut out = [0u8; 32];
     out.copy_from_slice(hash.as_bytes());
     out
@@ -180,11 +184,17 @@ impl Attestation {
     /// (`blake2b(pubkey) == result_oracle_commitment`) — this function only
     /// checks the signature, exactly mirroring the contract's own two
     /// separate `require`s.
-    pub fn verify(&self, signature: &[u8; 64], oracle_pubkey: &XOnlyPublicKey) -> Result<(), AttestationError> {
+    pub fn verify(
+        &self,
+        signature: &[u8; 64],
+        oracle_pubkey: &XOnlyPublicKey,
+    ) -> Result<(), AttestationError> {
         let digest = self.digest()?;
         let message = Message::from_digest(digest);
-        let sig = Signature::from_slice(signature).map_err(|_| AttestationError::InvalidSignature)?;
-        sig.verify(&message, oracle_pubkey).map_err(|_| AttestationError::InvalidSignature)
+        let sig =
+            Signature::from_slice(signature).map_err(|_| AttestationError::InvalidSignature)?;
+        sig.verify(&message, oracle_pubkey)
+            .map_err(|_| AttestationError::InvalidSignature)
     }
 }
 
@@ -200,7 +210,11 @@ mod tests {
     /// the actual on-chain digest computation.
     #[test]
     fn known_answer_digest_matches_interpreter_test() {
-        let ctx = AttestationContext { network_domain: [0x01; 32], match_id: [0x02; 16], game_id_hash: [0x03; 32] };
+        let ctx = AttestationContext {
+            network_domain: [0x01; 32],
+            match_id: [0x02; 16],
+            game_id_hash: [0x03; 32],
+        };
         let attestation = Attestation {
             context: ctx,
             winner: WinnerSelector::PlayerA,
@@ -209,7 +223,10 @@ mod tests {
             nonce: [0x08; 32],
         };
         let digest = attestation.digest().expect("digest computes");
-        assert_eq!(hex::encode(digest), "dc848da95b52e226f93992932784bccb64f24e7891fffd45f3ea43aa031acf90");
+        assert_eq!(
+            hex::encode(digest),
+            "dc848da95b52e226f93992932784bccb64f24e7891fffd45f3ea43aa031acf90"
+        );
     }
 
     #[test]
@@ -219,7 +236,11 @@ mod tests {
         let keypair = Keypair::from_secret_key(&secp, &secret);
         let (pubkey, _) = keypair.x_only_public_key();
 
-        let ctx = AttestationContext { network_domain: [0x01; 32], match_id: [0x02; 16], game_id_hash: [0x03; 32] };
+        let ctx = AttestationContext {
+            network_domain: [0x01; 32],
+            match_id: [0x02; 16],
+            game_id_hash: [0x03; 32],
+        };
         let attestation = Attestation {
             context: ctx,
             winner: WinnerSelector::PlayerB,
@@ -239,7 +260,11 @@ mod tests {
         let keypair = Keypair::from_secret_key(&secp, &secret);
         let (pubkey, _) = keypair.x_only_public_key();
 
-        let ctx = AttestationContext { network_domain: [0x01; 32], match_id: [0x02; 16], game_id_hash: [0x03; 32] };
+        let ctx = AttestationContext {
+            network_domain: [0x01; 32],
+            match_id: [0x02; 16],
+            game_id_hash: [0x03; 32],
+        };
         let attestation = Attestation {
             context: ctx,
             winner: WinnerSelector::PlayerA,
@@ -250,7 +275,10 @@ mod tests {
 
         let mut sig = attestation.sign(&keypair).expect("signs");
         sig[0] ^= 0x01;
-        assert_eq!(attestation.verify(&sig, &pubkey), Err(AttestationError::InvalidSignature));
+        assert_eq!(
+            attestation.verify(&sig, &pubkey),
+            Err(AttestationError::InvalidSignature)
+        );
     }
 
     #[test]
@@ -260,7 +288,11 @@ mod tests {
         let keypair = Keypair::from_secret_key(&secp, &secret);
         let (pubkey, _) = keypair.x_only_public_key();
 
-        let ctx = AttestationContext { network_domain: [0x01; 32], match_id: [0x02; 16], game_id_hash: [0x03; 32] };
+        let ctx = AttestationContext {
+            network_domain: [0x01; 32],
+            match_id: [0x02; 16],
+            game_id_hash: [0x03; 32],
+        };
         let attestation = Attestation {
             context: ctx,
             winner: WinnerSelector::PlayerA,
@@ -273,8 +305,14 @@ mod tests {
         // Same signature, but the winner was flipped after signing -- must
         // not verify (this is exactly what stops a compromised backend from
         // redirecting a payout by relabeling an already-signed attestation).
-        let tampered = Attestation { winner: WinnerSelector::PlayerB, ..attestation };
-        assert_eq!(tampered.verify(&sig, &pubkey), Err(AttestationError::InvalidSignature));
+        let tampered = Attestation {
+            winner: WinnerSelector::PlayerB,
+            ..attestation
+        };
+        assert_eq!(
+            tampered.verify(&sig, &pubkey),
+            Err(AttestationError::InvalidSignature)
+        );
     }
 
     #[test]
@@ -286,17 +324,29 @@ mod tests {
         assert_eq!(&script_num_bytes(0, 4).unwrap()[..4], &[0, 0, 0, 0]);
         assert_eq!(&script_num_bytes(1, 4).unwrap()[..4], &[1, 0, 0, 0]);
         assert_eq!(&script_num_bytes(256, 4).unwrap()[..4], &[0, 1, 0, 0]);
-        assert_eq!(&script_num_bytes(123_456, 8).unwrap()[..8], &[0x40, 0xE2, 0x01, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            &script_num_bytes(123_456, 8).unwrap()[..8],
+            &[0x40, 0xE2, 0x01, 0, 0, 0, 0, 0]
+        );
     }
 
     #[test]
     fn script_num_bytes_rejects_oversized_values() {
-        assert_eq!(script_num_bytes(256, 1), Err(AttestationError::ValueTooLarge { value: 256, size: 1 }));
+        assert_eq!(
+            script_num_bytes(256, 1),
+            Err(AttestationError::ValueTooLarge {
+                value: 256,
+                size: 1
+            })
+        );
     }
 
     #[test]
     fn winner_selector_rejects_invalid_raw_values() {
-        assert_eq!(WinnerSelector::from_i64(2), Err(AttestationError::InvalidWinnerSelector(2)));
+        assert_eq!(
+            WinnerSelector::from_i64(2),
+            Err(AttestationError::InvalidWinnerSelector(2))
+        );
         assert_eq!(WinnerSelector::from_i64(0), Ok(WinnerSelector::PlayerA));
         assert_eq!(WinnerSelector::from_i64(1), Ok(WinnerSelector::PlayerB));
     }

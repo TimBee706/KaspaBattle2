@@ -4,8 +4,8 @@
 //! the kdapp TransactionGenerator. Each command advances the match state
 //! machine inside `BattleEpisode`.
 
-use borsh::{BorshDeserialize, BorshSerialize};
 use crate::kdapp_pki::PubKey;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Commands that participants can send to a BattleEpisode.
 ///
@@ -39,13 +39,9 @@ pub enum BattleCommand {
     /// Trigger payout after result is confirmed.
     InitiatePayout,
     /// A participant disputes the reported result.
-    Dispute {
-        reason_code: u8,
-    },
+    Dispute { reason_code: u8 },
     /// Cancel the match (only before Lock).
-    CancelMatch {
-        reason_code: u8,
-    },
+    CancelMatch { reason_code: u8 },
 }
 
 /// Supported game types.
@@ -65,11 +61,21 @@ pub enum PlayerSide {
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
 pub enum MatchPhase {
     WaitingForOpponent,
-    WaitingForDeposits { a_deposited: bool, b_deposited: bool },
+    WaitingForDeposits {
+        a_deposited: bool,
+        b_deposited: bool,
+    },
     Locked,
-    Resolved { winner_idx: u8 },
-    Disputed { reason_code: u8, by_idx: u8 },
-    Cancelled { reason_code: u8 },
+    Resolved {
+        winner_idx: u8,
+    },
+    Disputed {
+        reason_code: u8,
+        by_idx: u8,
+    },
+    Cancelled {
+        reason_code: u8,
+    },
     Completed,
 }
 
@@ -107,7 +113,10 @@ mod tests {
         let encoded = borsh::to_vec(&cmd).unwrap();
         let decoded: BattleCommand = borsh::from_slice(&encoded).unwrap();
         match decoded {
-            BattleCommand::CreateMatch { wager_sompi, game_type } => {
+            BattleCommand::CreateMatch {
+                wager_sompi,
+                game_type,
+            } => {
                 assert_eq!(wager_sompi, 5_000_000);
                 assert_eq!(game_type, GameType::CS2);
             }

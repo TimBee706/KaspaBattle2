@@ -85,9 +85,8 @@ pub fn create_unsigned_payout_tx(
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
-            let tx_id = TransactionId::from_slice(
-                &hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]),
-            );
+            let tx_id =
+                TransactionId::from_slice(&hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]));
             TransactionInput {
                 previous_outpoint: TransactionOutpoint {
                     transaction_id: tx_id,
@@ -164,9 +163,8 @@ pub fn create_unsigned_refund_tx(
     let inputs: Vec<TransactionInput> = utxos
         .iter()
         .map(|u| {
-            let tx_id = TransactionId::from_slice(
-                &hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]),
-            );
+            let tx_id =
+                TransactionId::from_slice(&hex::decode(&u.tx_id).unwrap_or_else(|_| vec![0u8; 32]));
             TransactionInput {
                 previous_outpoint: TransactionOutpoint {
                     transaction_id: tx_id,
@@ -219,11 +217,7 @@ pub fn create_unsigned_refund_tx(
 /// Computes the Schnorr sighash for a specific input of the transaction.
 ///
 /// This is the hash that must be signed by each participant.
-pub fn compute_sighash(
-    tx: &Transaction,
-    utxo_entries: Vec<UtxoEntry>,
-    input_index: usize,
-) -> Hash {
+pub fn compute_sighash(tx: &Transaction, utxo_entries: Vec<UtxoEntry>, input_index: usize) -> Hash {
     let mut reused_values = SigHashReusedValues::new();
     let populated = PopulatedTransaction::new(tx, utxo_entries);
     calc_schnorr_signature_hash(&populated, input_index, SIG_HASH_ALL, &mut reused_values)
@@ -232,10 +226,7 @@ pub fn compute_sighash(
 /// Computes sighashes for ALL inputs of a transaction.
 ///
 /// Returns one Hash per input. Each signer must sign all of these.
-pub fn compute_all_sighashes(
-    tx: &Transaction,
-    utxo_entries: Vec<UtxoEntry>,
-) -> Vec<Hash> {
+pub fn compute_all_sighashes(tx: &Transaction, utxo_entries: Vec<UtxoEntry>) -> Vec<Hash> {
     let mut reused_values = SigHashReusedValues::new();
     let populated = PopulatedTransaction::new(tx, utxo_entries);
     (0..tx.inputs.len())
@@ -246,10 +237,7 @@ pub fn compute_all_sighashes(
 /// Signs a sighash with a private key, producing a formatted Schnorr signature.
 ///
 /// Returns the signature in multisig format: `OP_DATA_65 | sig_64 | sighash_type`
-pub fn sign_sighash(
-    sighash: &Hash,
-    private_key_bytes: &[u8; 32],
-) -> Result<Vec<u8>, TxError> {
+pub fn sign_sighash(sighash: &Hash, private_key_bytes: &[u8; 32]) -> Result<Vec<u8>, TxError> {
     let secp = secp256k1::Secp256k1::new();
     let sk = secp256k1::SecretKey::from_slice(private_key_bytes)
         .map_err(|e| TxError::SigningFailed(format!("invalid secret key: {}", e)))?;
@@ -374,7 +362,9 @@ mod tests {
         addr.to_string()
     }
 
-    fn make_test_utxos(script_pub_key: &kaspa_consensus_core::tx::ScriptPublicKey) -> Vec<UtxoInfo> {
+    fn make_test_utxos(
+        script_pub_key: &kaspa_consensus_core::tx::ScriptPublicKey,
+    ) -> Vec<UtxoInfo> {
         vec![
             UtxoInfo {
                 tx_id: "63020db736215f8b1105a9281f7bcbb6473d965ecc45bb2fb5da59bd35e6ff84"
@@ -420,7 +410,11 @@ mod tests {
         .unwrap();
 
         assert_eq!(tx.inputs.len(), 2, "Should have 2 inputs (from 2 UTXOs)");
-        assert_eq!(tx.outputs.len(), 2, "Should have 2 outputs (winner + platform)");
+        assert_eq!(
+            tx.outputs.len(),
+            2,
+            "Should have 2 outputs (winner + platform)"
+        );
         assert_eq!(tx.outputs[0].value, 9_500_000);
         assert_eq!(tx.outputs[1].value, 500_000);
         assert_eq!(entries.len(), 2);
@@ -431,14 +425,7 @@ mod tests {
         let p2sh_spk = kaspa_consensus_core::tx::ScriptPublicKey::default();
         let (kp1, _, _) = test_keypairs();
         let addr = test_address(&kp1);
-        let result = create_unsigned_payout_tx(
-            &[],
-            &addr,
-            9_500_000,
-            &addr,
-            500_000,
-            &p2sh_spk,
-        );
+        let result = create_unsigned_payout_tx(&[], &addr, 9_500_000, &addr, 500_000, &p2sh_spk);
         assert!(result.is_err());
     }
 
@@ -452,15 +439,9 @@ mod tests {
         let p2sh_spk = redeem_script_to_p2sh(&redeem_script);
         let utxos = make_test_utxos(&p2sh_spk);
 
-        let (tx, _) = create_unsigned_refund_tx(
-            &utxos,
-            &addr_a,
-            &addr_b,
-            10_000_000,
-            1_000,
-            &p2sh_spk,
-        )
-        .unwrap();
+        let (tx, _) =
+            create_unsigned_refund_tx(&utxos, &addr_a, &addr_b, 10_000_000, 1_000, &p2sh_spk)
+                .unwrap();
 
         assert_eq!(tx.inputs.len(), 2);
         assert_eq!(tx.outputs.len(), 2);
@@ -528,15 +509,7 @@ mod tests {
 
     #[test]
     fn test_to_rpc_transaction() {
-        let tx = Transaction::new(
-            0,
-            vec![],
-            vec![],
-            0,
-            SUBNETWORK_ID_NATIVE,
-            0,
-            vec![],
-        );
+        let tx = Transaction::new(0, vec![], vec![], 0, SUBNETWORK_ID_NATIVE, 0, vec![]);
         let rpc_tx = to_rpc_transaction(tx);
         assert_eq!(rpc_tx.version, 0);
         assert!(rpc_tx.inputs.is_empty());
@@ -544,4 +517,3 @@ mod tests {
         assert_eq!(rpc_tx.mass, 0);
     }
 }
-

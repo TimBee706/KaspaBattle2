@@ -13,7 +13,9 @@ use kaspa_hashes::Hash;
 use log::{debug, error, info, warn};
 use secp256k1::SecretKey;
 
-use crate::kdapp_episode::{Episode, EpisodeError, EpisodeEventHandler, EpisodeId, PayloadMetadata};
+use crate::kdapp_episode::{
+    Episode, EpisodeError, EpisodeEventHandler, EpisodeId, PayloadMetadata,
+};
 use crate::kdapp_pki::{sign_message, to_message, verify_signature, PubKey, Sig};
 
 /// Episode lifetime in DAA score units (~1 DAA/second).
@@ -294,10 +296,7 @@ impl<G: Episode, H: EpisodeEventHandler<G>> Engine<G, H> {
                             return Some((episode_id, metadata.clone()));
                         }
                         Err(e) => {
-                            warn!(
-                                "Episode {}: Command {:?} rejected: {}",
-                                episode_id, cmd, e
-                            );
+                            warn!("Episode {}: Command {:?} rejected: {}", episode_id, cmd, e);
                         }
                     }
                 } else {
@@ -321,10 +320,7 @@ impl<G: Episode, H: EpisodeEventHandler<G>> Engine<G, H> {
                             return Some((episode_id, metadata.clone()));
                         }
                         Err(e) => {
-                            warn!(
-                                "Episode {}: Command {:?} rejected: {}",
-                                episode_id, cmd, e
-                            );
+                            warn!("Episode {}: Command {:?} rejected: {}", episode_id, cmd, e);
                         }
                     }
                 } else {

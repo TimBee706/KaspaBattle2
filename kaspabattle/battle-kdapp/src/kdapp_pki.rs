@@ -37,8 +37,9 @@ impl BorshDeserialize for PubKey {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buf = [0u8; 33]; // compressed pubkey
         reader.read_exact(&mut buf)?;
-        let pk = PublicKey::from_slice(&buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid public key"))?;
+        let pk = PublicKey::from_slice(&buf).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid public key")
+        })?;
         Ok(PubKey(pk))
     }
 }
@@ -57,8 +58,9 @@ impl BorshDeserialize for Sig {
         let len = u32::deserialize_reader(reader)? as usize;
         let mut buf = vec![0u8; len];
         reader.read_exact(&mut buf)?;
-        let sig = Signature::from_der(&buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid signature"))?;
+        let sig = Signature::from_der(&buf).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid signature")
+        })?;
         Ok(Sig(sig))
     }
 }
@@ -88,7 +90,8 @@ pub fn sign_message(secret_key: &SecretKey, message: &Message) -> Sig {
 
 pub fn verify_signature(public_key: &PubKey, message: &Message, signature: &Sig) -> bool {
     let secp = Secp256k1::verification_only();
-    secp.verify_ecdsa(message, &signature.0, &public_key.0).is_ok()
+    secp.verify_ecdsa(message, &signature.0, &public_key.0)
+        .is_ok()
 }
 
 #[cfg(test)]

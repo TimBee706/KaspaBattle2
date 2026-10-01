@@ -120,7 +120,9 @@ impl FaceitDataService {
 fn map_api_error(e: FaceitApiError, method: &str, id: &str) -> anyhow::Error {
     match e {
         FaceitApiError::HttpError { status: 401, .. } => {
-            anyhow!("FACEIT API: Unauthorized — invalid or expired Data API key (HTTP 401) [{method}]")
+            anyhow!(
+                "FACEIT API: Unauthorized — invalid or expired Data API key (HTTP 401) [{method}]"
+            )
         }
         FaceitApiError::HttpError { status: 403, .. } => {
             anyhow!("FACEIT API: Forbidden — insufficient permissions (HTTP 403) [{method}]")

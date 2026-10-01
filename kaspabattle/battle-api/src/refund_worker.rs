@@ -72,7 +72,10 @@ pub(crate) async fn poll_refundable_matches(
     .await?;
 
     if !rows.is_empty() {
-        info!(count = rows.len(), "Refund Worker: processing refundable matches");
+        info!(
+            count = rows.len(),
+            "Refund Worker: processing refundable matches"
+        );
     }
 
     for row in rows {
@@ -84,7 +87,8 @@ pub(crate) async fn poll_refundable_matches(
         let pubkey_oracle_hex: Option<String> = row.try_get("pubkey_oracle_hex").ok().flatten();
         let redeem_script_hex: Option<String> = row.try_get("redeem_script_hex").ok().flatten();
         let p2sh_address: Option<String> = row.try_get("p2sh_address").ok().flatten();
-        let wager_per_player_sompi: Option<i64> = row.try_get("wager_per_player_sompi").ok().flatten();
+        let wager_per_player_sompi: Option<i64> =
+            row.try_get("wager_per_player_sompi").ok().flatten();
         let timelock_timestamp: Option<i64> = row.try_get("timelock_timestamp").ok().flatten();
 
         // Validate player addresses
@@ -141,12 +145,10 @@ pub(crate) async fn poll_refundable_matches(
                 match_id = %match_id,
                 "Refund Worker: no multisig_escrows row — marking refund_status='success' (no on-chain funds)"
             );
-            let _ = sqlx::query(
-                "UPDATE matches SET refund_status = 'success' WHERE id = $1",
-            )
-            .bind(match_id)
-            .execute(pool)
-            .await;
+            let _ = sqlx::query("UPDATE matches SET refund_status = 'success' WHERE id = $1")
+                .bind(match_id)
+                .execute(pool)
+                .await;
             continue;
         }
 
@@ -212,12 +214,10 @@ pub(crate) async fn poll_refundable_matches(
                 );
 
                 // Mark as failed so we retry on next poll
-                let _ = sqlx::query(
-                    "UPDATE matches SET refund_status = 'failed' WHERE id = $1",
-                )
-                .bind(match_id)
-                .execute(pool)
-                .await;
+                let _ = sqlx::query("UPDATE matches SET refund_status = 'failed' WHERE id = $1")
+                    .bind(match_id)
+                    .execute(pool)
+                    .await;
             }
         }
     }
@@ -241,11 +241,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn debug_query_refunds() {
-        let pool = sqlx::PgPool::connect(
-            "postgres://postgres:postgres@localhost:5432/kaspabattle",
-        )
-        .await
-        .expect("Failed to connect to local debug database. Is Postgres running?");
+        let pool = sqlx::PgPool::connect("postgres://postgres:postgres@localhost:5432/kaspabattle")
+            .await
+            .expect("Failed to connect to local debug database. Is Postgres running?");
 
         let rows = sqlx::query(
             "SELECT m.id, m.status::text as match_status, m.refund_status, m.refund_tx_hash, \

@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::api::{AppState, ApiErrorResponse};
 use crate::api::auth_guard::SessionUser;
+use crate::api::{ApiErrorResponse, AppState};
 
 // ─── Request/Response types ───────────────────────────────────────────────────
 
@@ -50,10 +50,18 @@ pub struct CreateTournamentReq {
     pub registration_deadline: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-fn default_winner_pct() -> i16 { 70 }
-fn default_runner_up_pct() -> i16 { 20 }
-fn default_fee_pct() -> i16 { 10 }
-fn default_game_type() -> String { "CS2".to_string() }
+fn default_winner_pct() -> i16 {
+    70
+}
+fn default_runner_up_pct() -> i16 {
+    20
+}
+fn default_fee_pct() -> i16 {
+    10
+}
+fn default_game_type() -> String {
+    "CS2".to_string()
+}
 
 #[derive(Debug, Serialize)]
 pub struct TournamentResponse {
@@ -228,15 +236,12 @@ pub async fn create_tournament(
     let tournament_id = Uuid::new_v4();
 
     // Derive a deterministic escrow address for this tournament
-    let escrow_address: Option<String> = state
-        .escrow_wallet
-        .as_ref()
-        .and_then(|wallet| {
-            wallet
-                .derive_escrow_address(&tournament_id.to_string())
-                .ok()
-                .map(|(addr, _)| addr.to_string())
-        });
+    let escrow_address: Option<String> = state.escrow_wallet.as_ref().and_then(|wallet| {
+        wallet
+            .derive_escrow_address(&tournament_id.to_string())
+            .ok()
+            .map(|(addr, _)| addr.to_string())
+    });
 
     let row = sqlx::query(
         "INSERT INTO tournaments \
@@ -314,23 +319,26 @@ pub async fn list_tournaments(
     .await
     .map_err(db_err)?;
 
-    let result = rows.iter().map(|r| TournamentResponse {
-        id: r.try_get("id").unwrap(),
-        title: r.try_get("title").unwrap(),
-        game_type: r.try_get("game_type").unwrap(),
-        max_teams: r.try_get("max_teams").unwrap(),
-        buy_in_sompi: r.try_get("buy_in_sompi").unwrap(),
-        prize_winner_pct: r.try_get("prize_winner_pct").unwrap(),
-        prize_runner_up_pct: r.try_get("prize_runner_up_pct").unwrap(),
-        platform_fee_pct: r.try_get("platform_fee_pct").unwrap(),
-        escrow_address: r.try_get("escrow_address").unwrap_or(None),
-        total_prize_pool_sompi: r.try_get("total_prize_pool_sompi").unwrap_or(0),
-        status: r.try_get("status").unwrap(),
-        organizer_user_id: r.try_get("organizer_user_id").unwrap(),
-        created_at: r.try_get("created_at").unwrap(),
-        team_count: r.try_get::<i64, _>("team_count").unwrap_or(0),
-        registration_deadline: r.try_get("registration_deadline").unwrap_or(None),
-    }).collect();
+    let result = rows
+        .iter()
+        .map(|r| TournamentResponse {
+            id: r.try_get("id").unwrap(),
+            title: r.try_get("title").unwrap(),
+            game_type: r.try_get("game_type").unwrap(),
+            max_teams: r.try_get("max_teams").unwrap(),
+            buy_in_sompi: r.try_get("buy_in_sompi").unwrap(),
+            prize_winner_pct: r.try_get("prize_winner_pct").unwrap(),
+            prize_runner_up_pct: r.try_get("prize_runner_up_pct").unwrap(),
+            platform_fee_pct: r.try_get("platform_fee_pct").unwrap(),
+            escrow_address: r.try_get("escrow_address").unwrap_or(None),
+            total_prize_pool_sompi: r.try_get("total_prize_pool_sompi").unwrap_or(0),
+            status: r.try_get("status").unwrap(),
+            organizer_user_id: r.try_get("organizer_user_id").unwrap(),
+            created_at: r.try_get("created_at").unwrap(),
+            team_count: r.try_get::<i64, _>("team_count").unwrap_or(0),
+            registration_deadline: r.try_get("registration_deadline").unwrap_or(None),
+        })
+        .collect();
 
     Ok(Json(result))
 }
@@ -432,13 +440,12 @@ pub async fn register_team(
     }
 
     let max_teams: i32 = tournament.try_get("max_teams").unwrap_or(8);
-    let current_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tournament_teams WHERE tournament_id = $1",
-    )
-    .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(db_err)?;
+    let current_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM tournament_teams WHERE tournament_id = $1")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(db_err)?;
 
     if current_count >= max_teams as i64 {
         return Err((
@@ -539,21 +546,26 @@ pub async fn list_teams(
     .await
     .map_err(db_err)?;
 
-    let teams = rows.iter().map(|r| {
-        let ds: String = r.try_get("deposit_status").unwrap_or_else(|_| "PENDING".into());
-        TeamResponse {
-            id: r.try_get("id").unwrap(),
-            tournament_id: r.try_get("tournament_id").unwrap(),
-            name: r.try_get("name").unwrap(),
-            captain_user_id: r.try_get("captain_user_id").unwrap(),
-            captain_display_name: r.try_get("captain_display_name").ok(),
-            deposit_status: ds,
-            deposit_tx_hash: r.try_get("deposit_tx_hash").unwrap_or(None),
-            deposit_confirmed_at: r.try_get("deposit_confirmed_at").unwrap_or(None),
-            seed: r.try_get("seed").unwrap_or(None),
-            member_count: r.try_get::<i64, _>("member_count").unwrap_or(0),
-        }
-    }).collect();
+    let teams = rows
+        .iter()
+        .map(|r| {
+            let ds: String = r
+                .try_get("deposit_status")
+                .unwrap_or_else(|_| "PENDING".into());
+            TeamResponse {
+                id: r.try_get("id").unwrap(),
+                tournament_id: r.try_get("tournament_id").unwrap(),
+                name: r.try_get("name").unwrap(),
+                captain_user_id: r.try_get("captain_user_id").unwrap(),
+                captain_display_name: r.try_get("captain_display_name").ok(),
+                deposit_status: ds,
+                deposit_tx_hash: r.try_get("deposit_tx_hash").unwrap_or(None),
+                deposit_confirmed_at: r.try_get("deposit_confirmed_at").unwrap_or(None),
+                seed: r.try_get("seed").unwrap_or(None),
+                member_count: r.try_get::<i64, _>("member_count").unwrap_or(0),
+            }
+        })
+        .collect();
 
     Ok(Json(teams))
 }
@@ -584,13 +596,12 @@ pub async fn add_team_member(
     }
 
     // Check team size limit (5 players max)
-    let current_members: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM team_members WHERE team_id = $1",
-    )
-    .bind(team_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(db_err)?;
+    let current_members: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM team_members WHERE team_id = $1")
+            .bind(team_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(db_err)?;
 
     if current_members >= 5 {
         return Err((
@@ -646,7 +657,7 @@ pub async fn submit_team_deposit(
     // 2) Verify caller is captain and team exists in this tournament
     let team_opt = sqlx::query(
         "SELECT captain_user_id, name, deposit_status::text, seed \
-         FROM tournament_teams WHERE id = $1 AND tournament_id = $2"
+         FROM tournament_teams WHERE id = $1 AND tournament_id = $2",
     )
     .bind(team_id)
     .bind(tournament_id)
@@ -672,7 +683,6 @@ pub async fn submit_team_deposit(
             ));
         }
     };
-
 
     let captain_id: Uuid = team.try_get("captain_user_id").unwrap();
     if captain_id != user.id {
@@ -704,17 +714,19 @@ pub async fn submit_team_deposit(
     }
 
     // 2) Verify tournament status
-    let tournament_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM tournaments WHERE id = $1"
-    )
-    .bind(tournament_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(db_err)?
-    .unwrap_or_default();
+    let tournament_status: String =
+        sqlx::query_scalar("SELECT status::text FROM tournaments WHERE id = $1")
+            .bind(tournament_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(db_err)?
+            .unwrap_or_default();
 
-    if tournament_status != "REGISTRATION" && tournament_status != "FUNDED" && tournament_status != "BRACKET_READY" {
-         return Err((
+    if tournament_status != "REGISTRATION"
+        && tournament_status != "FUNDED"
+        && tournament_status != "BRACKET_READY"
+    {
+        return Err((
             StatusCode::CONFLICT,
             Json(ApiErrorResponse {
                 error: "invalid_tournament_status",
@@ -737,13 +749,12 @@ pub async fn submit_team_deposit(
     .await
     .map_err(db_err)?;
 
-    let member_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM team_members WHERE team_id = $1"
-    )
-    .bind(team_id)
-    .fetch_one(&state.pool)
-    .await
-    .unwrap_or(0);
+    let member_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM team_members WHERE team_id = $1")
+            .bind(team_id)
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or(0);
 
     tracing::info!(
         tournament_id = %tournament_id,
@@ -777,14 +788,13 @@ pub async fn lock_bracket(
     SessionUser(user): SessionUser,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Verify caller is the organizer
-    let tournament = sqlx::query(
-        "SELECT organizer_user_id, status, max_teams FROM tournaments WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(not_found)?;
+    let tournament =
+        sqlx::query("SELECT organizer_user_id, status, max_teams FROM tournaments WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(db_err)?
+            .ok_or_else(not_found)?;
 
     let organizer_id: Uuid = tournament.try_get("organizer_user_id").unwrap();
     if organizer_id != user.id {
@@ -816,7 +826,8 @@ pub async fn lock_bracket(
     .await
     .map_err(db_err)?;
 
-    let funded_team_ids: Vec<Uuid> = teams.iter()
+    let funded_team_ids: Vec<Uuid> = teams
+        .iter()
         .map(|r| r.try_get::<Uuid, _>("id").unwrap())
         .collect();
 
@@ -979,13 +990,11 @@ pub async fn get_bracket(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<BracketSlotResponse>>, ApiError> {
     // Verify tournament exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tournaments WHERE id = $1)",
-    )
-    .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(db_err)?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tournaments WHERE id = $1)")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(db_err)?;
 
     if !exists {
         return Err(not_found());
@@ -1008,31 +1017,40 @@ pub async fn get_bracket(
     .await
     .map_err(db_err)?;
 
-    let slots = rows.iter().map(|r| {
-        let team_a = r.try_get::<Uuid, _>("team_a_id").ok().map(|tid| BracketTeamInfo {
-            id: tid,
-            name: r.try_get("team_a_name").unwrap_or_default(),
-            seed: r.try_get("team_a_seed").unwrap_or(None),
-        });
-        let team_b = r.try_get::<Uuid, _>("team_b_id").ok().map(|tid| BracketTeamInfo {
-            id: tid,
-            name: r.try_get("team_b_name").unwrap_or_default(),
-            seed: r.try_get("team_b_seed").unwrap_or(None),
-        });
+    let slots = rows
+        .iter()
+        .map(|r| {
+            let team_a = r
+                .try_get::<Uuid, _>("team_a_id")
+                .ok()
+                .map(|tid| BracketTeamInfo {
+                    id: tid,
+                    name: r.try_get("team_a_name").unwrap_or_default(),
+                    seed: r.try_get("team_a_seed").unwrap_or(None),
+                });
+            let team_b = r
+                .try_get::<Uuid, _>("team_b_id")
+                .ok()
+                .map(|tid| BracketTeamInfo {
+                    id: tid,
+                    name: r.try_get("team_b_name").unwrap_or_default(),
+                    seed: r.try_get("team_b_seed").unwrap_or(None),
+                });
 
-        BracketSlotResponse {
-            id: r.try_get("id").unwrap(),
-            round: r.try_get("round").unwrap(),
-            slot_index: r.try_get("slot_index").unwrap(),
-            team_a,
-            team_b,
-            winner_team_id: r.try_get("winner_team_id").unwrap_or(None),
-            faceit_match_id: r.try_get("faceit_match_id").unwrap_or(None),
-            status: r.try_get("status").unwrap(),
-            match_started_at: r.try_get("match_started_at").unwrap_or(None),
-            match_finished_at: r.try_get("match_finished_at").unwrap_or(None),
-        }
-    }).collect();
+            BracketSlotResponse {
+                id: r.try_get("id").unwrap(),
+                round: r.try_get("round").unwrap(),
+                slot_index: r.try_get("slot_index").unwrap(),
+                team_a,
+                team_b,
+                winner_team_id: r.try_get("winner_team_id").unwrap_or(None),
+                faceit_match_id: r.try_get("faceit_match_id").unwrap_or(None),
+                status: r.try_get("status").unwrap(),
+                match_started_at: r.try_get("match_started_at").unwrap_or(None),
+                match_finished_at: r.try_get("match_finished_at").unwrap_or(None),
+            }
+        })
+        .collect();
 
     Ok(Json(slots))
 }
@@ -1197,14 +1215,12 @@ pub async fn cancel_tournament(
     Path(id): Path<Uuid>,
     SessionUser(user): SessionUser,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let tournament = sqlx::query(
-        "SELECT organizer_user_id, status FROM tournaments WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(not_found)?;
+    let tournament = sqlx::query("SELECT organizer_user_id, status FROM tournaments WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(not_found)?;
 
     let organizer_id: Uuid = tournament.try_get("organizer_user_id").unwrap();
     if organizer_id != user.id {
@@ -1222,13 +1238,11 @@ pub async fn cancel_tournament(
         ));
     }
 
-    sqlx::query(
-        "UPDATE tournaments SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&state.pool)
-    .await
-    .map_err(db_err)?;
+    sqlx::query("UPDATE tournaments SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(db_err)?;
 
     tracing::info!(tournament_id = %id, organizer_id = %user.id, "❌ Tournament cancelled");
 
@@ -1241,11 +1255,7 @@ pub async fn cancel_tournament(
 
 // ─── Helper: check if user is captain of any of the given teams ───────────────
 
-async fn is_captain_of_any(
-    pool: &sqlx::PgPool,
-    user_id: Uuid,
-    team_ids: &[Option<Uuid>],
-) -> bool {
+async fn is_captain_of_any(pool: &sqlx::PgPool, user_id: Uuid, team_ids: &[Option<Uuid>]) -> bool {
     let ids: Vec<Uuid> = team_ids.iter().filter_map(|id| *id).collect();
     if ids.is_empty() {
         return false;
@@ -1304,7 +1314,6 @@ pub async fn file_dispute(
     }
 
     let row = sqlx::query("SELECT status::text FROM tournaments WHERE id = $1")
-
         .bind(id)
         .fetch_optional(&state.pool)
         .await
@@ -1312,12 +1321,16 @@ pub async fn file_dispute(
         .ok_or_else(not_found)?;
 
     let status: String = row.try_get("status").unwrap_or_default();
-    if !matches!(status.as_str(), "IN_PROGRESS" | "BRACKET_READY" | "COMPLETED") {
+    if !matches!(
+        status.as_str(),
+        "IN_PROGRESS" | "BRACKET_READY" | "COMPLETED"
+    ) {
         return Err((
             StatusCode::CONFLICT,
             Json(ApiErrorResponse {
                 error: "not_disputable",
-                message: "Tournament can only be disputed when IN_PROGRESS, BRACKET_READY, or COMPLETED.",
+                message:
+                    "Tournament can only be disputed when IN_PROGRESS, BRACKET_READY, or COMPLETED.",
             }),
         ));
     }
@@ -1441,12 +1454,15 @@ pub async fn file_bracket_dispute(
     .execute(&state.pool)
     .await;
 
-    let _ = state.tx.send(serde_json::json!({
-        "type": "bracket_disputed",
-        "tournament_id": tournament_id,
-        "slot_id": slot_id,
-        "filed_by": user.id,
-    }).to_string());
+    let _ = state.tx.send(
+        serde_json::json!({
+            "type": "bracket_disputed",
+            "tournament_id": tournament_id,
+            "slot_id": slot_id,
+            "filed_by": user.id,
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         tournament_id = %tournament_id,
@@ -1553,31 +1569,40 @@ pub async fn get_tournament_results(
     .await
     .map_err(db_err)?;
 
-    let bracket = bracket_rows.iter().map(|r| {
-        let team_a = r.try_get::<Uuid, _>("team_a_id").ok().map(|tid| BracketTeamInfo {
-            id: tid,
-            name: r.try_get("team_a_name").unwrap_or_default(),
-            seed: r.try_get("team_a_seed").unwrap_or(None),
-        });
-        let team_b = r.try_get::<Uuid, _>("team_b_id").ok().map(|tid| BracketTeamInfo {
-            id: tid,
-            name: r.try_get("team_b_name").unwrap_or_default(),
-            seed: r.try_get("team_b_seed").unwrap_or(None),
-        });
+    let bracket = bracket_rows
+        .iter()
+        .map(|r| {
+            let team_a = r
+                .try_get::<Uuid, _>("team_a_id")
+                .ok()
+                .map(|tid| BracketTeamInfo {
+                    id: tid,
+                    name: r.try_get("team_a_name").unwrap_or_default(),
+                    seed: r.try_get("team_a_seed").unwrap_or(None),
+                });
+            let team_b = r
+                .try_get::<Uuid, _>("team_b_id")
+                .ok()
+                .map(|tid| BracketTeamInfo {
+                    id: tid,
+                    name: r.try_get("team_b_name").unwrap_or_default(),
+                    seed: r.try_get("team_b_seed").unwrap_or(None),
+                });
 
-        BracketSlotResponse {
-            id: r.try_get("id").unwrap(),
-            round: r.try_get("round").unwrap(),
-            slot_index: r.try_get("slot_index").unwrap(),
-            team_a,
-            team_b,
-            winner_team_id: r.try_get("winner_team_id").unwrap_or(None),
-            faceit_match_id: r.try_get("faceit_match_id").unwrap_or(None),
-            status: r.try_get("status").unwrap_or_default(),
-            match_started_at: r.try_get("match_started_at").unwrap_or(None),
-            match_finished_at: r.try_get("match_finished_at").unwrap_or(None),
-        }
-    }).collect();
+            BracketSlotResponse {
+                id: r.try_get("id").unwrap(),
+                round: r.try_get("round").unwrap(),
+                slot_index: r.try_get("slot_index").unwrap(),
+                team_a,
+                team_b,
+                winner_team_id: r.try_get("winner_team_id").unwrap_or(None),
+                faceit_match_id: r.try_get("faceit_match_id").unwrap_or(None),
+                status: r.try_get("status").unwrap_or_default(),
+                match_started_at: r.try_get("match_started_at").unwrap_or(None),
+                match_finished_at: r.try_get("match_finished_at").unwrap_or(None),
+            }
+        })
+        .collect();
 
     Ok(Json(TournamentResultsResponse {
         tournament_id: id,
@@ -1607,7 +1632,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/:id/teams/:team_id/deposit", post(submit_team_deposit))
         .route("/:id/lock", post(lock_bracket))
         .route("/:id/bracket", get(get_bracket))
-        .route("/:id/bracket/:slot_id/match-id", post(submit_bracket_match_id))
+        .route(
+            "/:id/bracket/:slot_id/match-id",
+            post(submit_bracket_match_id),
+        )
         .route("/:id/bracket/:slot_id/dispute", post(file_bracket_dispute))
         .route("/:id/payout", get(get_payout_info))
         .route("/:id/dispute", post(file_dispute))

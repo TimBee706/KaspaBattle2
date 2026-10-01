@@ -16,8 +16,8 @@
 use crate::kdapp_episode::{Episode, EpisodeError, PayloadMetadata};
 use crate::kdapp_pki::PubKey;
 use crate::tournament_commands::{
-    BracketSlot, BracketSlotStatus, TournamentCommand, TournamentGameType,
-    TournamentPhase, TournamentRollback,
+    BracketSlot, BracketSlotStatus, TournamentCommand, TournamentGameType, TournamentPhase,
+    TournamentRollback,
 };
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -171,8 +171,7 @@ impl TournamentEpisode {
             let team_a_idx = (slot_idx * 2) as u8;
             let team_b_idx = (slot_idx * 2 + 1) as u8;
 
-            let (team_a, team_b, status) = if (team_a_idx as usize) < n
-                && (team_b_idx as usize) < n
+            let (team_a, team_b, status) = if (team_a_idx as usize) < n && (team_b_idx as usize) < n
             {
                 (Some(team_a_idx), Some(team_b_idx), BracketSlotStatus::Ready)
             } else if (team_a_idx as usize) < n {
@@ -188,7 +187,11 @@ impl TournamentEpisode {
                 slot_index: slot_idx as u8,
                 team_a_idx: team_a,
                 team_b_idx: team_b,
-                winner_idx: if status == BracketSlotStatus::Bye { team_a } else { None },
+                winner_idx: if status == BracketSlotStatus::Bye {
+                    team_a
+                } else {
+                    None
+                },
                 faceit_match_id_hash: None,
                 status,
             });
@@ -253,12 +256,12 @@ impl TournamentEpisode {
 
     /// Check if all slots in a given round are completed or BYE.
     fn is_round_complete(&self, round: u8) -> bool {
-        self.bracket
-            .iter()
-            .filter(|s| s.round == round)
-            .all(|s| {
-                matches!(s.status, BracketSlotStatus::Completed | BracketSlotStatus::Bye)
-            })
+        self.bracket.iter().filter(|s| s.round == round).all(|s| {
+            matches!(
+                s.status,
+                BracketSlotStatus::Completed | BracketSlotStatus::Bye
+            )
+        })
     }
 
     /// Find the highest round number in the bracket.
@@ -330,12 +333,16 @@ impl Episode for TournamentEpisode {
                 // Validate team count is power of 2
                 let n = *max_teams as usize;
                 if !(4..=MAX_TEAMS).contains(&n) || (n & (n - 1)) != 0 {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::InvalidTeamCount));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::InvalidTeamCount,
+                    ));
                 }
 
                 // Validate prize split
                 if *prize_winner_pct + *prize_runner_up_pct + *platform_fee_pct != 100 {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::InvalidPrizeSplit));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::InvalidPrizeSplit,
+                    ));
                 }
 
                 self.max_teams = *max_teams;
@@ -349,7 +356,10 @@ impl Episode for TournamentEpisode {
             }
 
             // ─── RegisterTeam ─────────────────────────────────────────────────
-            TournamentCommand::RegisterTeam { team_name_hash, team_size: _ } => {
+            TournamentCommand::RegisterTeam {
+                team_name_hash,
+                team_size: _,
+            } => {
                 if !matches!(self.phase, TournamentPhase::Registration) {
                     return Err(EpisodeError::InvalidCommand(
                         TournamentError::InvalidTransition {
@@ -360,13 +370,17 @@ impl Episode for TournamentEpisode {
                 }
 
                 if self.teams.len() >= self.max_teams as usize {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::TournamentFull {
-                        max_teams: self.max_teams as usize,
-                    }));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::TournamentFull {
+                            max_teams: self.max_teams as usize,
+                        },
+                    ));
                 }
 
                 let captain = auth.ok_or(EpisodeError::InvalidCommand(
-                    TournamentError::Unauthorized { role: "Captain (signed command required)".into() },
+                    TournamentError::Unauthorized {
+                        role: "Captain (signed command required)".into(),
+                    },
                 ))?;
 
                 self.teams.push(TeamState {
@@ -381,8 +395,15 @@ impl Episode for TournamentEpisode {
             }
 
             // ─── ConfirmTeamDeposit ────────────────────────────────────────────
-            TournamentCommand::ConfirmTeamDeposit { team_idx, tx_hash: _, amount_sompi } => {
-                if !matches!(self.phase, TournamentPhase::Registration | TournamentPhase::Funded) {
+            TournamentCommand::ConfirmTeamDeposit {
+                team_idx,
+                tx_hash: _,
+                amount_sompi,
+            } => {
+                if !matches!(
+                    self.phase,
+                    TournamentPhase::Registration | TournamentPhase::Funded
+                ) {
                     return Err(EpisodeError::InvalidCommand(
                         TournamentError::InvalidTransition {
                             phase: format!("{:?}", self.phase),
@@ -393,9 +414,11 @@ impl Episode for TournamentEpisode {
 
                 let idx = *team_idx as usize;
                 if idx >= self.teams.len() {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::TeamNotFound {
-                        team_idx: *team_idx,
-                    }));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::TeamNotFound {
+                            team_idx: *team_idx,
+                        },
+                    ));
                 }
 
                 let prev_amount = self.teams[idx].deposited_sompi;
@@ -432,9 +455,9 @@ impl Episode for TournamentEpisode {
 
                 let funded = self.funded_team_count();
                 if funded < 2 {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::NotEnoughTeams {
-                        got: funded,
-                    }));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::NotEnoughTeams { got: funded },
+                    ));
                 }
 
                 let total_rounds = (self.max_teams as f32).log2().ceil() as u8;
@@ -464,18 +487,22 @@ impl Episode for TournamentEpisode {
                     ));
                 }
 
-                let slot = self.find_slot_mut(*round, *slot_index).ok_or(
-                    EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                        round: *round,
-                        slot_index: *slot_index,
-                    }),
-                )?;
+                let slot =
+                    self.find_slot_mut(*round, *slot_index)
+                        .ok_or(EpisodeError::InvalidCommand(
+                            TournamentError::InvalidBracketSlot {
+                                round: *round,
+                                slot_index: *slot_index,
+                            },
+                        ))?;
 
                 if matches!(slot.status, BracketSlotStatus::Completed) {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::SlotAlreadyCompleted {
-                        round: *round,
-                        slot_index: *slot_index,
-                    }));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::SlotAlreadyCompleted {
+                            round: *round,
+                            slot_index: *slot_index,
+                        },
+                    ));
                 }
 
                 slot.faceit_match_id_hash = Some(*faceit_match_id_hash);
@@ -483,7 +510,9 @@ impl Episode for TournamentEpisode {
 
                 // Transition tournament to InProgress on first submitted match ID
                 if matches!(self.phase, TournamentPhase::BracketReady { .. }) {
-                    self.phase = TournamentPhase::InProgress { current_round: *round };
+                    self.phase = TournamentPhase::InProgress {
+                        current_round: *round,
+                    };
                 }
 
                 Ok(TournamentRollback::UndoSubmitMatchId {
@@ -509,15 +538,19 @@ impl Episode for TournamentEpisode {
                 }
 
                 if *winner_team_idx > 1 {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::InvalidWinnerIndex));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::InvalidWinnerIndex,
+                    ));
                 }
 
-                let slot_pos = self.find_slot(*round, *slot_index).ok_or(
-                    EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                        round: *round,
-                        slot_index: *slot_index,
-                    }),
-                )?;
+                let slot_pos =
+                    self.find_slot(*round, *slot_index)
+                        .ok_or(EpisodeError::InvalidCommand(
+                            TournamentError::InvalidBracketSlot {
+                                round: *round,
+                                slot_index: *slot_index,
+                            },
+                        ))?;
 
                 // Resolve actual team_idx from slot's team_a/team_b assignment
                 let resolved_winner_team_idx = {
@@ -528,10 +561,12 @@ impl Episode for TournamentEpisode {
                         slot.team_b_idx
                     }
                 }
-                .ok_or(EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                    round: *round,
-                    slot_index: *slot_index,
-                }))?;
+                .ok_or(EpisodeError::InvalidCommand(
+                    TournamentError::InvalidBracketSlot {
+                        round: *round,
+                        slot_index: *slot_index,
+                    },
+                ))?;
 
                 self.bracket[slot_pos].winner_idx = Some(resolved_winner_team_idx);
                 self.bracket[slot_pos].status = BracketSlotStatus::Completed;
@@ -576,7 +611,11 @@ impl Episode for TournamentEpisode {
             }
 
             // ─── DisputeResult ─────────────────────────────────────────────────
-            TournamentCommand::DisputeResult { round, slot_index, reason_code } => {
+            TournamentCommand::DisputeResult {
+                round,
+                slot_index,
+                reason_code,
+            } => {
                 if !matches!(self.phase, TournamentPhase::InProgress { .. }) {
                     return Err(EpisodeError::InvalidCommand(
                         TournamentError::InvalidTransition {
@@ -587,12 +626,14 @@ impl Episode for TournamentEpisode {
                 }
 
                 // Validate and read slot info BEFORE mutating (borrow checker)
-                let slot_pos = self.find_slot(*round, *slot_index).ok_or(
-                    EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                        round: *round,
-                        slot_index: *slot_index,
-                    }),
-                )?;
+                let slot_pos =
+                    self.find_slot(*round, *slot_index)
+                        .ok_or(EpisodeError::InvalidCommand(
+                            TournamentError::InvalidBracketSlot {
+                                round: *round,
+                                slot_index: *slot_index,
+                            },
+                        ))?;
 
                 if !matches!(self.bracket[slot_pos].status, BracketSlotStatus::Completed) {
                     return Err(EpisodeError::InvalidCommand(TournamentError::NotInDispute));
@@ -609,9 +650,19 @@ impl Episode for TournamentEpisode {
 
                 let disputing_team_idx = auth
                     .and_then(|auth_key| {
-                        if self.teams.get(team_a_idx? as usize).map(|t| &t.captain_pubkey) == Some(&auth_key) {
+                        if self
+                            .teams
+                            .get(team_a_idx? as usize)
+                            .map(|t| &t.captain_pubkey)
+                            == Some(&auth_key)
+                        {
                             Some(0u8)
-                        } else if self.teams.get(team_b_idx? as usize).map(|t| &t.captain_pubkey) == Some(&auth_key) {
+                        } else if self
+                            .teams
+                            .get(team_b_idx? as usize)
+                            .map(|t| &t.captain_pubkey)
+                            == Some(&auth_key)
+                        {
                             Some(1u8)
                         } else {
                             None
@@ -626,11 +677,17 @@ impl Episode for TournamentEpisode {
                     disputing_team_idx,
                 };
 
-                Ok(TournamentRollback::UndoDisputeResult { previous_phase: prev_phase })
+                Ok(TournamentRollback::UndoDisputeResult {
+                    previous_phase: prev_phase,
+                })
             }
 
             // ─── ResolveDispute ────────────────────────────────────────────────
-            TournamentCommand::ResolveDispute { round, slot_index, winner_team_idx } => {
+            TournamentCommand::ResolveDispute {
+                round,
+                slot_index,
+                winner_team_idx,
+            } => {
                 if !matches!(self.phase, TournamentPhase::Disputed { .. }) {
                     return Err(EpisodeError::InvalidCommand(
                         TournamentError::InvalidTransition {
@@ -641,26 +698,36 @@ impl Episode for TournamentEpisode {
                 }
 
                 if *winner_team_idx > 1 {
-                    return Err(EpisodeError::InvalidCommand(TournamentError::InvalidWinnerIndex));
+                    return Err(EpisodeError::InvalidCommand(
+                        TournamentError::InvalidWinnerIndex,
+                    ));
                 }
 
-                let slot_pos = self.find_slot(*round, *slot_index).ok_or(
-                    EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                        round: *round,
-                        slot_index: *slot_index,
-                    }),
-                )?;
+                let slot_pos =
+                    self.find_slot(*round, *slot_index)
+                        .ok_or(EpisodeError::InvalidCommand(
+                            TournamentError::InvalidBracketSlot {
+                                round: *round,
+                                slot_index: *slot_index,
+                            },
+                        ))?;
 
                 let prev_winner = self.bracket[slot_pos].winner_idx;
 
                 let resolved_winner = {
                     let slot = &self.bracket[slot_pos];
-                    if *winner_team_idx == 0 { slot.team_a_idx } else { slot.team_b_idx }
+                    if *winner_team_idx == 0 {
+                        slot.team_a_idx
+                    } else {
+                        slot.team_b_idx
+                    }
                 }
-                .ok_or(EpisodeError::InvalidCommand(TournamentError::InvalidBracketSlot {
-                    round: *round,
-                    slot_index: *slot_index,
-                }))?;
+                .ok_or(EpisodeError::InvalidCommand(
+                    TournamentError::InvalidBracketSlot {
+                        round: *round,
+                        slot_index: *slot_index,
+                    },
+                ))?;
 
                 self.bracket[slot_pos].winner_idx = Some(resolved_winner);
                 self.bracket[slot_pos].status = BracketSlotStatus::Completed;
@@ -715,21 +782,23 @@ impl Episode for TournamentEpisode {
             }
 
             // ─── CancelTournament ──────────────────────────────────────────────
-            TournamentCommand::CancelTournament { reason_code } => {
-                match &self.phase {
-                    TournamentPhase::Registration | TournamentPhase::Funded => {
-                        let prev = self.phase.clone();
-                        self.phase = TournamentPhase::Cancelled {
-                            reason_code: *reason_code,
-                        };
-                        Ok(TournamentRollback::UndoCancelTournament { previous_phase: prev })
-                    }
-                    _ => Err(EpisodeError::InvalidCommand(TournamentError::InvalidTransition {
+            TournamentCommand::CancelTournament { reason_code } => match &self.phase {
+                TournamentPhase::Registration | TournamentPhase::Funded => {
+                    let prev = self.phase.clone();
+                    self.phase = TournamentPhase::Cancelled {
+                        reason_code: *reason_code,
+                    };
+                    Ok(TournamentRollback::UndoCancelTournament {
+                        previous_phase: prev,
+                    })
+                }
+                _ => Err(EpisodeError::InvalidCommand(
+                    TournamentError::InvalidTransition {
                         phase: format!("{:?}", self.phase),
                         action: "CancelTournament".into(),
-                    })),
-                }
-            }
+                    },
+                )),
+            },
         }
     }
 
@@ -749,7 +818,10 @@ impl Episode for TournamentEpisode {
                 true
             }
 
-            TournamentRollback::UndoConfirmTeamDeposit { team_idx, previous_amount } => {
+            TournamentRollback::UndoConfirmTeamDeposit {
+                team_idx,
+                previous_amount,
+            } => {
                 if let Some(team) = self.teams.get_mut(team_idx as usize) {
                     team.deposited_sompi = previous_amount;
                     team.deposit_confirmed = previous_amount >= self.buy_in_sompi;
@@ -788,7 +860,11 @@ impl Episode for TournamentEpisode {
                 true
             }
 
-            TournamentRollback::UndoResolveDispute { round, slot_index, previous_winner } => {
+            TournamentRollback::UndoResolveDispute {
+                round,
+                slot_index,
+                previous_winner,
+            } => {
                 if let Some(slot) = self.find_slot_mut(round, slot_index) {
                     slot.winner_idx = previous_winner;
                     slot.status = BracketSlotStatus::Cancelled;
@@ -800,7 +876,9 @@ impl Episode for TournamentEpisode {
                 if let TournamentPhase::Completed { .. } = &self.phase {
                     // Revert to InProgress at last known round
                     let last_round = self.total_rounds();
-                    self.phase = TournamentPhase::InProgress { current_round: last_round };
+                    self.phase = TournamentPhase::InProgress {
+                        current_round: last_round,
+                    };
                 }
                 true
             }
@@ -858,17 +936,22 @@ mod tests {
             },
             Some(pk_organizer),
             &meta,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Register 4 teams
         for (i, pk) in [pk_a, pk_b, pk_c, pk_d].iter().enumerate() {
             let mut name = [0u8; 32];
             name[0] = i as u8;
             ep.execute(
-                &TournamentCommand::RegisterTeam { team_name_hash: name, team_size: 5 },
+                &TournamentCommand::RegisterTeam {
+                    team_name_hash: name,
+                    team_size: 5,
+                },
                 Some(*pk),
                 &meta,
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         // Confirm all deposits
@@ -881,7 +964,8 @@ mod tests {
                 },
                 Some(pk_organizer),
                 &meta,
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         (ep, [pk_a, pk_b, pk_c, pk_d])
@@ -962,16 +1046,24 @@ mod tests {
         let meta = make_metadata();
         ep.execute(
             &TournamentCommand::CreateTournament {
-                max_teams: 4, buy_in_sompi: 1000,
-                prize_winner_pct: 70, prize_runner_up_pct: 20, platform_fee_pct: 10,
+                max_teams: 4,
+                buy_in_sompi: 1000,
+                prize_winner_pct: 70,
+                prize_runner_up_pct: 20,
+                platform_fee_pct: 10,
                 game_type: TournamentGameType::CS2,
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // RegisterTeam without auth should fail
         let result = ep.execute(
-            &TournamentCommand::RegisterTeam { team_name_hash: [1u8; 32], team_size: 5 },
+            &TournamentCommand::RegisterTeam {
+                team_name_hash: [1u8; 32],
+                team_size: 5,
+            },
             None, // No authorization
             &meta,
         );
@@ -997,17 +1089,27 @@ mod tests {
 
         ep.execute(
             &TournamentCommand::CreateTournament {
-                max_teams: 4, buy_in_sompi: 50_000_000_000,
-                prize_winner_pct: 70, prize_runner_up_pct: 20, platform_fee_pct: 10,
+                max_teams: 4,
+                buy_in_sompi: 50_000_000_000,
+                prize_winner_pct: 70,
+                prize_runner_up_pct: 20,
+                platform_fee_pct: 10,
                 game_type: TournamentGameType::CS2,
             },
-            Some(pk_org), &meta,
-        ).unwrap();
+            Some(pk_org),
+            &meta,
+        )
+        .unwrap();
 
         ep.execute(
-            &TournamentCommand::RegisterTeam { team_name_hash: [0u8; 32], team_size: 5 },
-            Some(pk_a), &meta,
-        ).unwrap();
+            &TournamentCommand::RegisterTeam {
+                team_name_hash: [0u8; 32],
+                team_size: 5,
+            },
+            Some(pk_a),
+            &meta,
+        )
+        .unwrap();
 
         // Send only partial deposit
         ep.execute(
@@ -1016,8 +1118,10 @@ mod tests {
                 tx_hash: [1u8; 32],
                 amount_sompi: 10_000_000_000, // Less than buy_in
             },
-            Some(pk_org), &meta,
-        ).unwrap();
+            Some(pk_org),
+            &meta,
+        )
+        .unwrap();
 
         assert!(!ep.teams[0].deposit_confirmed);
         assert!(matches!(ep.phase, TournamentPhase::Registration));
@@ -1035,12 +1139,17 @@ mod tests {
 
         // 4 teams → 2 slots in round 1 + 1 slot in round 2
         assert_eq!(ep.bracket.len(), 3);
-        assert!(matches!(ep.phase, TournamentPhase::BracketReady { total_rounds: 2 }));
+        assert!(matches!(
+            ep.phase,
+            TournamentPhase::BracketReady { total_rounds: 2 }
+        ));
 
         // Round 1 slots should be Ready
         let r1_slots: Vec<_> = ep.bracket.iter().filter(|s| s.round == 1).collect();
         assert_eq!(r1_slots.len(), 2);
-        assert!(r1_slots.iter().all(|s| matches!(s.status, BracketSlotStatus::Ready)));
+        assert!(r1_slots
+            .iter()
+            .all(|s| matches!(s.status, BracketSlotStatus::Ready)));
     }
 
     #[test]
@@ -1058,33 +1167,54 @@ mod tests {
         let (mut ep, _) = setup_4team_episode();
         let meta = make_metadata();
 
-        ep.execute(&TournamentCommand::LockBracket, None, &meta).unwrap();
+        ep.execute(&TournamentCommand::LockBracket, None, &meta)
+            .unwrap();
 
         // Submit match ID for round 1, slot 0
         ep.execute(
             &TournamentCommand::SubmitMatchId {
-                round: 1, slot_index: 0, faceit_match_id_hash: [9u8; 32],
+                round: 1,
+                slot_index: 0,
+                faceit_match_id_hash: [9u8; 32],
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
-        assert!(matches!(ep.phase, TournamentPhase::InProgress { current_round: 1 }));
+        assert!(matches!(
+            ep.phase,
+            TournamentPhase::InProgress { current_round: 1 }
+        ));
 
         // Report result: team_a wins (winner_team_idx=0)
         ep.execute(
             &TournamentCommand::ReportBracketResult {
-                round: 1, slot_index: 0, winner_team_idx: 0,
-                score_winner: 16, score_loser: 8,
+                round: 1,
+                slot_index: 0,
+                winner_team_idx: 0,
+                score_winner: 16,
+                score_loser: 8,
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // Slot 0 of round 1 should be Completed
-        let slot = ep.bracket.iter().find(|s| s.round == 1 && s.slot_index == 0).unwrap();
+        let slot = ep
+            .bracket
+            .iter()
+            .find(|s| s.round == 1 && s.slot_index == 0)
+            .unwrap();
         assert!(matches!(slot.status, BracketSlotStatus::Completed));
 
         // Round 2, slot 0 should have team_a_idx set (winner from slot 0 = even)
-        let final_slot = ep.bracket.iter().find(|s| s.round == 2 && s.slot_index == 0).unwrap();
+        let final_slot = ep
+            .bracket
+            .iter()
+            .find(|s| s.round == 2 && s.slot_index == 0)
+            .unwrap();
         assert_eq!(final_slot.team_a_idx, slot.winner_idx);
     }
 
@@ -1094,45 +1224,95 @@ mod tests {
         let meta = make_metadata();
 
         // Lock
-        ep.execute(&TournamentCommand::LockBracket, None, &meta).unwrap();
+        ep.execute(&TournamentCommand::LockBracket, None, &meta)
+            .unwrap();
         assert_eq!(ep.bracket.len(), 3);
 
         // Round 1, Slot 0: team 0 beats team 1
         ep.execute(
-            &TournamentCommand::SubmitMatchId { round: 1, slot_index: 0, faceit_match_id_hash: [1u8; 32] },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::SubmitMatchId {
+                round: 1,
+                slot_index: 0,
+                faceit_match_id_hash: [1u8; 32],
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
         ep.execute(
-            &TournamentCommand::ReportBracketResult { round: 1, slot_index: 0, winner_team_idx: 0, score_winner: 16, score_loser: 5 },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::ReportBracketResult {
+                round: 1,
+                slot_index: 0,
+                winner_team_idx: 0,
+                score_winner: 16,
+                score_loser: 5,
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // Round 1, Slot 1: team 2 beats team 3
         ep.execute(
-            &TournamentCommand::SubmitMatchId { round: 1, slot_index: 1, faceit_match_id_hash: [2u8; 32] },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::SubmitMatchId {
+                round: 1,
+                slot_index: 1,
+                faceit_match_id_hash: [2u8; 32],
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
         ep.execute(
-            &TournamentCommand::ReportBracketResult { round: 1, slot_index: 1, winner_team_idx: 0, score_winner: 16, score_loser: 10 },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::ReportBracketResult {
+                round: 1,
+                slot_index: 1,
+                winner_team_idx: 0,
+                score_winner: 16,
+                score_loser: 10,
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // After round 1 complete → InProgress at round 2
-        assert!(matches!(ep.phase, TournamentPhase::InProgress { current_round: 2 }));
+        assert!(matches!(
+            ep.phase,
+            TournamentPhase::InProgress { current_round: 2 }
+        ));
 
         // Final: team 0 vs team 2
-        let final_slot = ep.bracket.iter().find(|s| s.round == 2 && s.slot_index == 0).unwrap();
+        let final_slot = ep
+            .bracket
+            .iter()
+            .find(|s| s.round == 2 && s.slot_index == 0)
+            .unwrap();
         assert!(final_slot.team_a_idx.is_some());
         assert!(final_slot.team_b_idx.is_some());
 
         ep.execute(
-            &TournamentCommand::SubmitMatchId { round: 2, slot_index: 0, faceit_match_id_hash: [3u8; 32] },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::SubmitMatchId {
+                round: 2,
+                slot_index: 0,
+                faceit_match_id_hash: [3u8; 32],
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
         ep.execute(
-            &TournamentCommand::ReportBracketResult { round: 2, slot_index: 0, winner_team_idx: 0, score_winner: 16, score_loser: 12 },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::ReportBracketResult {
+                round: 2,
+                slot_index: 0,
+                winner_team_idx: 0,
+                score_winner: 16,
+                score_loser: 12,
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // Winner determined
         assert!(ep.winner_team_idx.is_some());
@@ -1144,8 +1324,10 @@ mod tests {
                 winner_kaspa_addr_hash: [4u8; 32],
                 runner_up_kaspa_addr_hash: [5u8; 32],
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
         assert!(matches!(ep.phase, TournamentPhase::Completed { .. }));
     }
@@ -1157,19 +1339,26 @@ mod tests {
 
         ep.execute(
             &TournamentCommand::CreateTournament {
-                max_teams: 4, buy_in_sompi: 1000,
-                prize_winner_pct: 70, prize_runner_up_pct: 20, platform_fee_pct: 10,
+                max_teams: 4,
+                buy_in_sompi: 1000,
+                prize_winner_pct: 70,
+                prize_runner_up_pct: 20,
+                platform_fee_pct: 10,
                 game_type: TournamentGameType::CS2,
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
         ep.execute(
             &TournamentCommand::CancelTournament {
                 reason_code: reason::CANCEL_NOT_ENOUGH_TEAMS,
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
         assert!(matches!(ep.phase, TournamentPhase::Cancelled { .. }));
     }
@@ -1179,11 +1368,15 @@ mod tests {
         let (mut ep, _) = setup_4team_episode();
         let meta = make_metadata();
 
-        ep.execute(&TournamentCommand::LockBracket, None, &meta).unwrap();
+        ep.execute(&TournamentCommand::LockBracket, None, &meta)
+            .unwrap();
 
         let result = ep.execute(
-            &TournamentCommand::CancelTournament { reason_code: reason::CANCEL_ORGANIZER_REQUEST },
-            None, &meta,
+            &TournamentCommand::CancelTournament {
+                reason_code: reason::CANCEL_ORGANIZER_REQUEST,
+            },
+            None,
+            &meta,
         );
         assert!(result.is_err());
     }
@@ -1197,17 +1390,28 @@ mod tests {
 
         ep.execute(
             &TournamentCommand::CreateTournament {
-                max_teams: 4, buy_in_sompi: 1000,
-                prize_winner_pct: 70, prize_runner_up_pct: 20, platform_fee_pct: 10,
+                max_teams: 4,
+                buy_in_sompi: 1000,
+                prize_winner_pct: 70,
+                prize_runner_up_pct: 20,
+                platform_fee_pct: 10,
                 game_type: TournamentGameType::CS2,
             },
-            Some(pk_org), &meta,
-        ).unwrap();
+            Some(pk_org),
+            &meta,
+        )
+        .unwrap();
 
-        let rb = ep.execute(
-            &TournamentCommand::RegisterTeam { team_name_hash: [1u8; 32], team_size: 5 },
-            Some(pk_a), &meta,
-        ).unwrap();
+        let rb = ep
+            .execute(
+                &TournamentCommand::RegisterTeam {
+                    team_name_hash: [1u8; 32],
+                    team_size: 5,
+                },
+                Some(pk_a),
+                &meta,
+            )
+            .unwrap();
 
         assert_eq!(ep.teams.len(), 1);
         ep.rollback(rb);
@@ -1216,15 +1420,17 @@ mod tests {
 
     #[test]
     fn test_build_bracket_4_teams() {
-        let teams: Vec<TeamState> = (0..4).map(|i| {
-            let (_, pk) = generate_keypair();
-            TeamState {
-                name_hash: [i as u8; 32],
-                captain_pubkey: pk,
-                deposited_sompi: 1000,
-                deposit_confirmed: true,
-            }
-        }).collect();
+        let teams: Vec<TeamState> = (0..4)
+            .map(|i| {
+                let (_, pk) = generate_keypair();
+                TeamState {
+                    name_hash: [i as u8; 32],
+                    captain_pubkey: pk,
+                    deposited_sompi: 1000,
+                    deposit_confirmed: true,
+                }
+            })
+            .collect();
 
         let bracket = TournamentEpisode::build_bracket(&teams, 4);
         // 4 teams: 2 slots in round 1 + 1 slot in round 2
@@ -1232,7 +1438,9 @@ mod tests {
 
         let r1: Vec<_> = bracket.iter().filter(|s| s.round == 1).collect();
         assert_eq!(r1.len(), 2);
-        assert!(r1.iter().all(|s| matches!(s.status, BracketSlotStatus::Ready)));
+        assert!(r1
+            .iter()
+            .all(|s| matches!(s.status, BracketSlotStatus::Ready)));
 
         let r2: Vec<_> = bracket.iter().filter(|s| s.round == 2).collect();
         assert_eq!(r2.len(), 1);
@@ -1244,37 +1452,61 @@ mod tests {
         let (mut ep, captains) = setup_4team_episode();
         let meta = make_metadata();
 
-        ep.execute(&TournamentCommand::LockBracket, None, &meta).unwrap();
+        ep.execute(&TournamentCommand::LockBracket, None, &meta)
+            .unwrap();
         ep.execute(
-            &TournamentCommand::SubmitMatchId { round: 1, slot_index: 0, faceit_match_id_hash: [7u8; 32] },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::SubmitMatchId {
+                round: 1,
+                slot_index: 0,
+                faceit_match_id_hash: [7u8; 32],
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
         ep.execute(
-            &TournamentCommand::ReportBracketResult { round: 1, slot_index: 0, winner_team_idx: 0, score_winner: 16, score_loser: 14 },
-            None, &meta,
-        ).unwrap();
+            &TournamentCommand::ReportBracketResult {
+                round: 1,
+                slot_index: 0,
+                winner_team_idx: 0,
+                score_winner: 16,
+                score_loser: 14,
+            },
+            None,
+            &meta,
+        )
+        .unwrap();
 
         // Captain of the losing team files dispute
         ep.execute(
             &TournamentCommand::DisputeResult {
-                round: 1, slot_index: 0,
+                round: 1,
+                slot_index: 0,
                 reason_code: reason::DISPUTE_SCORE_MISMATCH,
             },
             Some(captains[1]), // Team B captain
             &meta,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(matches!(ep.phase, TournamentPhase::Disputed { .. }));
 
         // Admin resolves: team_b actually won
         ep.execute(
             &TournamentCommand::ResolveDispute {
-                round: 1, slot_index: 0,
+                round: 1,
+                slot_index: 0,
                 winner_team_idx: 1, // Override to team_b
             },
-            None, &meta,
-        ).unwrap();
+            None,
+            &meta,
+        )
+        .unwrap();
 
-        let slot = ep.bracket.iter().find(|s| s.round == 1 && s.slot_index == 0).unwrap();
+        let slot = ep
+            .bracket
+            .iter()
+            .find(|s| s.round == 1 && s.slot_index == 0)
+            .unwrap();
         assert!(matches!(slot.status, BracketSlotStatus::Completed));
         assert!(matches!(ep.phase, TournamentPhase::InProgress { .. }));
     }

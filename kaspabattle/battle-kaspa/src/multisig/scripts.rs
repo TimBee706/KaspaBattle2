@@ -407,8 +407,7 @@ mod tests {
         let (pk_a, pk_b, pk_o) = test_pubkeys();
         let script1 =
             build_multisig_redeem_script(&[pk_a.clone(), pk_b.clone(), pk_o.clone()], 2).unwrap();
-        let script2 =
-            build_multisig_redeem_script(&[pk_b, pk_a, pk_o], 2).unwrap();
+        let script2 = build_multisig_redeem_script(&[pk_b, pk_a, pk_o], 2).unwrap();
 
         let addr1 = redeem_script_to_address(&script1, Prefix::Testnet);
         let addr2 = redeem_script_to_address(&script2, Prefix::Testnet);
@@ -474,7 +473,10 @@ mod tests {
         // Script should contain OP_ELSE (0x67)
         assert!(script.contains(&opcodes::OP_ELSE), "Should contain OP_ELSE");
         // Script should contain OP_ENDIF (0x68)
-        assert!(script.contains(&opcodes::OP_ENDIF), "Should contain OP_ENDIF");
+        assert!(
+            script.contains(&opcodes::OP_ENDIF),
+            "Should contain OP_ENDIF"
+        );
         // Script should contain OP_CHECKLOCKTIMEVERIFY (0xb1)
         assert!(
             script.contains(&opcodes::OP_CHECKLOCKTIMEVERIFY),
@@ -576,4 +578,3 @@ mod tests {
         assert!(!script.contains(&opcodes::OP_IF));
     }
 }
-

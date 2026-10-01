@@ -19,9 +19,9 @@ mod models;
 mod native_game;
 #[cfg(test)]
 mod native_tests;
-mod services;
 mod payout_worker;
 mod refund_worker;
+mod services;
 mod tournament_payout_worker;
 
 fn try_load_dotenv() -> Vec<std::path::PathBuf> {
@@ -96,7 +96,8 @@ fn normalized_kaspa_node_url() -> Option<String> {
     // Retire the legacy public testnet endpoint so stale local env files no longer
     // bypass Resolver-based discovery.
     if trimmed.contains("photon-10.kaspa.red") {
-        tracing::info!("Ignoring legacy KASPA_NODE_URL={} and falling back to Kaspa Resolver",
+        tracing::info!(
+            "Ignoring legacy KASPA_NODE_URL={} and falling back to Kaspa Resolver",
             trimmed
         );
         return None;
@@ -124,7 +125,7 @@ mod tests {
         std::env::set_var("KASPA_USE_EXPLICIT_NODE", "true");
         // Ensure KASPA_NODE_URL is still set to what we expect
         std::env::set_var("KASPA_NODE_URL", "ws://kaspa-node:16111");
-        
+
         assert!(explicit_kaspa_node_enabled());
         assert_eq!(
             normalized_kaspa_node_url(),
@@ -175,19 +176,20 @@ async fn main() {
     // Run all SQL migrations from the `migrations` folder
     // If any migration checksum mismatches (e.g. migration was made idempotent),
     // clear the tracking table and re-apply all migrations cleanly.
-    let migration_result = sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await;
+    let migration_result = sqlx::migrate!("../migrations").run(&pool).await;
 
     match migration_result {
         Ok(_) => {
             tracing::info!("✅ DB migrations applied successfully");
         }
-        Err(e) if e.to_string().contains("VersionMismatch")
-            || e.to_string().contains("checksum")
-            || e.to_string().contains("Checksum")
-            || e.to_string().contains("previously applied but has been modified")
-            || e.to_string().contains("previously applied but is missing") => {
+        Err(e)
+            if e.to_string().contains("VersionMismatch")
+                || e.to_string().contains("checksum")
+                || e.to_string().contains("Checksum")
+                || e.to_string()
+                    .contains("previously applied but has been modified")
+                || e.to_string().contains("previously applied but is missing") =>
+        {
             tracing::warn!(
                 "⚠️ Migration state mismatch detected ('{}') — \
                 resetting _sqlx_migrations and re-applying all (idempotent) migrations...",
@@ -216,9 +218,15 @@ async fn main() {
     let auth_service = Arc::new(battle_core::auth::AuthService::new(pool.clone()));
 
     let faceit_config = battle_core::models::faceit::FaceitOAuthConfig {
-        client_id: secrets.require("FACEIT_CLIENT_ID").expect("Missing FACEIT_CLIENT_ID"),
-        client_secret: secrets.require("FACEIT_CLIENT_SECRET").expect("Missing FACEIT_CLIENT_SECRET"),
-        redirect_uri: secrets.require("FACEIT_REDIRECT_URI").expect("Missing FACEIT_REDIRECT_URI"),
+        client_id: secrets
+            .require("FACEIT_CLIENT_ID")
+            .expect("Missing FACEIT_CLIENT_ID"),
+        client_secret: secrets
+            .require("FACEIT_CLIENT_SECRET")
+            .expect("Missing FACEIT_CLIENT_SECRET"),
+        redirect_uri: secrets
+            .require("FACEIT_REDIRECT_URI")
+            .expect("Missing FACEIT_REDIRECT_URI"),
         auth_url: "https://accounts.faceit.com".to_string(),
         token_url: "https://api.faceit.com/auth/v1/oauth/token".to_string(),
         userinfo_url: "https://api.faceit.com/auth/v1/resources/userinfo".to_string(),
@@ -234,8 +242,6 @@ async fn main() {
     let kaspa_network = std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-12".to_string());
     let kaspa_mnemonic = std::env::var("KASPA_MNEMONIC").ok();
 
-
-
     let escrow_wallet = Arc::new(
         battle_kaspa::wallet::EscrowWallet::new(kaspa_mnemonic, &kaspa_network)
             .expect("Failed to initialize EscrowWallet"),
@@ -247,17 +253,22 @@ async fn main() {
         match battle_kaspa::rpc::RealKaspaClient::new_with_resolver(
             kaspa_node_url.as_deref(),
             &kaspa_network,
-        ).await {
+        )
+        .await
+        {
             Ok(client) => {
-                tracing::info!("✅ Connected to Kaspa node{}",
-                    kaspa_node_url.as_ref()
+                tracing::info!(
+                    "✅ Connected to Kaspa node{}",
+                    kaspa_node_url
+                        .as_ref()
                         .map(|u| format!(": {}", u))
                         .unwrap_or_else(|| " (via Resolver)".to_string())
                 );
                 Some(Arc::new(client))
             }
             Err(e) => {
-                tracing::error!("⚠️ Kaspa RPC connection failed (escrow features disabled): {}",
+                tracing::error!(
+                    "⚠️ Kaspa RPC connection failed (escrow features disabled): {}",
                     e
                 );
                 None
@@ -278,7 +289,10 @@ async fn main() {
     // Initialize PayoutService (real TX signing + submission)
     // Derive treasury address from TREASURY_MNEMONIC (or use TREASURY_ADDRESS directly)
     let treasury_mnemonic_result = std::env::var("TREASURY_MNEMONIC");
-    tracing::debug!("TREASURY_MNEMONIC: present={}", treasury_mnemonic_result.is_ok());
+    tracing::debug!(
+        "TREASURY_MNEMONIC: present={}",
+        treasury_mnemonic_result.is_ok()
+    );
     let treasury_address = if let Ok(treasury_mnemonic) = treasury_mnemonic_result {
         let treasury_wallet =
             battle_kaspa::wallet::EscrowWallet::new(Some(treasury_mnemonic), &kaspa_network)
@@ -302,7 +316,8 @@ async fn main() {
         ))
     });
     if payout_service.is_some() {
-        tracing::info!("✅ PayoutService initialized (treasury: {})",
+        tracing::info!(
+            "✅ PayoutService initialized (treasury: {})",
             treasury_address
         );
     }
@@ -377,19 +392,22 @@ async fn main() {
     let faceit_data_api_key: Option<String> = {
         // Env-spezifischer Key (z.B. FACEIT_DATA_API_KEY_PRODUCTION)
         let env_specific_name = format!("FACEIT_DATA_API_KEY_{}", app_env_upper);
-        let env_key = secrets.get(&env_specific_name)
+        let env_key = secrets
+            .get(&env_specific_name)
             .unwrap_or(None)
             .filter(|k| !k.is_empty());
 
         if env_key.is_some() {
             tracing::info!(
                 "✅ FACEIT Data API key loaded from env-specific secret '{}' (APP_ENV={})",
-                env_specific_name, app_env
+                env_specific_name,
+                app_env
             );
             env_key
         } else {
             // Generischer Fallback
-            let generic_key = secrets.get("FACEIT_DATA_API_KEY")
+            let generic_key = secrets
+                .get("FACEIT_DATA_API_KEY")
                 .unwrap_or(None)
                 .filter(|k| !k.is_empty());
 
@@ -462,11 +480,17 @@ async fn main() {
                     .map(|o| origins_for_cors.iter().any(|allowed| allowed == o))
                     .unwrap_or(false)
             }))
-            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+            ])
             .allow_headers([
-                AUTHORIZATION, 
-                CONTENT_TYPE, 
-                axum::http::header::HeaderName::from_static("ngrok-skip-browser-warning")
+                AUTHORIZATION,
+                CONTENT_TYPE,
+                axum::http::header::HeaderName::from_static("ngrok-skip-browser-warning"),
             ])
             .allow_credentials(true)
     };
@@ -474,18 +498,19 @@ async fn main() {
     // CSRF: allow all configured origins
     let csrf_allowed_origins = allowed_origins.clone();
 
-    let app = Router::new()
-        .nest("/api/v1", api::router())
-        .route("/health", get(api::health))
-        .route("/ws", get(api::ws_handler))
-        .layer(cors)
-        .layer(axum::middleware::from_fn(move |req, next| {
-            let extra_origins = csrf_allowed_origins.clone();
-            async move {
-                api::csrf_guard::csrf_protection_layer_multi(extra_origins, req, next).await
-            }
-        }))
-        .with_state(state.clone());
+    let app =
+        Router::new()
+            .nest("/api/v1", api::router())
+            .route("/health", get(api::health))
+            .route("/ws", get(api::ws_handler))
+            .layer(cors)
+            .layer(axum::middleware::from_fn(move |req, next| {
+                let extra_origins = csrf_allowed_origins.clone();
+                async move {
+                    api::csrf_guard::csrf_protection_layer_multi(extra_origins, req, next).await
+                }
+            }))
+            .with_state(state.clone());
 
     tracing::info!("🚀 KaspaBattle API running on 0.0.0.0:8080");
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
@@ -522,7 +547,9 @@ async fn main() {
             // Wait for Kaspa node to be fully synced before starting deposit detection.
             // This runs in the background so it does NOT block the HTTP server.
             if let Some(ref rpc) = ep_rpc {
-                tracing::debug!("⏳ Episode runner: waiting for Kaspa node to sync (timeout: 5 min)...");
+                tracing::debug!(
+                    "⏳ Episode runner: waiting for Kaspa node to sync (timeout: 5 min)..."
+                );
                 match rpc.wait_for_sync(std::time::Duration::from_secs(300)).await {
                     Ok(()) => tracing::info!("✅ Episode runner: Kaspa node is synced and UTXO-indexed — starting deposit detection"),
                     Err(e) => {
@@ -551,7 +578,8 @@ async fn main() {
                 };
 
                 if !active_ids.is_empty() {
-                    tracing::info!("🔄 Episode runner: polling {} active match(es)",
+                    tracing::info!(
+                        "🔄 Episode runner: polling {} active match(es)",
                         active_ids.len()
                     );
                 }
@@ -682,8 +710,8 @@ async fn main() {
     // Runs parallel to the legacy episode-runner above.
     // Uses battle-kdapp's convenience function to hide Engine/Proxy internals.
     {
-        let kdapp_network = std::env::var("KASPA_NETWORK")
-            .unwrap_or_else(|_| "testnet-12".to_string());
+        let kdapp_network =
+            std::env::var("KASPA_NETWORK").unwrap_or_else(|_| "testnet-12".to_string());
         let kdapp_rpc_url = normalized_kaspa_node_url();
 
         match battle_kdapp::startup::spawn_kdapp_services(
@@ -693,7 +721,10 @@ async fn main() {
             kdapp_rpc_url,
         ) {
             Ok(_handle) => {
-                tracing::info!("✅ kdapp Engine + Proxy started (network: {})", kdapp_network);
+                tracing::info!(
+                    "✅ kdapp Engine + Proxy started (network: {})",
+                    kdapp_network
+                );
             }
             Err(e) => {
                 tracing::error!("⚠️ kdapp Engine + Proxy failed to start: {} — disabled", e);

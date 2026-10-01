@@ -492,8 +492,8 @@ impl PayoutService {
         // Scale fee with number of outputs (larger TX = more mass)
         let output_count = params.outputs.len() as u64;
         let estimated_mass = ESTIMATED_TX_MASS_GRAMS + output_count * 300;
-        let fee_sompi = ((fee_estimate.normal_bucket_feerate * estimated_mass as f64).ceil() as u64)
-            .max(1000);
+        let fee_sompi =
+            ((fee_estimate.normal_bucket_feerate * estimated_mass as f64).ceil() as u64).max(1000);
 
         // Get total requested payout
         let total_requested: u64 = params.outputs.iter().map(|(_, amt)| *amt).sum();
@@ -550,7 +550,9 @@ impl PayoutService {
             .map(|(i, (addr_str, amount))| {
                 let adjusted = if total_requested > 0 {
                     // Pro-rata fee deduction
-                    (*amount * total_after_fee).checked_div(total_requested).unwrap_or(0)
+                    (*amount * total_after_fee)
+                        .checked_div(total_requested)
+                        .unwrap_or(0)
                 } else {
                     *amount
                 };
@@ -613,7 +615,9 @@ impl PayoutService {
             let mut reused_values = SigHashReusedValues::new();
             let populated = PopulatedTransaction::new(&tx, utxo_entries);
             (0..tx.inputs.len())
-                .map(|i| calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values))
+                .map(|i| {
+                    calc_schnorr_signature_hash(&populated, i, SIG_HASH_ALL, &mut reused_values)
+                })
                 .collect()
         };
 
