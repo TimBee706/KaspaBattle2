@@ -89,14 +89,21 @@ fn client_ip_from_xff(value: &str) -> Option<IpAddr> {
 /// proxy's IP and therefore one rate-limit bucket) the proxy-appended `X-Forwarded-For` entry
 /// is used; otherwise the TCP peer address from `ConnectInfo<SocketAddr>`.
 fn extract_ip(req: &Request<Body>) -> Option<IpAddr> {
+    client_ip_from_parts(req.headers(), req.extensions())
+}
+
+/// Same logic as [`extract_ip`] for handlers (see [`ClientIp`]).
+pub fn client_ip_from_parts(
+    headers: &axum::http::HeaderMap,
+    extensions: &axum::http::Extensions,
+) -> Option<IpAddr> {
     // Check if TRUST_X_FORWARDED_FOR is set
     let trust_proxy = std::env::var("TRUST_X_FORWARDED_FOR")
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
 
     if trust_proxy {
-        if let Some(ip) = req
-            .headers()
+        if let Some(ip) = headers
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
             .and_then(client_ip_from_xff)
@@ -106,9 +113,27 @@ fn extract_ip(req: &Request<Body>) -> Option<IpAddr> {
     }
 
     // Fallback to ConnectInfo
-    req.extensions()
+    extensions
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ci| ci.0.ip())
+}
+
+/// Extractor: the caller's IP as a string (`"unknown"` if it cannot be determined, e.g. in tests).
+pub struct ClientIp(pub String);
+
+#[axum::async_trait]
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for ClientIp {
+    type Rejection = std::convert::Infallible;
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(ClientIp(
+            client_ip_from_parts(&parts.headers, &parts.extensions)
+                .map(|ip| ip.to_string())
+                .unwrap_or_else(|| "unknown".into()),
+        ))
+    }
 }
 
 /// Build a 429 Too Many Requests response with Retry-After header.

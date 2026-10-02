@@ -30,6 +30,8 @@ log = "0.4"
 env_logger = "0.11"
 dotenvy = "0.15"
 sha2 = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
 hex = "0.4"
 kaspa-addresses = "0.15"
 kaspa-hashes = "0.15"
@@ -42,6 +44,8 @@ secp256k1 = { version = "0.29", features = ["global-context"] }
 subtle = "2"
 # M-03/M-04: HMAC-SHA256 for webhook signature verification and admin key comparison
 hmac = "0.12"
+# Transactional e-mail (verification / password reset) via SMTP (IONOS or any provider)
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "ring", "webpki-roots"] }
 # Structured logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
