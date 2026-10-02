@@ -17,7 +17,7 @@ const errors = [];
 async function newUser(name) {
     const ctx = await browser.newContext({ locale: 'de-DE' });
     const page = await ctx.newPage();
-    page.on('request', (r) => { if (r.url().includes('/api/')) apiCalls.push(new URL(r.url()).pathname); });
+    page.on('request', (r) => { if (new URL(r.url()).pathname.startsWith('/api/')) apiCalls.push(new URL(r.url()).pathname); });
     page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
     return { ctx, page, name, email: `${name}-${run}@example.test` };
 }
