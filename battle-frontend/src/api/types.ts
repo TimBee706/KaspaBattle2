@@ -198,6 +198,12 @@ export interface UserProfile {
     faceit_elo: number | null;               // Gecachte ELO aus faceit_links
     faceit_skill_level: number | null;       // FACEIT Level 1-10
     kaspa_address: string | null;
+    // ── E-mail account (Free Play) ──
+    username?: string | null;
+    email?: string | null;
+    email_verified?: boolean;
+    has_password_login?: boolean;
+    newsletter_subscribed?: boolean;
     total_matches: number;
     wins: number;
     losses: number;

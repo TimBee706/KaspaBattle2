@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/common/PageHeader';
+import { TestnetComingSoon } from '../components/common/TestnetComingSoon';
 import { getMatchProvider } from '../api/types';
 
 type ProviderFilter = 'ALL' | 'NATIVE' | 'FACEIT';
@@ -102,6 +103,8 @@ export const LobbyPage: React.FC = () => {
                     </>
                 }
             />
+
+            <TestnetComingSoon className="mb-6" />
 
             {testMode && <div className="glass-panel p-4 border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
                 <Icon name="beaker" className="w-4 h-4 shrink-0 text-blue-400" />

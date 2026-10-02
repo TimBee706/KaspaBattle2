@@ -7,11 +7,11 @@ import {
     isColumnFull,
     isWinningCell,
     lowestFreeRow,
-    type NativeGameSnapshot,
+    type BoardView,
 } from '../../domain/nativeGame';
 
 interface Props {
-    snapshot: NativeGameSnapshot;
+    snapshot: BoardView;
     /** color of the local player (for the hover preview); null for spectators */
     myColor: 'blue' | 'red' | null;
     /** true when the local player may drop a disc right now */

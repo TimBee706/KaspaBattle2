@@ -115,3 +115,6 @@ const GAME_STATUSES = new Set<MatchStatus>([
 export function hasGameSession(match: { status: MatchStatus }): boolean {
     return GAME_STATUSES.has(match.status);
 }
+
+/** The minimal data the Connect Four board needs – shared by paid native games and Free Play. */
+export type BoardView = Pick<NativeGameSnapshot, 'board' | 'rows' | 'columns' | 'status' | 'lastMove' | 'winningLine'>;

@@ -19,7 +19,8 @@
         "wallet": "Wallet",
         "faceit_login": "Login with FACEIT",
         "back_to_lobby": "TO LOBBY",
-        "profile": "Profile"
+        "profile": "Profile",
+        "free_play": "Free Play"
     },
     "footer_links": {
         "whitepaper": "Whitepaper",
@@ -801,6 +802,195 @@
             "wallet_locked": "Your wallet is locked. Reconnect it (recovery phrase) and try again — your key never leaves the browser.",
             "failed": "The payout could not be completed. Please try again.",
             "waiting_winner": "Waiting for the winner to claim the payout."
+        }
+    },
+    "auth": {
+        "email": "E-mail address",
+        "username": "Username",
+        "password": "Password",
+        "password_new": "New password",
+        "password_confirm": "Confirm password",
+        "username_hint": "3–24 characters: letters, digits, _ and -",
+        "password_hint": "At least 12 characters – a long sentence works best.",
+        "register": {
+            "title": "Register for free",
+            "subtitle": "Create an account and play Connect Four right away – no wallet, stake or FACEIT account needed.",
+            "submit": "Create account",
+            "submit_short": "Register for free",
+            "have_account": "Already have an account?",
+            "accept_terms_prefix": "I accept the",
+            "terms_link": "terms of use and privacy notice",
+            "newsletter": "I'd like to receive occasional Kaspa Battle news by e-mail (optional, revocable at any time).",
+            "done_title": "Account created",
+            "done_verify": "Almost done! We've sent you an e-mail. Please confirm your e-mail address to sign in.",
+            "done_login": "Your account has been created. You can sign in now."
+        },
+        "login": {
+            "title": "Sign in",
+            "subtitle": "Sign in with your e-mail address and password.",
+            "submit": "Sign in",
+            "remember": "Keep me signed in",
+            "forgot": "Forgot your password?",
+            "no_account": "No account yet?"
+        },
+        "forgot": {
+            "title": "Forgot password",
+            "subtitle": "If an account with this address exists, we'll send you a reset link.",
+            "submit": "Request link",
+            "sent": "If an account with this e-mail address exists, we've sent you a reset link.",
+            "unavailable": "Password reset by e-mail is currently unavailable. Please try again later or contact us."
+        },
+        "reset": {
+            "title": "Set a new password",
+            "subtitle": "After the change all existing sessions are signed out.",
+            "submit": "Save password",
+            "done": "Your password has been changed. Please sign in again.",
+            "invalid_token": "This link is invalid or has expired. Request a new one."
+        },
+        "verify": {
+            "title": "Confirm e-mail address",
+            "ok": "Thanks! Your e-mail address is confirmed.",
+            "failed": "The confirmation link is invalid or has expired.",
+            "resend": "Resend confirmation e-mail",
+            "resent": "If an unconfirmed account with this address exists, we've sent a new e-mail."
+        },
+        "errors": {
+            "generic": "That didn't work. Please try again.",
+            "invalid_credentials": "E-mail address or password is incorrect.",
+            "email_not_verified": "Please confirm your e-mail address first. We've sent you an e-mail for that.",
+            "rate_limited": "Too many attempts. Please wait a moment."
+        },
+        "field_error": {
+            "required": "Required",
+            "too_short": "Too short",
+            "too_long": "Too long",
+            "invalid_characters": "Contains characters that are not allowed",
+            "reserved": "This name is reserved",
+            "not_allowed": "Not allowed",
+            "invalid": "Invalid",
+            "too_common": "Too easy to guess",
+            "contains_personal_data": "Must not contain your name or e-mail",
+            "mismatch": "Does not match",
+            "taken": "Already taken"
+        }
+    },
+    "account": {
+        "title": "My account",
+        "details": "Account details",
+        "email_status": "E-mail status",
+        "verified": "Confirmed",
+        "not_verified": "E-mail not confirmed yet",
+        "member_since": "Member since",
+        "stats": "Free Play statistics",
+        "played": "Played",
+        "wins": "Wins",
+        "losses": "Losses",
+        "draws": "Draws",
+        "vs_humans": "Vs. players",
+        "vs_bots": "Vs. bots",
+        "history": "Recent games",
+        "no_games": "No games yet.",
+        "outcome": {
+            "win": "Win",
+            "loss": "Loss",
+            "draw": "Draw",
+            "abandoned": "Abandoned"
+        },
+        "newsletter": "Newsletter",
+        "newsletter_text": "I'd like to receive Kaspa Battle news by e-mail. No marketing e-mail is sent without a confirmed opt-in.",
+        "change_password": "Change password",
+        "current_password": "Current password",
+        "password_changed": "Password changed. Other devices were signed out.",
+        "wrong_password": "The current password is incorrect.",
+        "optional_links": "Optional links",
+        "optional_links_text": "Wallet and FACEIT are optional and not needed for Free Play. They belong to the upcoming Kaspa testnet mode.",
+        "logout": "Sign out"
+    },
+    "freeplay": {
+        "title": "Free Play",
+        "subtitle": "Connect Four – free",
+        "free_badge": "Free · no wallet · no stake",
+        "explainer": "Play Connect Four for free – no wallet, stake or FACEIT account.",
+        "landing_pitch": "Play Connect Four for free – no wallet, stake or FACEIT account.",
+        "register_cta": "Register for free",
+        "cta_play": "Play for free",
+        "login_required": "Please sign in to play Free Play.",
+        "vs_player": "Vs. player",
+        "vs_player_text": "Create a free lobby and wait for an opponent – or join an open lobby.",
+        "vs_bot": "Vs. bot",
+        "vs_bot_text": "Play against the computer right away – in three difficulty levels.",
+        "create_lobby": "Create free lobby",
+        "start_bot": "Start bot game",
+        "difficulty": "Difficulty",
+        "diff": {
+            "easy": "Easy",
+            "medium": "Medium",
+            "hard": "Hard"
+        },
+        "bot": "Bot",
+        "bot_label": "Bot ({{level}})",
+        "open_lobbies": "Open lobbies",
+        "no_lobbies": "No open lobbies right now – create the first one!",
+        "join": "Join game",
+        "waiting_for_opponent": "Waiting for an opponent…",
+        "open": "Open",
+        "my_games": "My running games",
+        "continue": "Continue",
+        "moves": "{{count}} moves",
+        "your_turn": "Your turn",
+        "opponent_turn": "Opponent's turn",
+        "turn_of": "{{name}} to move",
+        "time_left": "{{seconds}} seconds left for this move",
+        "open_hint": "Your lobby is shown to all signed-in players in the Free Play lobby.",
+        "lobby_closed": "Lobby closed",
+        "not_found": "This game does not exist.",
+        "back": "Back to Free Play lobby",
+        "leave": "Leave lobby",
+        "leave_confirm": "Yes, leave game (resign)",
+        "close_lobby": "Close lobby",
+        "rematch": "Rematch",
+        "rematch_waiting": "Waiting for the opponent…",
+        "rematch_accept": "Accept rematch",
+        "rematch_go": "Go to rematch",
+        "opponent_connected": "Opponent connected",
+        "opponent_disconnected": "Opponent disconnected",
+        "disconnect_rule": "Rule: whoever does not move for {{seconds}} seconds loses. You can reconnect any time within that window – the game state is kept.",
+        "result": {
+            "draw": "Draw",
+            "abandoned": "Game abandoned",
+            "you_won": "You won!",
+            "you_lost": "You lost",
+            "won_by": "{{name}} won"
+        },
+        "reason": {
+            "connect_four": "Four in a row.",
+            "draw": "The board is full.",
+            "resignation": "Resignation.",
+            "timeout": "Time ran out.",
+            "left": "A player left the game."
+        },
+        "errors": {
+            "generic": "That didn't work. Please try again.",
+            "not_your_turn": "It is not your turn.",
+            "version_conflict": "The game changed – the board was refreshed.",
+            "column_full": "That column is full.",
+            "invalid_column": "Invalid column.",
+            "game_over": "The game is already over.",
+            "game_not_running": "The game is not running right now.",
+            "rate_limited": "Too many requests. Please wait a moment.",
+            "too_many_open_lobbies": "You already have three open lobbies.",
+            "too_many_active_games": "You already have many running games. Finish one first.",
+            "lobby_not_open": "This lobby is no longer open.",
+            "own_lobby": "You can't join your own lobby."
+        },
+        "banner": {
+            "title": "Free Play mode is available",
+            "text": "Kaspa Battle is in public beta. The free Free Play mode is already available. For the upcoming Kaspa testnet mode we are looking for help running a reliable Kaspa node.",
+            "help": "Want to help? Write to us at"
+        },
+        "testnet": {
+            "status": "Kaspa testnet mode – coming soon",
+            "help_short": "We're looking for support for a reliable testnet node:"
         }
     }
 }

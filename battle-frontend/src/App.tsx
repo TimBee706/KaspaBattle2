@@ -22,9 +22,16 @@ import { TournamentAdminPage } from './pages/TournamentAdminPage';
 import { WhitepaperPage } from './pages/WhitepaperPage';
 import { TermsPage } from './pages/TermsPage';
 import { SupportPage } from './pages/SupportPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
+import { FreePlayLobbyPage } from './pages/FreePlayLobbyPage';
+import { FreePlayGamePage } from './pages/FreePlayGamePage';
+import { AccountPage } from './pages/AccountPage';
 
 import { useAuthStore } from './stores/useAuthStore';
-import { useTranslation } from 'react-i18next';
 import { useWallet } from './hooks/useWallet';
 import { handleAuthRedirect } from './auth/authRedirect';
 import { faceitApi } from './api/faceit';
@@ -32,9 +39,10 @@ import { faceitApi } from './api/faceit';
 // Fallback for unknown routes goes to LandingPage
 
 export default function App() {
-  const { isReady, error: wasmError } = useKaspaInit();
+  // Kaspa WASM warms up in the background. It must NOT gate the app: Free Play (and the whole
+  // account area) work without it, and a broken SDK or node never blocks a free game.
+  const { error: wasmError } = useKaspaInit();
   const { fetchUser } = useAuthStore();
-  const { t } = useTranslation();
 
   useWallet(); // Restore wallet session & balance on boot
   useBalance(); // Balance-Tracking im Hintergrund starten
@@ -55,36 +63,11 @@ export default function App() {
     });
   }, [fetchUser]);
 
-  if (wasmError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-kaspa-dark text-red-500 p-8 text-center">
-        <div>
-          <div className="text-5xl mb-6">{'\u26A0\uFE0F'}</div>
-          <h1 className="text-2xl font-bold mb-2">{t('common.error_title')}</h1>
-          <p className="font-mono text-sm opacity-70">WASM SDK: {wasmError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-8 px-6 py-2 bg-kaspa-border hover:bg-gray-700 rounded-lg text-sm transition-colors"
-          >
-            {t('common.reload')}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isReady) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-kaspa-dark text-white">
-        <div className="w-64 h-1.5 bg-kaspa-border rounded-full overflow-hidden mb-4 shadow-inner">
-          <div className="h-full bg-kaspa-primary animate-[shimmer_2s_infinite] w-full origin-left" />
-        </div>
-        <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-kaspa-primary animate-pulse">
-          {t('common.loading_sdk')}
-        </span>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (wasmError) {
+      console.warn('[App] Kaspa WASM SDK unavailable – on-chain features disabled, Free Play unaffected:', wasmError);
+    }
+  }, [wasmError]);
 
   return (
     <BrowserRouter>
@@ -93,6 +76,16 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<LandingPage />} />
             <Route path="auth/faceit/callback" element={<FaceitCallback />} />
+
+            {/* Free Play + e-mail accounts: no wallet, no FACEIT, no Kaspa node needed */}
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
+            <Route path="verify-email" element={<VerifyEmailPage />} />
+            <Route path="free-play" element={<FreePlayLobbyPage />} />
+            <Route path="free-play/:id" element={<FreePlayGamePage />} />
+            <Route path="account" element={<AccountPage />} />
 
             {/* Öffentliche Routen - sichtbar für alle */}
             <Route path="lobby" element={<LobbyPage />} />

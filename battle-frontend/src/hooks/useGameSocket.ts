@@ -16,7 +16,7 @@ interface Options {
      * Called every time the socket (re)opens. Consumers MUST reload a full snapshot here:
      * WebSocket events are never the only source of state.
      */
-    onOpen: () => void;
+    onOpen: (send: (message: unknown) => void) => void;
 }
 
 /** WebSocket with automatic reconnect (exponential backoff, max 15 s). */
@@ -36,6 +36,7 @@ export function useGameSocket({ enabled, onMessage, onOpen }: Options): SocketSt
         let closedByUs = false;
         let attempt = 0;
         let timer: ReturnType<typeof setTimeout> | null = null;
+        let heartbeat: ReturnType<typeof setInterval> | null = null;
 
         const connect = () => {
             setState(attempt === 0 ? 'connecting' : 'reconnecting');
@@ -48,7 +49,14 @@ export function useGameSocket({ enabled, onMessage, onOpen }: Options): SocketSt
             ws.onopen = () => {
                 attempt = 0;
                 setState('live');
-                onOpenRef.current();
+                const socket = ws;
+                const send = (message: unknown) => {
+                    if (socket && socket.readyState === 1) socket.send(JSON.stringify(message));
+                };
+                onOpenRef.current(send);
+                // Heartbeat: the server closes sockets that stay silent for 60 s.
+                if (heartbeat) clearInterval(heartbeat);
+                heartbeat = setInterval(() => send({ type: 'ping' }), 25_000);
             };
             ws.onmessage = (event) => {
                 try {
@@ -58,6 +66,7 @@ export function useGameSocket({ enabled, onMessage, onOpen }: Options): SocketSt
                 }
             };
             ws.onclose = () => {
+                if (heartbeat) clearInterval(heartbeat);
                 if (!closedByUs) scheduleReconnect();
             };
             ws.onerror = () => ws?.close();
@@ -74,6 +83,7 @@ export function useGameSocket({ enabled, onMessage, onOpen }: Options): SocketSt
         return () => {
             closedByUs = true;
             if (timer) clearTimeout(timer);
+            if (heartbeat) clearInterval(heartbeat);
             ws?.close();
         };
     }, [enabled]);

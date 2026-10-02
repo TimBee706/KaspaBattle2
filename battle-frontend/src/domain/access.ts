@@ -24,6 +24,8 @@ export interface AccessState {
     hasFaceit: boolean;
     canPlayNative: boolean;
     canPlayFaceit: boolean;
+    /** Free Play (off-chain, stake-free) needs a login and nothing else: no wallet, no FACEIT. */
+    canPlayFreePlay: boolean;
 }
 
 export function deriveAccess(input: AccessInput): AccessState {
@@ -34,6 +36,7 @@ export function deriveAccess(input: AccessInput): AccessState {
         isAuthenticated,
         hasWallet,
         hasFaceit,
+        canPlayFreePlay: isAuthenticated,
         canPlayNative: isAuthenticated && hasWallet,
         canPlayFaceit: isAuthenticated && hasWallet && (hasFaceit || !!input.testMode),
     };
