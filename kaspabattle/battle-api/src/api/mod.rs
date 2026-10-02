@@ -1,7 +1,9 @@
+pub mod account;
 pub mod admin_guard;
 pub mod admin_tournament;
 pub mod auth_guard;
 pub mod csrf_guard;
+pub mod free_play;
 pub mod faceit;
 /// Handler sub-modules (CQ-01: Phase 1 — types extracted; full handler migration: post-beta).
 /// See `src/api/handlers/` for the target module structure.
@@ -36,6 +38,10 @@ pub struct CreateReq {
     pub wager_sompi: i64,
     pub mode: crate::models::MatchMode,
     pub escrow_address: Option<String>,
+    /// Game mode of this paid match. Only `kaspa_testnet` is accepted here; free play has its own
+    /// endpoints (`/free-play/*`) and can never create a match, escrow or deposit.
+    #[serde(default)]
+    pub game_mode: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -63,6 +69,10 @@ pub struct AppState {
     /// Watcher used by the payment-status endpoint and episode runner
     pub blockchain_watcher: Option<Arc<battle_kaspa::watcher::BlockchainWatcher>>,
     pub multisig_service: Option<Arc<battle_kaspa::multisig::service::MultisigEscrowService>>,
+    /// E-mail/password accounts: config, mailer, throttles (Free Play sign-up)
+    pub account: crate::account::AccountRuntime,
+    /// Live WebSocket presence for free-play games
+    pub presence: crate::free_play::Presence,
 }
 
 #[derive(Serialize)]
@@ -92,6 +102,14 @@ pub fn router() -> Router<AppState> {
             post(create_wallet_login_challenge),
         )
         .route("/auth/wallet-verify", post(verify_wallet_login))
+        .route("/auth/register", post(account::register))
+        .route("/auth/login", post(account::login))
+        .route("/auth/verify-email", post(account::verify_email))
+        .route("/auth/resend-verification", post(account::resend_verification))
+        .route("/auth/forgot-password", post(account::forgot_password))
+        .route("/auth/reset-password", post(account::reset_password))
+        .route("/auth/change-password", post(account::change_password))
+        .route("/auth/newsletter", post(account::newsletter))
         .route("/auth/logout", post(logout))
         .route("/auth/me", get(get_me))
         .route(
@@ -136,6 +154,16 @@ pub fn router() -> Router<AppState> {
             post(submit_payout_signature),
         )
         .route("/matches/:id/payout/status", get(get_payout_status))
+        // ── Free Play (wallet-free, stake-free Connect Four) ──
+        .route("/free-play/games", post(free_play::create_game))
+        .route("/free-play/lobbies", get(free_play::lobbies))
+        .route("/free-play/games/:id", get(free_play::get_game))
+        .route("/free-play/games/:id/join", post(free_play::join_game))
+        .route("/free-play/games/:id/leave", post(free_play::leave_game))
+        .route("/free-play/games/:id/moves", post(free_play::post_move))
+        .route("/free-play/games/:id/rematch", post(free_play::rematch))
+        .route("/free-play/history", get(free_play::history))
+        .route("/free-play/stats", get(free_play::stats))
         // ── Native (browser) games ──
         .route("/features", get(native::features))
         .route("/matches/:id/game", get(native::get_game))
@@ -232,9 +260,37 @@ pub async fn get_me(
                 )
             };
 
+            // E-mail/password account details (Free Play). The synthetic address of a
+            // wallet/FACEIT-only account is never exposed.
+            let acct = sqlx::query(
+                "SELECT username, email_verified, has_password_login, newsletter_consent_at, newsletter_revoked_at \
+                 FROM users WHERE id = $1",
+            )
+            .bind(user.id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten();
+            let (username, has_pw, verified, nl_consent, nl_revoked) = match &acct {
+                Some(r) => (
+                    r.try_get::<Option<String>, _>("username").unwrap_or(None),
+                    r.try_get::<bool, _>("has_password_login").unwrap_or(false),
+                    r.try_get::<bool, _>("email_verified").unwrap_or(false),
+                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_consent_at").unwrap_or(None),
+                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_revoked_at").unwrap_or(None),
+                ),
+                None => (None, false, false, None, None),
+            };
+            let newsletter_subscribed = nl_consent.is_some() && nl_revoked.map(|r| Some(r) < nl_consent).unwrap_or(true);
+
             Ok(Json(serde_json::json!({
                 "id": user.id,
-                "email": user.email,
+                "email": if has_pw { Some(user.email.clone()) } else { None },
+                "username": username,
+                "has_password_login": has_pw,
+                "email_verified": verified,
+                "newsletter_subscribed": newsletter_subscribed,
+                "newsletter_consent_at": nl_consent,
                 "display_name": user.display_name,
                 "kaspa_address": user.kaspa_address,
                 "faceit_connected": faceit_connected,
@@ -302,11 +358,17 @@ fn cookie_attrs_for_origin(frontend_url: &str) -> (&'static str, &'static str) {
 }
 
 pub fn build_auth_cookie(session_token: &str) -> String {
-    let (same_site, secure_flag) = auth_cookie_security_attrs();
+    build_auth_cookie_with(session_token, Some(604_800))
+}
 
+/// `max_age = None` → browser-session cookie (dropped when the browser closes; the server-side
+/// session still expires on its own).
+pub fn build_auth_cookie_with(session_token: &str, max_age: Option<i64>) -> String {
+    let (same_site, secure_flag) = auth_cookie_security_attrs();
+    let max_age = max_age.map(|s| format!("; Max-Age={s}")).unwrap_or_default();
     format!(
-        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}; Max-Age=604800",
-        session_token, same_site, secure_flag
+        "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}{}",
+        session_token, same_site, secure_flag, max_age
     )
 }
 
@@ -340,7 +402,7 @@ mod cookie_tests {
     }
 }
 
-fn build_clear_auth_cookie() -> String {
+pub(crate) fn build_clear_auth_cookie() -> String {
     let (same_site, secure_flag) = auth_cookie_security_attrs();
 
     format!(
@@ -349,7 +411,7 @@ fn build_clear_auth_cookie() -> String {
     )
 }
 
-fn extract_session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+pub(crate) fn extract_session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
     let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
     if let Some(header) = auth_header {
         if let Some(stripped) = header.strip_prefix("Bearer ") {
@@ -974,6 +1036,15 @@ pub async fn create_challenge(
     crate::api::auth_guard::SessionUser(user): crate::api::auth_guard::SessionUser,
     Json(payload): Json<CreateReq>,
 ) -> Result<Json<Match>, StatusCode> {
+    if payload
+        .game_mode
+        .as_deref()
+        .map(|m| m != "kaspa_testnet")
+        .unwrap_or(false)
+    {
+        tracing::warn!("create_challenge: rejected game_mode other than kaspa_testnet");
+        return Err(StatusCode::BAD_REQUEST);
+    }
     if !wager_within_max(payload.wager_sompi) {
         tracing::warn!(
             "create_challenge: wager_sompi must be in 1..={} sompi",
@@ -1843,6 +1914,7 @@ const WS_IDLE_TIMEOUT_SECS: u64 = 60;
 pub async fn ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
 ) -> axum::response::Response {
     let count = WS_CONNECTION_COUNT.load(std::sync::atomic::Ordering::Relaxed);
     if count >= WS_MAX_CONNECTIONS {
@@ -1857,32 +1929,151 @@ pub async fn ws_handler(
         )
             .into_response();
     }
-    ws.on_upgrade(|socket| websocket(socket, state))
+    // Optional authentication from the session cookie (never from a client-supplied user id).
+    let user_id = match extract_session_token_from_headers(&headers) {
+        Some(token) => state
+            .auth_service
+            .validate_session(&token)
+            .await
+            .ok()
+            .map(|u| u.id),
+        None => None,
+    };
+    ws.max_message_size(WS_MAX_MESSAGE_BYTES)
+        .on_upgrade(move |socket| websocket(socket, state, user_id))
         .into_response()
 }
 
-async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState) {
+/// Client → server frames are tiny control messages (`ping`, `subscribe`, `unsubscribe`).
+const WS_MAX_MESSAGE_BYTES: usize = 2048;
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum WsClientMsg {
+    Ping,
+    Subscribe {
+        #[serde(rename = "gameId")]
+        game_id: Uuid,
+    },
+    Unsubscribe {
+        #[serde(rename = "gameId")]
+        game_id: Uuid,
+    },
+}
+
+/// Free-play events are only delivered to authenticated sockets: lobby events to everyone logged
+/// in, game events only to sockets subscribed to that game (participants / spectators who asked).
+fn ws_should_forward(
+    msg: &str,
+    user: Option<Uuid>,
+    subscribed: &std::sync::Mutex<std::collections::HashSet<Uuid>>,
+) -> bool {
+    if !msg.starts_with("{\"type\":\"free_play_") {
+        return true; // legacy / match events keep their existing broadcast behaviour
+    }
+    if user.is_none() {
+        return false;
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(msg) else { return false };
+    if v["type"] == "free_play_lobby" {
+        return true;
+    }
+    v["gameId"]
+        .as_str()
+        .and_then(|g| Uuid::parse_str(g).ok())
+        .map(|g| subscribed.lock().unwrap().contains(&g))
+        .unwrap_or(false)
+}
+
+async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_id: Option<Uuid>) {
+    use axum::extract::ws::Message;
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+
     WS_CONNECTION_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let (mut sender, mut receiver) = stream.split();
     let mut rx = state.tx.subscribe();
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<String>(16);
+    let subscribed: Arc<Mutex<HashSet<Uuid>>> = Arc::new(Mutex::new(HashSet::new()));
 
+    let sub_for_send = subscribed.clone();
     let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            if sender
-                .send(axum::extract::ws::Message::Text(msg))
-                .await
-                .is_err()
-            {
+        loop {
+            let msg = tokio::select! {
+                m = rx.recv() => match m {
+                    Ok(m) => {
+                        if !ws_should_forward(&m, user_id, &sub_for_send) { continue; }
+                        m
+                    }
+                    // A slow client missed some events: clients resync via GET, so just go on.
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => break,
+                },
+                Some(direct) = out_rx.recv() => direct,
+            };
+            if sender.send(Message::Text(msg)).await.is_err() {
                 break;
             }
         }
     });
 
+    let pool = state.pool.clone();
+    let presence = state.presence.clone();
+    let bcast = state.tx.clone();
+    let sub_for_recv = subscribed.clone();
     let mut recv_task = tokio::spawn(async move {
         let idle_timeout = std::time::Duration::from_secs(WS_IDLE_TIMEOUT_SECS);
+        let mut window_start = std::time::Instant::now();
+        let mut in_window = 0u32;
         loop {
             match tokio::time::timeout(idle_timeout, receiver.next()).await {
-                Ok(Some(Ok(_))) => { /* keep alive */ }
+                Ok(Some(Ok(Message::Text(text)))) => {
+                    // Flood guard: at most 30 client frames per 10 s.
+                    if window_start.elapsed() > std::time::Duration::from_secs(10) {
+                        window_start = std::time::Instant::now();
+                        in_window = 0;
+                    }
+                    in_window += 1;
+                    if in_window > 30 {
+                        break;
+                    }
+                    let Ok(msg) = serde_json::from_str::<WsClientMsg>(&text) else { continue };
+                    match msg {
+                        WsClientMsg::Ping => {
+                            let _ = out_tx.send("{\"type\":\"pong\"}".into()).await;
+                        }
+                        WsClientMsg::Subscribe { game_id } => {
+                            // Authenticated sockets only, and only for games the user takes part in.
+                            let Some(uid) = user_id else { continue };
+                            let participant: bool = sqlx::query_scalar(
+                                "SELECT EXISTS (SELECT 1 FROM free_play_games WHERE id = $1 AND (player_one_id = $2 OR player_two_id = $2))",
+                            )
+                            .bind(game_id)
+                            .bind(uid)
+                            .fetch_one(&pool)
+                            .await
+                            .unwrap_or(false);
+                            if !participant {
+                                let _ = out_tx.send("{\"type\":\"subscribe_denied\"}".into()).await;
+                                continue;
+                            }
+                            if sub_for_recv.lock().unwrap().insert(game_id) && presence.join(game_id, uid) {
+                                crate::free_play::publish(&bcast, &[crate::free_play::presence_ev(game_id, uid, true)]);
+                            }
+                            let _ = out_tx
+                                .send(serde_json::json!({ "type": "subscribed", "gameId": game_id }).to_string())
+                                .await;
+                        }
+                        WsClientMsg::Unsubscribe { game_id } => {
+                            if let Some(uid) = user_id {
+                                if sub_for_recv.lock().unwrap().remove(&game_id) && presence.leave(game_id, uid) {
+                                    crate::free_play::publish(&bcast, &[crate::free_play::presence_ev(game_id, uid, false)]);
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Some(Ok(_))) => { /* binary / ping / pong frames keep the connection alive */ }
                 Ok(Some(Err(_))) | Ok(None) => break,
                 Err(_) => {
                     tracing::debug!(
@@ -1899,6 +2090,19 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState) {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
     };
+    // Whichever side ended first: tell opponents this player's connection is gone (the documented
+    // reconnect window then applies before a timeout forfeit).
+    if let Some(uid) = user_id {
+        let games: Vec<Uuid> = subscribed.lock().unwrap().drain().collect();
+        for g in games {
+            if state.presence.leave(g, uid) {
+                crate::free_play::publish(
+                    &state.tx,
+                    &[crate::free_play::presence_ev(g, uid, false)],
+                );
+            }
+        }
+    }
     WS_CONNECTION_COUNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 }
 

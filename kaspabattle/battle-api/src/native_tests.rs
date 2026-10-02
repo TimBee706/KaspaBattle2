@@ -22,14 +22,14 @@ use uuid::Uuid;
 
 // ── Harness ──────────────────────────────────────────────────────────────────
 
-struct TestDb {
-    pool: PgPool,
+pub(crate) struct TestDb {
+    pub(crate) pool: PgPool,
     admin_url: String,
     name: String,
 }
 
 impl TestDb {
-    async fn new() -> Option<TestDb> {
+    pub(crate) async fn new() -> Option<TestDb> {
         let Ok(url) = std::env::var("DATABASE_URL") else {
             eprintln!("⚠️  DATABASE_URL not set — skipping native-games integration test");
             return None;
@@ -66,7 +66,7 @@ impl TestDb {
         })
     }
 
-    async fn teardown(self) {
+    pub(crate) async fn teardown(self) {
         self.pool.close().await;
         if let Ok(admin) = PgPoolOptions::new()
             .max_connections(1)
@@ -900,7 +900,7 @@ async fn legacy_rows_default_to_faceit_and_faceit_flow_is_untouched() {
 
 // ── HTTP: feature flag, auth decoupling, FACEIT gate, events ─────────────────
 
-fn app_state(pool: PgPool, svc: Arc<MultisigEscrowService>) -> AppState {
+pub(crate) fn app_state(pool: PgPool, svc: Arc<MultisigEscrowService>) -> AppState {
     let (tx, _rx) = tokio::sync::broadcast::channel(256);
     AppState {
         pool: pool.clone(),
@@ -924,6 +924,11 @@ fn app_state(pool: PgPool, svc: Arc<MultisigEscrowService>) -> AppState {
         payout_service: None,
         blockchain_watcher: None,
         multisig_service: Some(svc),
+        account: crate::account::AccountRuntime::new(
+            crate::account::AccountConfig::from_env(false, |_| None),
+            Arc::new(crate::mail::DisabledMailer),
+        ),
+        presence: crate::free_play::Presence::default(),
     }
 }
 

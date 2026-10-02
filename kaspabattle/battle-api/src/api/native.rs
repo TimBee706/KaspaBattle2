@@ -30,9 +30,9 @@ pub struct MoveBody {
     pub client_nonce: String,
 }
 
-pub struct ApiError(StatusCode, serde_json::Value);
+pub struct ApiError(pub StatusCode, pub serde_json::Value);
 
-fn err(status: StatusCode, code: &str, message: &str) -> ApiError {
+pub fn err(status: StatusCode, code: &str, message: &str) -> ApiError {
     ApiError(
         status,
         serde_json::json!({ "error": code, "message": message }),
@@ -208,9 +208,13 @@ pub async fn resign(
     Ok(respond(&state, match_id, outcome).await)
 }
 
-/// `GET /features` — lets the frontend hide native games while the flag is off.
-pub async fn features() -> Json<serde_json::Value> {
+/// `GET /features` — lets the frontend adapt to what this server offers.
+pub async fn features(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "nativeGamesEnabled": native_game::native_games_enabled() && !native_game::mainnet_blocked(),
+        // Free Play needs nothing from Kaspa and is always on.
+        "freePlayEnabled": true,
+        "emailVerificationRequired": state.account.cfg.require_email_verification,
+        "passwordResetAvailable": state.account.cfg.mail_available,
     }))
 }

@@ -716,4 +716,44 @@ mod tests {
             result_hash("m1", "CONNECT_FOUR", "abc", None, EndReason::Draw)
         );
     }
+
+    /// Property-style invariants over many seeded random playouts (no extra dependency).
+    #[test]
+    fn random_playouts_keep_the_board_consistent() {
+        use rand::{rngs::StdRng, Rng, SeedableRng};
+        let mut rng = StdRng::seed_from_u64(0xC0FFEE);
+        for _ in 0..300 {
+            let mut g = game();
+            let mut last_count = 0u8;
+            while !g.status().is_finished() {
+                let player = g.current_player().unwrap().to_string();
+                let col = rng.gen_range(0..COLUMNS);
+                let before = g.state().cells.clone();
+                match g.execute(&player, col) {
+                    Ok(m) => {
+                        // exactly one new disc, on the bottom-most free cell, by the mover
+                        let diff: Vec<usize> = (0..CELLS).filter(|i| before[*i] != g.state().cells[*i]).collect();
+                        assert_eq!(diff.len(), 1);
+                        let (r, c) = (diff[0] / COLUMNS, diff[0] % COLUMNS);
+                        assert_eq!((r as u8, c as u8), (m.row, m.column));
+                        assert!(r == 0 || g.cell(r - 1, c) != 0, "no floating disc");
+                        assert_eq!(g.cell(r, c), m.slot.cell_value());
+                        assert_eq!(g.move_count(), last_count + 1, "move count rises by exactly one");
+                        last_count = g.move_count();
+                    }
+                    Err(MoveError::ColumnFull(_)) => assert_eq!(g.state().cells, before, "rejected move changes nothing"),
+                    Err(e) => panic!("unexpected {e}"),
+                }
+                assert!(g.state().cells.iter().all(|c| *c <= 2));
+                assert!(ConnectFour::from_state("a", "b", g.state().clone()).is_ok(), "every reachable state validates");
+            }
+            // a finished board never changes again
+            let frozen = g.clone();
+            for col in 0..COLUMNS {
+                assert_eq!(g.execute(A, col), Err(MoveError::GameOver));
+                assert_eq!(g.execute(B, col), Err(MoveError::GameOver));
+            }
+            assert_eq!(g, frozen);
+        }
+    }
 }
