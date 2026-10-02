@@ -28,7 +28,11 @@ const MAX_ACTIVE_GAMES_PER_USER: i64 = 8;
 // ── Configuration ───────────────────────────────────────────────────────────
 
 fn env_secs(name: &str, default: i64) -> i64 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).filter(|v| *v > 0).unwrap_or(default)
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(default)
 }
 
 /// A human player who does not move within this time forfeits (`FREE_PLAY_TURN_TIMEOUT_SECS`).
@@ -64,8 +68,12 @@ impl Presence {
     /// Returns true if that was the user's last connection.
     pub fn leave(&self, game: Uuid, user: Uuid) -> bool {
         let mut m = self.0.lock().unwrap();
-        let Some(g) = m.get_mut(&game) else { return false };
-        let Some(c) = g.get_mut(&user) else { return false };
+        let Some(g) = m.get_mut(&game) else {
+            return false;
+        };
+        let Some(c) = g.get_mut(&user) else {
+            return false;
+        };
         *c = c.saturating_sub(1);
         let gone = *c == 0;
         if gone {
@@ -77,7 +85,12 @@ impl Presence {
         gone
     }
     pub fn is_connected(&self, game: Uuid, user: Uuid) -> bool {
-        self.0.lock().unwrap().get(&game).map(|g| g.contains_key(&user)).unwrap_or(false)
+        self.0
+            .lock()
+            .unwrap()
+            .get(&game)
+            .map(|g| g.contains_key(&user))
+            .unwrap_or(false)
     }
 }
 
@@ -260,8 +273,8 @@ async fn fetch(conn: &mut PgConnection, id: Uuid) -> Result<Option<Game>, sqlx::
 }
 
 fn engine_of(g: &Game) -> Result<ConnectFour, FpError> {
-    let state: ConnectFourState =
-        serde_json::from_str(&g.board_state).map_err(|e| FpError::Internal(format!("corrupt board: {e}")))?;
+    let state: ConnectFourState = serde_json::from_str(&g.board_state)
+        .map_err(|e| FpError::Internal(format!("corrupt board: {e}")))?;
     ConnectFour::from_state(P1, P2, state).map_err(|e| FpError::Internal(e.to_string()))
 }
 
@@ -288,16 +301,47 @@ fn is_bot(g: &Game) -> bool {
 async fn snapshot_of(conn: &mut PgConnection, g: &Game) -> Result<FpSnapshot, FpError> {
     let engine = engine_of(g)?;
     let ids: Vec<Uuid> = std::iter::once(g.p1).chain(g.p2).collect();
-    let names: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, COALESCE(username, display_name) FROM users WHERE id = ANY($1)")
-        .bind(ids)
-        .fetch_all(&mut *conn)
-        .await?;
-    let name = |id: Uuid| names.iter().find(|(u, _)| *u == id).map(|(_, n)| n.clone()).unwrap_or_default();
-    let mut players = vec![FpPlayer { slot: 1, user_id: Some(g.p1), display_name: name(g.p1), is_bot: false, color: "blue" }];
+    let names: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, COALESCE(username, display_name) FROM users WHERE id = ANY($1)")
+            .bind(ids)
+            .fetch_all(&mut *conn)
+            .await?;
+    let name = |id: Uuid| {
+        names
+            .iter()
+            .find(|(u, _)| *u == id)
+            .map(|(_, n)| n.clone())
+            .unwrap_or_default()
+    };
+    let mut players = vec![FpPlayer {
+        slot: 1,
+        user_id: Some(g.p1),
+        display_name: name(g.p1),
+        is_bot: false,
+        color: "blue",
+    }];
     players.push(match (g.p2, is_bot(g)) {
-        (Some(p2), _) => FpPlayer { slot: 2, user_id: Some(p2), display_name: name(p2), is_bot: false, color: "red" },
-        (None, true) => FpPlayer { slot: 2, user_id: None, display_name: "Bot".into(), is_bot: true, color: "red" },
-        (None, false) => FpPlayer { slot: 2, user_id: None, display_name: String::new(), is_bot: false, color: "red" },
+        (Some(p2), _) => FpPlayer {
+            slot: 2,
+            user_id: Some(p2),
+            display_name: name(p2),
+            is_bot: false,
+            color: "red",
+        },
+        (None, true) => FpPlayer {
+            slot: 2,
+            user_id: None,
+            display_name: "Bot".into(),
+            is_bot: true,
+            color: "red",
+        },
+        (None, false) => FpPlayer {
+            slot: 2,
+            user_id: None,
+            display_name: String::new(),
+            is_bot: false,
+            color: "red",
+        },
     });
     let current_slot = g.current_slot.map(|s| s as u8);
     let current_player_id = match current_slot {
@@ -325,7 +369,9 @@ async fn snapshot_of(conn: &mut PgConnection, g: &Game) -> Result<FpSnapshot, Fp
         bot_difficulty: g.bot_difficulty.clone(),
         status: g.status.clone(),
         version: g.version,
-        board: (0..ROWS).map(|r| engine.state().cells[r * COLUMNS..(r + 1) * COLUMNS].to_vec()).collect(),
+        board: (0..ROWS)
+            .map(|r| engine.state().cells[r * COLUMNS..(r + 1) * COLUMNS].to_vec())
+            .collect(),
         columns: COLUMNS,
         rows: ROWS,
         move_count: g.move_count,
@@ -378,10 +424,17 @@ fn initial_state() -> (ConnectFour, String, String) {
     (g, board, hash)
 }
 
-pub async fn create_game(pool: &PgPool, user: Uuid, opponent: Opponent) -> Result<Outcome, FpError> {
+pub async fn create_game(
+    pool: &PgPool,
+    user: Uuid,
+    opponent: Opponent,
+) -> Result<Outcome, FpError> {
     let mut tx = pool.begin().await?;
     // Serialise per-user limit checks.
-    sqlx::query("SELECT id FROM users WHERE id = $1 FOR UPDATE").bind(user).fetch_one(&mut *tx).await?;
+    sqlx::query("SELECT id FROM users WHERE id = $1 FOR UPDATE")
+        .bind(user)
+        .fetch_one(&mut *tx)
+        .await?;
     let open: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM free_play_games WHERE player_one_id = $1 AND status = 'open'",
     )
@@ -438,7 +491,11 @@ pub async fn create_game(pool: &PgPool, user: Uuid, opponent: Opponent) -> Resul
         Opponent::Human => vec![lobby_ev("created", id)],
         Opponent::Bot(_) => vec![],
     };
-    Ok(Outcome { snapshot, events, replay: false })
+    Ok(Outcome {
+        snapshot,
+        events,
+        replay: false,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -463,7 +520,13 @@ pub async fn list_open(pool: &PgPool, viewer: Uuid) -> Result<Vec<LobbyItem>, Fp
         .iter()
         .map(|r| {
             let creator_id: Uuid = r.get("player_one_id");
-            LobbyItem { id: r.get("id"), creator_id, creator_name: r.get("name"), created_at: r.get("created_at"), mine: creator_id == viewer }
+            LobbyItem {
+                id: r.get("id"),
+                creator_id,
+                creator_name: r.get("name"),
+                created_at: r.get("created_at"),
+                mine: creator_id == viewer,
+            }
         })
         .collect())
 }
@@ -500,7 +563,11 @@ pub async fn list_active(pool: &PgPool, user: Uuid) -> Result<Vec<ActiveItem>, F
             let kind: String = r.get("opponent_kind");
             ActiveItem {
                 id: r.get("id"),
-                opponent_name: if kind == "bot" { "Bot".into() } else { r.get::<Option<String>, _>("opp_name").unwrap_or_default() },
+                opponent_name: if kind == "bot" {
+                    "Bot".into()
+                } else {
+                    r.get::<Option<String>, _>("opp_name").unwrap_or_default()
+                },
                 opponent_kind: kind,
                 bot_difficulty: r.get("bot_difficulty"),
                 your_turn: slot == Some(if p1 == user { 1 } else { 2 }),
@@ -541,8 +608,15 @@ pub async fn join(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outcome, FpErro
     let g = fetch(&mut tx, id).await?.ok_or(FpError::NotFound)?;
     let snapshot = snapshot_of(&mut tx, &g).await?;
     tx.commit().await?;
-    let events = vec![ev("free_play_game_started", &snapshot), lobby_ev("joined", id)];
-    Ok(Outcome { snapshot, events, replay: false })
+    let events = vec![
+        ev("free_play_game_started", &snapshot),
+        lobby_ev("joined", id),
+    ];
+    Ok(Outcome {
+        snapshot,
+        events,
+        replay: false,
+    })
 }
 
 /// Creator closes an open lobby, or a player leaves a running game (= resigns).
@@ -559,7 +633,11 @@ pub async fn leave(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outcome, FpErr
             let g = fetch(&mut tx, id).await?.ok_or(FpError::NotFound)?;
             let snapshot = snapshot_of(&mut tx, &g).await?;
             tx.commit().await?;
-            Ok(Outcome { snapshot, events: vec![lobby_ev("closed", id)], replay: false })
+            Ok(Outcome {
+                snapshot,
+                events: vec![lobby_ev("closed", id)],
+                replay: false,
+            })
         }
         "active" => {
             let winner = if slot == 1 { 2 } else { 1 };
@@ -568,16 +646,34 @@ pub async fn leave(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outcome, FpErr
             let snapshot = snapshot_of(&mut tx, &g).await?;
             tx.commit().await?;
             let events = vec![ev("free_play_finished", &snapshot)];
-            Ok(Outcome { snapshot, events, replay: false })
+            Ok(Outcome {
+                snapshot,
+                events,
+                replay: false,
+            })
         }
         _ => Err(FpError::WrongStatus("game_not_running")),
     }
 }
 
 /// Ends an active game: `winner_slot` wins because the other side left / timed out / resigned.
-async fn forfeit_tx(conn: &mut PgConnection, g: &Game, winner_slot: i16, reason: &str) -> Result<(), FpError> {
+async fn forfeit_tx(
+    conn: &mut PgConnection,
+    g: &Game,
+    winner_slot: i16,
+    reason: &str,
+) -> Result<(), FpError> {
     let winner_user = if winner_slot == 1 { Some(g.p1) } else { g.p2 }; // None when the bot wins
-    finish_tx(conn, g.id, "win", reason, Some(winner_slot), winner_user, true).await
+    finish_tx(
+        conn,
+        g.id,
+        "win",
+        reason,
+        Some(winner_slot),
+        winner_user,
+        true,
+    )
+    .await
 }
 
 async fn finish_tx(
@@ -620,7 +716,12 @@ pub async fn get(pool: &PgPool, id: Uuid) -> Result<FpSnapshot, FpError> {
 
 // ── Moves ───────────────────────────────────────────────────────────────────
 
-pub async fn apply_move(pool: &PgPool, id: Uuid, user: Uuid, req: MoveRequest) -> Result<Outcome, FpError> {
+pub async fn apply_move(
+    pool: &PgPool,
+    id: Uuid,
+    user: Uuid,
+    req: MoveRequest,
+) -> Result<Outcome, FpError> {
     if Uuid::parse_str(&req.client_nonce).is_err() {
         return Err(FpError::BadRequest("clientNonce must be a UUID"));
     }
@@ -641,21 +742,43 @@ pub async fn apply_move(pool: &PgPool, id: Uuid, user: Uuid, req: MoveRequest) -
     if seen.is_some() {
         let snapshot = snapshot_of(&mut tx, &g).await?;
         tx.rollback().await?;
-        return Ok(Outcome { snapshot, events: vec![], replay: true });
+        return Ok(Outcome {
+            snapshot,
+            events: vec![],
+            replay: true,
+        });
     }
     if g.status != "active" {
-        return Err(FpError::WrongStatus(if g.status == "finished" { "game_over" } else { "game_not_running" }));
+        return Err(FpError::WrongStatus(if g.status == "finished" {
+            "game_over"
+        } else {
+            "game_not_running"
+        }));
     }
     if req.expected_version != g.version {
-        return Err(FpError::VersionConflict { current_version: g.version });
+        return Err(FpError::VersionConflict {
+            current_version: g.version,
+        });
     }
     if req.column < 0 {
         return Err(FpError::Move(MoveError::InvalidColumn(usize::MAX)));
     }
     let mut engine = engine_of(&g)?;
     let player = if slot == 1 { P1 } else { P2 };
-    let applied = engine.execute(player, req.column as usize).map_err(FpError::Move)?;
-    persist_move(&mut tx, &g, &engine, applied.column, applied.row, slot, Some(user), Some(&nonce)).await?;
+    let applied = engine
+        .execute(player, req.column as usize)
+        .map_err(FpError::Move)?;
+    persist_move(
+        &mut tx,
+        &g,
+        &engine,
+        applied.column,
+        applied.row,
+        slot,
+        Some(user),
+        Some(&nonce),
+    )
+    .await?;
 
     let g2 = fetch(&mut tx, id).await?.ok_or(FpError::NotFound)?;
     let snapshot = snapshot_of(&mut tx, &g2).await?;
@@ -664,7 +787,11 @@ pub async fn apply_move(pool: &PgPool, id: Uuid, user: Uuid, req: MoveRequest) -
     if snapshot.status == "finished" {
         events.push(ev("free_play_finished", &snapshot));
     }
-    let mut out = Outcome { snapshot, events, replay: false };
+    let mut out = Outcome {
+        snapshot,
+        events,
+        replay: false,
+    };
 
     // The bot answers immediately (in its own transaction, same validation path).
     if out.snapshot.status == "active" {
@@ -754,24 +881,50 @@ pub async fn bot_turn_if_needed(pool: &PgPool, id: Uuid) -> Result<Option<Outcom
         }
     }
     let mut tx = pool.begin().await?;
-    let Some(g) = lock(&mut tx, id).await? else { return Ok(None) };
+    let Some(g) = lock(&mut tx, id).await? else {
+        return Ok(None);
+    };
     if !(is_bot(&g) && g.status == "active" && g.current_slot == Some(2)) {
         return Ok(None); // someone else already moved
     }
     let mut engine = engine_of(&g)?;
-    let difficulty = g.bot_difficulty.as_deref().and_then(Difficulty::parse).unwrap_or(Difficulty::Easy);
+    let difficulty = g
+        .bot_difficulty
+        .as_deref()
+        .and_then(Difficulty::parse)
+        .unwrap_or(Difficulty::Easy);
     // Reproducible per game position.
     let seed = g.id.as_u128() as u64 ^ (g.move_count as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
     let snapshot_engine = engine.clone();
     let column = tokio::task::spawn_blocking(move || {
-        choose_column(&snapshot_engine, P2, BotParams { difficulty, seed, budget: bot_budget() })
+        choose_column(
+            &snapshot_engine,
+            P2,
+            BotParams {
+                difficulty,
+                seed,
+                budget: bot_budget(),
+            },
+        )
     })
     .await
     .map_err(|e| FpError::Internal(e.to_string()))?
     .ok_or_else(|| FpError::Internal("bot found no move".into()))?;
     // Same engine, same rules as for humans: an illegal bot move is impossible.
-    let applied = engine.execute(P2, column).map_err(|e| FpError::Internal(format!("bot move rejected: {e}")))?;
-    persist_move(&mut tx, &g, &engine, applied.column, applied.row, 2, None, None).await?;
+    let applied = engine
+        .execute(P2, column)
+        .map_err(|e| FpError::Internal(format!("bot move rejected: {e}")))?;
+    persist_move(
+        &mut tx,
+        &g,
+        &engine,
+        applied.column,
+        applied.row,
+        2,
+        None,
+        None,
+    )
+    .await?;
     let g2 = fetch(&mut tx, id).await?.ok_or(FpError::NotFound)?;
     let snapshot = snapshot_of(&mut tx, &g2).await?;
     tx.commit().await?;
@@ -779,7 +932,11 @@ pub async fn bot_turn_if_needed(pool: &PgPool, id: Uuid) -> Result<Option<Outcom
     if snapshot.status == "finished" {
         events.push(ev("free_play_finished", &snapshot));
     }
-    Ok(Some(Outcome { snapshot, events, replay: false }))
+    Ok(Some(Outcome {
+        snapshot,
+        events,
+        replay: false,
+    }))
 }
 
 // ── Rematch ─────────────────────────────────────────────────────────────────
@@ -794,7 +951,11 @@ pub async fn request_rematch(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outc
     if g.rematch_game_id.is_some() {
         let snapshot = snapshot_of(&mut tx, &g).await?;
         tx.rollback().await?;
-        return Ok(Outcome { snapshot, events: vec![], replay: true });
+        return Ok(Outcome {
+            snapshot,
+            events: vec![],
+            replay: true,
+        });
     }
     let (_, board, hash) = initial_state();
     let new_id = Uuid::new_v4();
@@ -817,7 +978,8 @@ pub async fn request_rematch(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outc
         .await?;
     } else if g.rematch_requested_by.is_some() && g.rematch_requested_by != Some(user) {
         // Both want it: new game with swapped colours/first move.
-        let p2 = g.p2.ok_or_else(|| FpError::Internal("finished human game without player two".into()))?;
+        let p2 =
+            g.p2.ok_or_else(|| FpError::Internal("finished human game without player two".into()))?;
         let (first, second) = (p2, g.p1);
         sqlx::query(
             "INSERT INTO free_play_games (id, opponent_kind, status, player_one_id, player_two_id, board_state, state_hash, \
@@ -843,7 +1005,11 @@ pub async fn request_rematch(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outc
         let snapshot = snapshot_of(&mut tx, &g2).await?;
         tx.commit().await?;
         events.push(ev("free_play_game_state", &snapshot));
-        return Ok(Outcome { snapshot, events, replay: false });
+        return Ok(Outcome {
+            snapshot,
+            events,
+            replay: false,
+        });
     }
     sqlx::query("UPDATE free_play_games SET rematch_game_id = $2, rematch_requested_by = COALESCE(rematch_requested_by, $3), updated_at = NOW() WHERE id = $1")
         .bind(id)
@@ -855,7 +1021,11 @@ pub async fn request_rematch(pool: &PgPool, id: Uuid, user: Uuid) -> Result<Outc
     let snapshot = snapshot_of(&mut tx, &g2).await?;
     tx.commit().await?;
     events.push(ev("free_play_game_state", &snapshot));
-    Ok(Outcome { snapshot, events, replay: false })
+    Ok(Outcome {
+        snapshot,
+        events,
+        replay: false,
+    })
 }
 
 // ── History & stats ─────────────────────────────────────────────────────────
@@ -905,7 +1075,11 @@ pub async fn history(pool: &PgPool, user: Uuid, limit: i64) -> Result<Vec<Histor
             let kind: String = r.get("opponent_kind");
             HistoryItem {
                 id: r.get("id"),
-                opponent_name: if kind == "bot" { "Bot".into() } else { r.get::<Option<String>, _>("opp_name").unwrap_or_default() },
+                opponent_name: if kind == "bot" {
+                    "Bot".into()
+                } else {
+                    r.get::<Option<String>, _>("opp_name").unwrap_or_default()
+                },
                 opponent_kind: kind,
                 bot_difficulty: r.get("bot_difficulty"),
                 you_slot: if p1 == user { 1 } else { 2 },
@@ -981,8 +1155,11 @@ pub async fn expire_due(pool: &PgPool) -> Result<Vec<serde_json::Value>, FpError
     .await?;
     for id in due {
         let mut tx = pool.begin().await?;
-        let Some(g) = lock(&mut tx, id).await? else { continue };
-        let overdue = g.status == "active" && g.turn_deadline.map(|d| d < Utc::now()).unwrap_or(false);
+        let Some(g) = lock(&mut tx, id).await? else {
+            continue;
+        };
+        let overdue =
+            g.status == "active" && g.turn_deadline.map(|d| d < Utc::now()).unwrap_or(false);
         if !overdue {
             continue;
         }

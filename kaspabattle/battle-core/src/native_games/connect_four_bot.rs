@@ -3,7 +3,7 @@
 //! illegal move or act out of turn.
 //!
 //! * `Easy`   – takes an immediate win, blocks an immediate loss, avoids handing the opponent a win,
-//!              otherwise picks a (seeded) random column, mildly preferring the centre.
+//!   otherwise picks a (seeded) random column, mildly preferring the centre.
 //! * `Medium` – iterative-deepening negamax with alpha-beta pruning (depth ≤ 5) + positional heuristic.
 //! * `Hard`   – same search, depth ≤ 8.
 //!
@@ -153,9 +153,17 @@ pub fn choose_column(game: &ConnectFour, bot: &str, params: BotParams) -> Option
                     let score = match &m.status {
                         GameStatus::Won { .. } => WIN,
                         GameStatus::Draw => 0,
-                        GameStatus::InProgress => {
-                            -negamax(&mut sim, &opp, &me, depth - 1, -WIN - 1, -alpha, started, params.budget, &mut aborted)
-                        }
+                        GameStatus::InProgress => -negamax(
+                            &mut sim,
+                            &opp,
+                            &me,
+                            depth - 1,
+                            -WIN - 1,
+                            -alpha,
+                            started,
+                            params.budget,
+                            &mut aborted,
+                        ),
                     };
                     let _ = sim.rollback(&m.rollback);
                     if aborted {
@@ -191,16 +199,14 @@ pub fn choose_column(game: &ConnectFour, bot: &str, params: BotParams) -> Option
 fn pass_turn(game: &ConnectFour, slot: super::connect_four::Slot) -> ConnectFour {
     let mut state = game.state().clone();
     state.next = slot;
-    ConnectFour::from_state(
-        game.players()[0].clone(),
-        game.players()[1].clone(),
-        state,
-    )
-    .unwrap_or_else(|_| game.clone())
+    ConnectFour::from_state(game.players()[0].clone(), game.players()[1].clone(), state)
+        .unwrap_or_else(|_| game.clone())
 }
 
 fn gives_opponent_win(sim: &mut ConnectFour, me: &str, opp: &str, column: usize) -> bool {
-    let Ok(m) = sim.execute(me, column) else { return false };
+    let Ok(m) = sim.execute(me, column) else {
+        return false;
+    };
     let mut danger = false;
     if matches!(m.status, GameStatus::InProgress) {
         for &c in &legal_columns(sim) {
@@ -239,13 +245,23 @@ fn negamax(
     }
     let mut best = -WIN - 1;
     for c in legal {
-        let Ok(m) = game.execute(mover, c) else { continue };
+        let Ok(m) = game.execute(mover, c) else {
+            continue;
+        };
         let score = match &m.status {
             GameStatus::Won { .. } => WIN + depth as i32, // faster wins score higher
             GameStatus::Draw => 0,
-            GameStatus::InProgress => {
-                -negamax(game, other, mover, depth - 1, -beta, -alpha, started, budget, aborted)
-            }
+            GameStatus::InProgress => -negamax(
+                game,
+                other,
+                mover,
+                depth - 1,
+                -beta,
+                -alpha,
+                started,
+                budget,
+                aborted,
+            ),
         };
         let _ = game.rollback(&m.rollback);
         if *aborted {
@@ -262,7 +278,9 @@ fn negamax(
 
 /// Static evaluation from `mover`'s point of view: window counting + centre control.
 fn evaluate(game: &ConnectFour, mover: &str, other: &str) -> i32 {
-    let (Some(ms), Some(os)) = (game.slot_of(mover), game.slot_of(other)) else { return 0 };
+    let (Some(ms), Some(os)) = (game.slot_of(mover), game.slot_of(other)) else {
+        return 0;
+    };
     let (mv, ov) = (ms.cell_value(), os.cell_value());
     let mut score = 0i32;
     for r in 0..ROWS {
@@ -289,16 +307,36 @@ fn evaluate(game: &ConnectFour, mover: &str, other: &str) -> i32 {
     for r in 0..ROWS {
         for c in 0..COLUMNS {
             if c + 3 < COLUMNS {
-                window([game.cell(r, c), game.cell(r, c + 1), game.cell(r, c + 2), game.cell(r, c + 3)]);
+                window([
+                    game.cell(r, c),
+                    game.cell(r, c + 1),
+                    game.cell(r, c + 2),
+                    game.cell(r, c + 3),
+                ]);
             }
             if r + 3 < ROWS {
-                window([game.cell(r, c), game.cell(r + 1, c), game.cell(r + 2, c), game.cell(r + 3, c)]);
+                window([
+                    game.cell(r, c),
+                    game.cell(r + 1, c),
+                    game.cell(r + 2, c),
+                    game.cell(r + 3, c),
+                ]);
             }
             if r + 3 < ROWS && c + 3 < COLUMNS {
-                window([game.cell(r, c), game.cell(r + 1, c + 1), game.cell(r + 2, c + 2), game.cell(r + 3, c + 3)]);
+                window([
+                    game.cell(r, c),
+                    game.cell(r + 1, c + 1),
+                    game.cell(r + 2, c + 2),
+                    game.cell(r + 3, c + 3),
+                ]);
             }
             if r >= 3 && c + 3 < COLUMNS {
-                window([game.cell(r, c), game.cell(r - 1, c + 1), game.cell(r - 2, c + 2), game.cell(r - 3, c + 3)]);
+                window([
+                    game.cell(r, c),
+                    game.cell(r - 1, c + 1),
+                    game.cell(r - 2, c + 2),
+                    game.cell(r - 3, c + 3),
+                ]);
             }
         }
     }
@@ -313,7 +351,11 @@ mod tests {
     const B: &str = "bot";
 
     fn params(d: Difficulty, seed: u64) -> BotParams {
-        BotParams { difficulty: d, seed, budget: Duration::from_secs(5) }
+        BotParams {
+            difficulty: d,
+            seed,
+            budget: Duration::from_secs(5),
+        }
     }
 
     /// Game with the bot as second player; plays `moves` alternately starting with the human.
@@ -384,10 +426,18 @@ mod tests {
     fn respects_its_time_budget() {
         let g = game_after(&[3, 3, 2, 4, 2]);
         let started = Instant::now();
-        let p = BotParams { difficulty: Difficulty::Hard, seed: 1, budget: Duration::from_millis(60) };
+        let p = BotParams {
+            difficulty: Difficulty::Hard,
+            seed: 1,
+            budget: Duration::from_millis(60),
+        };
         let c = choose_column(&g, B, p);
         assert!(c.is_some());
-        assert!(started.elapsed() < Duration::from_millis(1500), "took {:?}", started.elapsed());
+        assert!(
+            started.elapsed() < Duration::from_millis(1500),
+            "took {:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
@@ -405,11 +455,19 @@ mod tests {
                     let c = *legal.choose(&mut rng).unwrap();
                     g.execute(H, c).unwrap();
                 } else {
-                    let c = choose_column(&g, B, BotParams {
-                        difficulty: if game_no % 2 == 0 { Difficulty::Medium } else { Difficulty::Easy },
-                        seed: game_no,
-                        budget: Duration::from_secs(2),
-                    })
+                    let c = choose_column(
+                        &g,
+                        B,
+                        BotParams {
+                            difficulty: if game_no % 2 == 0 {
+                                Difficulty::Medium
+                            } else {
+                                Difficulty::Easy
+                            },
+                            seed: game_no,
+                            budget: Duration::from_secs(2),
+                        },
+                    )
                     .expect("bot must move when it is its turn");
                     g.execute(B, c).expect("legal");
                 }
@@ -431,7 +489,16 @@ mod tests {
                     let c = *legal_columns(&g).choose(&mut rng).unwrap();
                     g.execute(H, c).unwrap();
                 } else {
-                    let c = choose_column(&g, B, BotParams { difficulty: Difficulty::Medium, seed: i, budget: Duration::from_secs(2) }).unwrap();
+                    let c = choose_column(
+                        &g,
+                        B,
+                        BotParams {
+                            difficulty: Difficulty::Medium,
+                            seed: i,
+                            budget: Duration::from_secs(2),
+                        },
+                    )
+                    .unwrap();
                     g.execute(B, c).unwrap();
                 }
             }
@@ -439,6 +506,9 @@ mod tests {
                 bot_wins += 1;
             }
         }
-        assert!(bot_wins >= 7, "medium bot won only {bot_wins}/8 against random");
+        assert!(
+            bot_wins >= 7,
+            "medium bot won only {bot_wins}/8 against random"
+        );
     }
 }

@@ -11,9 +11,7 @@
 //! | POST   | `/auth/change-password`     | session, revokes all other sessions                |
 //! | POST   | `/auth/newsletter`          | consent / revoke (no sending implemented)          |
 
-use crate::account::{
-    self, FieldError, LoginError, RegisterInput, RegisterOutcome,
-};
+use crate::account::{self, FieldError, LoginError, RegisterInput, RegisterOutcome};
 use crate::api::auth_guard::SessionUserNoWallet;
 use crate::api::native::{err, ApiError};
 use crate::api::rate_limit::ClientIp;
@@ -88,8 +86,16 @@ pub async fn register(
         return Ok(ok_body()); // bot: pretend success, create nothing
     }
     let mut fields = Fields::new();
-    let username = account::validate_username(&b.username).map_err(|e| { fields.insert("username", e.code()); e }).ok();
-    let email = account::normalize_email(&b.email).map_err(|e| { fields.insert("email", e.code()); e }).ok();
+    let username = account::validate_username(&b.username)
+        .inspect_err(|e| {
+            fields.insert("username", e.code());
+        })
+        .ok();
+    let email = account::normalize_email(&b.email)
+        .inspect_err(|e| {
+            fields.insert("email", e.code());
+        })
+        .ok();
     if let Err(e) = account::validate_password(&b.password, username.as_deref(), email.as_deref()) {
         fields.insert("password", e.code());
     }
@@ -99,7 +105,9 @@ pub async fn register(
     if !b.accept_terms {
         fields.insert("acceptTerms", FieldError::Required.code());
     }
-    let (Some(username), Some(email)) = (username, email) else { return Err(invalid(fields)) };
+    let (Some(username), Some(email)) = (username, email) else {
+        return Err(invalid(fields));
+    };
     if !fields.is_empty() {
         return Err(invalid(fields));
     }
@@ -112,16 +120,29 @@ pub async fn register(
     match account::register(
         &state.pool,
         rt,
-        RegisterInput { username, email, password: b.password, newsletter: b.newsletter },
+        RegisterInput {
+            username,
+            email,
+            password: b.password,
+            newsletter: b.newsletter,
+        },
         &ip,
     )
     .await
     {
         Ok(RegisterOutcome::Created(_)) | Ok(RegisterOutcome::EmailExists) => Ok(ok_body()),
-        Ok(RegisterOutcome::UsernameTaken) => Err(err(StatusCode::CONFLICT, "username_taken", "This username is already taken.")),
+        Ok(RegisterOutcome::UsernameTaken) => Err(err(
+            StatusCode::CONFLICT,
+            "username_taken",
+            "This username is already taken.",
+        )),
         Err(e) => {
             tracing::error!(error = %e, "register failed");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Registration failed. Please try again."))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Registration failed. Please try again.",
+            ))
         }
     }
 }
@@ -141,22 +162,44 @@ pub async fn login(
     Json(b): Json<LoginBody>,
 ) -> Result<Response, ApiError> {
     let rt = &state.account;
-    if !rt.throttle.allow(&format!("login:ip:{ip}"), 30, Duration::from_secs(900)) {
+    if !rt
+        .throttle
+        .allow(&format!("login:ip:{ip}"), 30, Duration::from_secs(900))
+    {
         return Ok(too_many(900));
     }
-    let generic = || err(StatusCode::UNAUTHORIZED, "invalid_credentials", "E-Mail-Adresse oder Passwort ist nicht korrekt.");
+    let generic = || {
+        err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_credentials",
+            "E-Mail-Adresse oder Passwort ist nicht korrekt.",
+        )
+    };
     if b.password.len() > 512 {
         return Err(generic());
     }
-    let Ok(email) = account::normalize_email(&b.email) else { return Err(generic()) };
+    let Ok(email) = account::normalize_email(&b.email) else {
+        return Err(generic());
+    };
     match account::login(&state.pool, rt, &email, &b.password, b.remember, &ip).await {
         Ok(ok) => {
-            let max_age = ok.remember.then(|| (ok.expires_at - chrono::Utc::now()).num_seconds().max(0));
-            let mut res = Json(serde_json::json!({ "userId": ok.user_id, "username": ok.username })).into_response();
+            let max_age = ok
+                .remember
+                .then(|| (ok.expires_at - chrono::Utc::now()).num_seconds().max(0));
+            let mut res =
+                Json(serde_json::json!({ "userId": ok.user_id, "username": ok.username }))
+                    .into_response();
             res.headers_mut().insert(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&build_auth_cookie_with(&ok.token, max_age))
-                    .map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Login failed."))?,
+                HeaderValue::from_str(&build_auth_cookie_with(&ok.token, max_age)).map_err(
+                    |_| {
+                        err(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "internal_error",
+                            "Login failed.",
+                        )
+                    },
+                )?,
             );
             Ok(res)
         }
@@ -169,7 +212,11 @@ pub async fn login(
         Err(LoginError::Throttled { retry_after_secs }) => Ok(too_many(retry_after_secs)),
         Err(LoginError::Internal(e)) => {
             tracing::error!(error = %e, "login failed");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Login failed. Please try again."))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Login failed. Please try again.",
+            ))
         }
     }
 }
@@ -185,18 +232,34 @@ pub async fn verify_email(
     ClientIp(ip): ClientIp,
     Json(b): Json<TokenBody>,
 ) -> Result<Response, ApiError> {
-    if !state.account.throttle.allow(&format!("verify:ip:{ip}"), 20, hour()) {
+    if !state
+        .account
+        .throttle
+        .allow(&format!("verify:ip:{ip}"), 20, hour())
+    {
         return Ok(too_many(3600));
     }
     if b.token.len() > 200 {
-        return Err(err(StatusCode::BAD_REQUEST, "invalid_or_expired_token", "The link is invalid or has expired."));
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            "invalid_or_expired_token",
+            "The link is invalid or has expired.",
+        ));
     }
     match account::verify_email(&state.pool, &state.account, &b.token, &ip).await {
         Ok(true) => Ok(Json(serde_json::json!({ "verified": true })).into_response()),
-        Ok(false) => Err(err(StatusCode::BAD_REQUEST, "invalid_or_expired_token", "The link is invalid or has expired.")),
+        Ok(false) => Err(err(
+            StatusCode::BAD_REQUEST,
+            "invalid_or_expired_token",
+            "The link is invalid or has expired.",
+        )),
         Err(e) => {
             tracing::error!(error = %e, "verify_email failed");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Verification failed."))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Verification failed.",
+            ))
         }
     }
 }
@@ -213,12 +276,22 @@ pub async fn resend_verification(
     Json(b): Json<EmailBody>,
 ) -> Result<Response, ApiError> {
     let rt = &state.account;
-    let neutral = || (StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "ok" }))).into_response();
+    let neutral = || {
+        (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({ "status": "ok" })),
+        )
+            .into_response()
+    };
     if !rt.throttle.allow(&format!("resend:ip:{ip}"), 5, hour()) {
         return Ok(too_many(3600));
     }
     if let Ok(email) = account::normalize_email(&b.email) {
-        if rt.throttle.allow(&format!("resend:acct:{}", account::email_key(&email)), 3, hour()) {
+        if rt.throttle.allow(
+            &format!("resend:acct:{}", account::email_key(&email)),
+            3,
+            hour(),
+        ) {
             account::resend_verification(&state.pool, rt, &email).await;
         }
     }
@@ -243,11 +316,19 @@ pub async fn forgot_password(
         return Ok(too_many(3600));
     }
     if let Ok(email) = account::normalize_email(&b.email) {
-        if rt.throttle.allow(&format!("forgot:acct:{}", account::email_key(&email)), 3, hour()) {
+        if rt.throttle.allow(
+            &format!("forgot:acct:{}", account::email_key(&email)),
+            3,
+            hour(),
+        ) {
             account::forgot_password(&state.pool, rt, &email, &ip).await;
         }
     }
-    Ok((StatusCode::ACCEPTED, Json(serde_json::json!({ "status": "ok" }))).into_response())
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "status": "ok" })),
+    )
+        .into_response())
 }
 
 #[derive(Debug, Deserialize)]
@@ -267,17 +348,29 @@ pub async fn reset_password(
         return Ok(too_many(3600));
     }
     if b.token.len() > 200 {
-        return Err(err(StatusCode::BAD_REQUEST, "invalid_or_expired_token", "The link is invalid or has expired."));
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            "invalid_or_expired_token",
+            "The link is invalid or has expired.",
+        ));
     }
     if let Err(e) = account::validate_password(&b.new_password, None, None) {
         return Err(invalid(Fields::from([("newPassword", e.code())])));
     }
     match account::reset_password(&state.pool, rt, &b.token, &b.new_password, &ip).await {
         Ok(true) => Ok(Json(serde_json::json!({ "status": "ok" })).into_response()),
-        Ok(false) => Err(err(StatusCode::BAD_REQUEST, "invalid_or_expired_token", "The link is invalid or has expired.")),
+        Ok(false) => Err(err(
+            StatusCode::BAD_REQUEST,
+            "invalid_or_expired_token",
+            "The link is invalid or has expired.",
+        )),
         Err(e) => {
             tracing::error!(error = %e, "reset_password failed");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Password reset failed."))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Password reset failed.",
+            ))
         }
     }
 }
@@ -297,7 +390,10 @@ pub async fn change_password(
     Json(b): Json<ChangePasswordBody>,
 ) -> Result<Response, ApiError> {
     let rt = &state.account;
-    if !rt.throttle.allow(&format!("chpw:user:{}", user.id), 10, hour()) {
+    if !rt
+        .throttle
+        .allow(&format!("chpw:user:{}", user.id), 10, hour())
+    {
         return Ok(too_many(3600));
     }
     let name = sqlx::query_scalar::<_, Option<String>>("SELECT username FROM users WHERE id = $1")
@@ -306,16 +402,35 @@ pub async fn change_password(
         .await
         .ok()
         .flatten();
-    if let Err(e) = account::validate_password(&b.new_password, name.as_deref(), Some(&user.email)) {
+    if let Err(e) = account::validate_password(&b.new_password, name.as_deref(), Some(&user.email))
+    {
         return Err(invalid(Fields::from([("newPassword", e.code())])));
     }
     let keep = extract_session_token_from_headers(&headers).unwrap_or_default();
-    match account::change_password(&state.pool, rt, user.id, &b.current_password, &b.new_password, &keep, &ip).await {
+    match account::change_password(
+        &state.pool,
+        rt,
+        user.id,
+        &b.current_password,
+        &b.new_password,
+        &keep,
+        &ip,
+    )
+    .await
+    {
         Ok(true) => Ok(Json(serde_json::json!({ "status": "ok" })).into_response()),
-        Ok(false) => Err(err(StatusCode::FORBIDDEN, "invalid_credentials", "Das aktuelle Passwort ist nicht korrekt.")),
+        Ok(false) => Err(err(
+            StatusCode::FORBIDDEN,
+            "invalid_credentials",
+            "Das aktuelle Passwort ist nicht korrekt.",
+        )),
         Err(e) => {
             tracing::error!(error = %e, "change_password failed");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Password change failed."))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Password change failed.",
+            ))
         }
     }
 }
@@ -335,7 +450,11 @@ pub async fn newsletter(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "newsletter update failed");
-            err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Could not update the setting.")
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Could not update the setting.",
+            )
         })?;
     Ok(Json(serde_json::json!({ "subscribed": b.subscribe })).into_response())
 }

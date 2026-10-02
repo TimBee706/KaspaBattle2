@@ -3,8 +3,8 @@ pub mod admin_guard;
 pub mod admin_tournament;
 pub mod auth_guard;
 pub mod csrf_guard;
-pub mod free_play;
 pub mod faceit;
+pub mod free_play;
 /// Handler sub-modules (CQ-01: Phase 1 — types extracted; full handler migration: post-beta).
 /// See `src/api/handlers/` for the target module structure.
 pub mod handlers;
@@ -105,7 +105,10 @@ pub fn router() -> Router<AppState> {
         .route("/auth/register", post(account::register))
         .route("/auth/login", post(account::login))
         .route("/auth/verify-email", post(account::verify_email))
-        .route("/auth/resend-verification", post(account::resend_verification))
+        .route(
+            "/auth/resend-verification",
+            post(account::resend_verification),
+        )
         .route("/auth/forgot-password", post(account::forgot_password))
         .route("/auth/reset-password", post(account::reset_password))
         .route("/auth/change-password", post(account::change_password))
@@ -276,12 +279,15 @@ pub async fn get_me(
                     r.try_get::<Option<String>, _>("username").unwrap_or(None),
                     r.try_get::<bool, _>("has_password_login").unwrap_or(false),
                     r.try_get::<bool, _>("email_verified").unwrap_or(false),
-                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_consent_at").unwrap_or(None),
-                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_revoked_at").unwrap_or(None),
+                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_consent_at")
+                        .unwrap_or(None),
+                    r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("newsletter_revoked_at")
+                        .unwrap_or(None),
                 ),
                 None => (None, false, false, None, None),
             };
-            let newsletter_subscribed = nl_consent.is_some() && nl_revoked.map(|r| Some(r) < nl_consent).unwrap_or(true);
+            let newsletter_subscribed =
+                nl_consent.is_some() && nl_revoked.map(|r| Some(r) < nl_consent).unwrap_or(true);
 
             Ok(Json(serde_json::json!({
                 "id": user.id,
@@ -365,7 +371,9 @@ pub fn build_auth_cookie(session_token: &str) -> String {
 /// session still expires on its own).
 pub fn build_auth_cookie_with(session_token: &str, max_age: Option<i64>) -> String {
     let (same_site, secure_flag) = auth_cookie_security_attrs();
-    let max_age = max_age.map(|s| format!("; Max-Age={s}")).unwrap_or_default();
+    let max_age = max_age
+        .map(|s| format!("; Max-Age={s}"))
+        .unwrap_or_default();
     format!(
         "kaspabattle-auth={}; HttpOnly; Path=/; SameSite={}{}{}",
         session_token, same_site, secure_flag, max_age
@@ -411,7 +419,9 @@ pub(crate) fn build_clear_auth_cookie() -> String {
     )
 }
 
-pub(crate) fn extract_session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+pub(crate) fn extract_session_token_from_headers(
+    headers: &axum::http::HeaderMap,
+) -> Option<String> {
     let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
     if let Some(header) = auth_header {
         if let Some(stripped) = header.strip_prefix("Bearer ") {
@@ -1974,7 +1984,9 @@ fn ws_should_forward(
     if user.is_none() {
         return false;
     }
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(msg) else { return false };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(msg) else {
+        return false;
+    };
     if v["type"] == "free_play_lobby" {
         return true;
     }
@@ -2037,7 +2049,9 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_i
                     if in_window > 30 {
                         break;
                     }
-                    let Ok(msg) = serde_json::from_str::<WsClientMsg>(&text) else { continue };
+                    let Ok(msg) = serde_json::from_str::<WsClientMsg>(&text) else {
+                        continue;
+                    };
                     match msg {
                         WsClientMsg::Ping => {
                             let _ = out_tx.send("{\"type\":\"pong\"}".into()).await;
@@ -2057,17 +2071,30 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_i
                                 let _ = out_tx.send("{\"type\":\"subscribe_denied\"}".into()).await;
                                 continue;
                             }
-                            if sub_for_recv.lock().unwrap().insert(game_id) && presence.join(game_id, uid) {
-                                crate::free_play::publish(&bcast, &[crate::free_play::presence_ev(game_id, uid, true)]);
+                            if sub_for_recv.lock().unwrap().insert(game_id)
+                                && presence.join(game_id, uid)
+                            {
+                                crate::free_play::publish(
+                                    &bcast,
+                                    &[crate::free_play::presence_ev(game_id, uid, true)],
+                                );
                             }
                             let _ = out_tx
-                                .send(serde_json::json!({ "type": "subscribed", "gameId": game_id }).to_string())
+                                .send(
+                                    serde_json::json!({ "type": "subscribed", "gameId": game_id })
+                                        .to_string(),
+                                )
                                 .await;
                         }
                         WsClientMsg::Unsubscribe { game_id } => {
                             if let Some(uid) = user_id {
-                                if sub_for_recv.lock().unwrap().remove(&game_id) && presence.leave(game_id, uid) {
-                                    crate::free_play::publish(&bcast, &[crate::free_play::presence_ev(game_id, uid, false)]);
+                                if sub_for_recv.lock().unwrap().remove(&game_id)
+                                    && presence.leave(game_id, uid)
+                                {
+                                    crate::free_play::publish(
+                                        &bcast,
+                                        &[crate::free_play::presence_ev(game_id, uid, false)],
+                                    );
                                 }
                             }
                         }

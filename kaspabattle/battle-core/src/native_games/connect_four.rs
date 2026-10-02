@@ -732,20 +732,31 @@ mod tests {
                 match g.execute(&player, col) {
                     Ok(m) => {
                         // exactly one new disc, on the bottom-most free cell, by the mover
-                        let diff: Vec<usize> = (0..CELLS).filter(|i| before[*i] != g.state().cells[*i]).collect();
+                        let diff: Vec<usize> = (0..CELLS)
+                            .filter(|i| before[*i] != g.state().cells[*i])
+                            .collect();
                         assert_eq!(diff.len(), 1);
                         let (r, c) = (diff[0] / COLUMNS, diff[0] % COLUMNS);
                         assert_eq!((r as u8, c as u8), (m.row, m.column));
                         assert!(r == 0 || g.cell(r - 1, c) != 0, "no floating disc");
                         assert_eq!(g.cell(r, c), m.slot.cell_value());
-                        assert_eq!(g.move_count(), last_count + 1, "move count rises by exactly one");
+                        assert_eq!(
+                            g.move_count(),
+                            last_count + 1,
+                            "move count rises by exactly one"
+                        );
                         last_count = g.move_count();
                     }
-                    Err(MoveError::ColumnFull(_)) => assert_eq!(g.state().cells, before, "rejected move changes nothing"),
+                    Err(MoveError::ColumnFull(_)) => {
+                        assert_eq!(g.state().cells, before, "rejected move changes nothing")
+                    }
                     Err(e) => panic!("unexpected {e}"),
                 }
                 assert!(g.state().cells.iter().all(|c| *c <= 2));
-                assert!(ConnectFour::from_state("a", "b", g.state().clone()).is_ok(), "every reachable state validates");
+                assert!(
+                    ConnectFour::from_state("a", "b", g.state().clone()).is_ok(),
+                    "every reachable state validates"
+                );
             }
             // a finished board never changes again
             let frozen = g.clone();

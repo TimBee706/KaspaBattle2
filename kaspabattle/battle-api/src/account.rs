@@ -52,8 +52,12 @@ impl AccountConfig {
     /// `REQUIRE_EMAIL_VERIFICATION` unset → on iff SMTP is configured (never lock people out when
     /// no mail can be delivered). An explicit value always wins and is switchable without code changes.
     pub fn from_env(mail_available: bool, get: impl Fn(&str) -> Option<String>) -> Self {
-        let explicit = get("REQUIRE_EMAIL_VERIFICATION")
-            .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"));
+        let explicit = get("REQUIRE_EMAIL_VERIFICATION").map(|v| {
+            matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        });
         let public_app_url = get("PUBLIC_APP_URL")
             .or_else(|| get("FRONTEND_URL"))
             .unwrap_or_else(|| "http://localhost:5173".into())
@@ -82,7 +86,11 @@ impl Throttle {
         let now = Instant::now();
         let mut map = self.hits.lock().unwrap();
         if map.len() > 20_000 {
-            map.retain(|_, v| v.last().map(|t| now.duration_since(*t) < Duration::from_secs(3600)).unwrap_or(false));
+            map.retain(|_, v| {
+                v.last()
+                    .map(|t| now.duration_since(*t) < Duration::from_secs(3600))
+                    .unwrap_or(false)
+            });
         }
         let v = map.entry(key.to_string()).or_default();
         v.retain(|t| now.duration_since(*t) < window);
@@ -98,12 +106,21 @@ impl Throttle {
         let now = Instant::now();
         let map = self.hits.lock().unwrap();
         map.get(key)
-            .map(|v| v.iter().filter(|t| now.duration_since(**t) < window).count())
+            .map(|v| {
+                v.iter()
+                    .filter(|t| now.duration_since(**t) < window)
+                    .count()
+            })
             .unwrap_or(0)
     }
 
     pub fn record(&self, key: &str) {
-        self.hits.lock().unwrap().entry(key.to_string()).or_default().push(Instant::now());
+        self.hits
+            .lock()
+            .unwrap()
+            .entry(key.to_string())
+            .or_default()
+            .push(Instant::now());
     }
 
     pub fn clear(&self, key: &str) {
@@ -189,7 +206,10 @@ pub fn normalize_email(raw: &str) -> Result<String, FieldError> {
                 && !l.ends_with('-')
                 && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
         })
-        && labels.last().map(|t| t.len() >= 2 && t.chars().all(|c| c.is_ascii_alphabetic())).unwrap_or(false);
+        && labels
+            .last()
+            .map(|t| t.len() >= 2 && t.chars().all(|c| c.is_ascii_alphabetic()))
+            .unwrap_or(false);
     let local_ok = local
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || "._%+-'".contains(c))
@@ -207,15 +227,54 @@ pub fn normalize_email(raw: &str) -> Result<String, FieldError> {
 }
 
 const RESERVED_NAMES: &[&str] = &[
-    "admin", "administrator", "root", "support", "kaspabattle", "kaspa", "moderator", "mod", "system",
-    "bot", "staff", "official", "faceit", "info", "null", "undefined", "anonymous", "guest", "owner",
-    "team", "security", "help", "service", "api", "www", "mail", "postmaster", "webmaster", "freeplay",
-    "computer", "ai", "everyone", "nobody",
+    "admin",
+    "administrator",
+    "root",
+    "support",
+    "kaspabattle",
+    "kaspa",
+    "moderator",
+    "mod",
+    "system",
+    "bot",
+    "staff",
+    "official",
+    "faceit",
+    "info",
+    "null",
+    "undefined",
+    "anonymous",
+    "guest",
+    "owner",
+    "team",
+    "security",
+    "help",
+    "service",
+    "api",
+    "www",
+    "mail",
+    "postmaster",
+    "webmaster",
+    "freeplay",
+    "computer",
+    "ai",
+    "everyone",
+    "nobody",
 ];
 
 // Only unambiguous severe terms; substring match on the normalised name keeps legit names usable.
 const BLOCKED_SUBSTRINGS: &[&str] = &[
-    "nigger", "nigga", "faggot", "hitler", "heilhitler", "nazi", "fotze", "hurensohn", "wichser", "arschloch", "rapist",
+    "nigger",
+    "nigga",
+    "faggot",
+    "hitler",
+    "heilhitler",
+    "nazi",
+    "fotze",
+    "hurensohn",
+    "wichser",
+    "arschloch",
+    "rapist",
 ];
 
 fn fold_confusables(s: &str) -> String {
@@ -248,8 +307,15 @@ pub fn validate_username(raw: &str) -> Result<String, FieldError> {
     // ASCII letters, digits, `_` and `-`; must start with a letter/digit. This excludes invisible
     // and control characters, bidi tricks and look-alike scripts by construction.
     let mut chars = u.chars();
-    let first_ok = chars.next().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false);
-    if !first_ok || !u.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    let first_ok = chars
+        .next()
+        .map(|c| c.is_ascii_alphanumeric())
+        .unwrap_or(false);
+    if !first_ok
+        || !u
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         return Err(FieldError::InvalidCharacters);
     }
     let folded = fold_confusables(u);
@@ -268,16 +334,55 @@ pub fn validate_username(raw: &str) -> Result<String, FieldError> {
 }
 
 const COMMON_PASSWORDS: &[&str] = &[
-    "password1234", "passwort1234", "password12345", "123456789012", "1234567890123", "12345678901234",
-    "qwertzuiop12", "qwertyuiop12", "qwertyuiop123", "iloveyou1234", "letmein12345", "welcome12345",
-    "administrator", "passwordpassword", "abcdefghijkl", "abcdefgh1234", "kaspabattle1", "kaspabattle12",
-    "kaspabattle123", "monkey123456", "dragon123456", "football1234", "baseball1234", "superman1234",
-    "trustno1trustno1", "changeme1234", "changemenow", "p@ssw0rd1234", "passw0rd1234", "p@ssword1234",
-    "111111111111", "000000000000", "aaaaaaaaaaaa", "1q2w3e4r5t6y", "1qaz2wsx3edc", "q1w2e3r4t5y6",
-    "zaq12wsxcde3", "mypassword123", "meinpasswort1", "hallo1234567", "passwort12345", "geheim123456",
+    "password1234",
+    "passwort1234",
+    "password12345",
+    "123456789012",
+    "1234567890123",
+    "12345678901234",
+    "qwertzuiop12",
+    "qwertyuiop12",
+    "qwertyuiop123",
+    "iloveyou1234",
+    "letmein12345",
+    "welcome12345",
+    "administrator",
+    "passwordpassword",
+    "abcdefghijkl",
+    "abcdefgh1234",
+    "kaspabattle1",
+    "kaspabattle12",
+    "kaspabattle123",
+    "monkey123456",
+    "dragon123456",
+    "football1234",
+    "baseball1234",
+    "superman1234",
+    "trustno1trustno1",
+    "changeme1234",
+    "changemenow",
+    "p@ssw0rd1234",
+    "passw0rd1234",
+    "p@ssword1234",
+    "111111111111",
+    "000000000000",
+    "aaaaaaaaaaaa",
+    "1q2w3e4r5t6y",
+    "1qaz2wsx3edc",
+    "q1w2e3r4t5y6",
+    "zaq12wsxcde3",
+    "mypassword123",
+    "meinpasswort1",
+    "hallo1234567",
+    "passwort12345",
+    "geheim123456",
 ];
 
-pub fn validate_password(pw: &str, username: Option<&str>, email: Option<&str>) -> Result<(), FieldError> {
+pub fn validate_password(
+    pw: &str,
+    username: Option<&str>,
+    email: Option<&str>,
+) -> Result<(), FieldError> {
     let len = pw.chars().count();
     if len == 0 {
         return Err(FieldError::Required);
@@ -310,7 +415,10 @@ pub fn validate_password(pw: &str, username: Option<&str>, email: Option<&str>) 
     if let Some(e) = email {
         personal.push(e.split('@').next().unwrap_or("").to_lowercase());
     }
-    if personal.iter().any(|p| p.len() >= 4 && lower.contains(p.as_str())) {
+    if personal
+        .iter()
+        .any(|p| p.len() >= 4 && lower.contains(p.as_str()))
+    {
         return Err(FieldError::ContainsPersonalData);
     }
     Ok(())
@@ -336,16 +444,27 @@ pub fn hash_password(pw: &str) -> Result<String, String> {
 
 /// Returns `(valid, new_hash_if_params_outdated)`.
 pub fn verify_password(pw: &str, phc: &str) -> (bool, Option<String>) {
-    let Ok(parsed) = PasswordHash::new(phc) else { return (false, None) };
+    let Ok(parsed) = PasswordHash::new(phc) else {
+        return (false, None);
+    };
     // Argon2 verification reads the cost parameters from the PHC string itself, so hashes created
     // with older parameters still verify.
     if argon2().verify_password(pw.as_bytes(), &parsed).is_err() {
         return (false, None);
     }
-    let current = Params::new(ARGON_M_KIB, ARGON_T, ARGON_P, None).unwrap();
+    // Only the cost parameters matter (the parsed params also carry the output length).
     let outdated = parsed.algorithm.as_str() != "argon2id"
-        || Params::try_from(&parsed).map(|p| p != current).unwrap_or(true);
-    (true, if outdated { hash_password(pw).ok() } else { None })
+        || Params::try_from(&parsed)
+            .map(|p| p.m_cost() != ARGON_M_KIB || p.t_cost() != ARGON_T || p.p_cost() != ARGON_P)
+            .unwrap_or(true);
+    (
+        true,
+        if outdated {
+            hash_password(pw).ok()
+        } else {
+            None
+        },
+    )
 }
 
 /// `(plaintext, sha256-hex)`; only the hash is persisted.
@@ -389,7 +508,9 @@ async fn hash_blocking(rt: &AccountRuntime, pw: String) -> Result<String, String
 }
 
 async fn verify_blocking(rt: &AccountRuntime, pw: String, phc: String) -> (bool, Option<String>) {
-    let Ok(_permit) = rt.hash_slots.acquire().await else { return (false, None) };
+    let Ok(_permit) = rt.hash_slots.acquire().await else {
+        return (false, None);
+    };
     tokio::task::spawn_blocking(move || verify_password(&pw, &phc))
         .await
         .unwrap_or((false, None))
@@ -399,7 +520,11 @@ async fn verify_blocking(rt: &AccountRuntime, pw: String, phc: String) -> (bool,
 
 /// Creates a *new* session token (rotation: tokens are never reused across logins) and trims the
 /// user's oldest sessions beyond [`MAX_SESSIONS_PER_USER`].
-pub async fn create_session(pool: &PgPool, user_id: Uuid, lifetime: ChronoDuration) -> Result<(String, DateTime<Utc>), sqlx::Error> {
+pub async fn create_session(
+    pool: &PgPool,
+    user_id: Uuid,
+    lifetime: ChronoDuration,
+) -> Result<(String, DateTime<Utc>), sqlx::Error> {
     let token = battle_core::auth::AuthService::generate_session_token();
     let expires_at = Utc::now() + lifetime;
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
@@ -419,13 +544,19 @@ pub async fn create_session(pool: &PgPool, user_id: Uuid, lifetime: ChronoDurati
     Ok((token, expires_at))
 }
 
-pub async fn revoke_sessions(pool: &PgPool, user_id: Uuid, keep: Option<&str>) -> Result<u64, sqlx::Error> {
-    Ok(sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)")
-        .bind(user_id)
-        .bind(keep)
-        .execute(pool)
-        .await?
-        .rows_affected())
+pub async fn revoke_sessions(
+    pool: &PgPool,
+    user_id: Uuid,
+    keep: Option<&str>,
+) -> Result<u64, sqlx::Error> {
+    Ok(
+        sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)")
+            .bind(user_id)
+            .bind(keep)
+            .execute(pool)
+            .await?
+            .rows_affected(),
+    )
 }
 
 // ── Registration ────────────────────────────────────────────────────────────
@@ -455,15 +586,21 @@ fn is_unique_violation(e: &sqlx::Error) -> Option<String> {
     }
 }
 
-pub async fn register(pool: &PgPool, rt: &AccountRuntime, input: RegisterInput, ip: &str) -> Result<RegisterOutcome, String> {
+pub async fn register(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    input: RegisterInput,
+    ip: &str,
+) -> Result<RegisterOutcome, String> {
     // Always hash first: identical work for new and existing e-mails (no timing oracle).
     let hash = hash_blocking(rt, input.password.clone()).await?;
 
-    let email_taken: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE lower(email) = $1)")
-        .bind(&input.email)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let email_taken: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE lower(email) = $1)")
+            .bind(&input.email)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
     if email_taken {
         audit(pool, &rt.cfg, None, "register_email_exists", ip).await;
         // A courtesy mail to the real owner (never reveals anything to the requester).
@@ -498,7 +635,9 @@ pub async fn register(pool: &PgPool, rt: &AccountRuntime, input: RegisterInput, 
         Ok(_) => {}
         Err(e) => {
             return match is_unique_violation(&e) {
-                Some(c) if c.contains("username") || c.contains("display") => Ok(RegisterOutcome::UsernameTaken),
+                Some(c) if c.contains("username") || c.contains("display") => {
+                    Ok(RegisterOutcome::UsernameTaken)
+                }
                 Some(_) => Ok(RegisterOutcome::EmailExists), // lost a race on the e-mail index
                 None => Err(e.to_string()),
             };
@@ -514,7 +653,13 @@ pub async fn register(pool: &PgPool, rt: &AccountRuntime, input: RegisterInput, 
     Ok(RegisterOutcome::Created(id))
 }
 
-async fn send_verification(pool: &PgPool, rt: &AccountRuntime, user_id: Uuid, email: &str, username: &str) -> Result<(), String> {
+async fn send_verification(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    user_id: Uuid,
+    email: &str,
+    username: &str,
+) -> Result<(), String> {
     let (plain, hash) = new_token();
     // Invalidate older unused tokens: only the newest link works.
     sqlx::query("UPDATE email_verification_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL")
@@ -537,7 +682,12 @@ async fn send_verification(pool: &PgPool, rt: &AccountRuntime, user_id: Uuid, em
 }
 
 /// Consumes a verification token. `true` only the first time a valid, unexpired token is presented.
-pub async fn verify_email(pool: &PgPool, rt: &AccountRuntime, token: &str, ip: &str) -> Result<bool, String> {
+pub async fn verify_email(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    token: &str,
+    ip: &str,
+) -> Result<bool, String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     let row = sqlx::query(
         "UPDATE email_verification_tokens SET used_at = NOW() \
@@ -587,7 +737,9 @@ pub enum LoginError {
     Invalid,
     /// Correct credentials but the address is not confirmed and verification is required.
     NotVerified,
-    Throttled { retry_after_secs: u64 },
+    Throttled {
+        retry_after_secs: u64,
+    },
     Internal(String),
 }
 
@@ -602,12 +754,21 @@ pub struct LoginOk {
 pub const LOGIN_WINDOW: Duration = Duration::from_secs(15 * 60);
 pub const LOGIN_MAX_PER_ACCOUNT: usize = 8;
 
-pub async fn login(pool: &PgPool, rt: &AccountRuntime, email: &str, password: &str, remember: bool, ip: &str) -> Result<LoginOk, LoginError> {
+pub async fn login(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    email: &str,
+    password: &str,
+    remember: bool,
+    ip: &str,
+) -> Result<LoginOk, LoginError> {
     let akey = format!("login:acct:{}", email_key(email));
     let failures = rt.throttle.count(&akey, LOGIN_WINDOW);
     if failures >= LOGIN_MAX_PER_ACCOUNT {
         // Temporary (sliding window) – never a permanent lockout an attacker could abuse.
-        return Err(LoginError::Throttled { retry_after_secs: LOGIN_WINDOW.as_secs() });
+        return Err(LoginError::Throttled {
+            retry_after_secs: LOGIN_WINDOW.as_secs(),
+        });
     }
     // Progressive delay: each recent failure costs the next attempt 300 ms (max 2 s).
     if failures > 0 {
@@ -625,10 +786,14 @@ pub async fn login(pool: &PgPool, rt: &AccountRuntime, email: &str, password: &s
 
     // Dummy hash keeps the unknown-user path as slow as the known-user path.
     static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    let dummy = DUMMY.get_or_init(|| hash_password("dummy-password-for-timing").unwrap_or_default()).clone();
+    let dummy = DUMMY
+        .get_or_init(|| hash_password("dummy-password-for-timing").unwrap_or_default())
+        .clone();
 
     let (user, phc) = match &row {
-        Some(r) if r.get::<bool, _>("has_password_login") => (Some(r), r.get::<String, _>("password_hash")),
+        Some(r) if r.get::<bool, _>("has_password_login") => {
+            (Some(r), r.get::<String, _>("password_hash"))
+        }
         _ => (None, dummy),
     };
     let (ok, rehash) = verify_blocking(rt, password.to_string(), phc).await;
@@ -646,14 +811,33 @@ pub async fn login(pool: &PgPool, rt: &AccountRuntime, email: &str, password: &s
         return Err(LoginError::NotVerified);
     }
     if let Some(new_hash) = rehash {
-        let _ = sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1").bind(user_id).bind(new_hash).execute(pool).await;
+        let _ = sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
+            .bind(user_id)
+            .bind(new_hash)
+            .execute(pool)
+            .await;
     }
     rt.throttle.clear(&akey);
-    let lifetime = if remember { ChronoDuration::days(30) } else { ChronoDuration::hours(24) };
-    let (token, expires_at) = create_session(pool, user_id, lifetime).await.map_err(|e| LoginError::Internal(e.to_string()))?;
-    let _ = sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = $1").bind(user_id).execute(pool).await;
+    let lifetime = if remember {
+        ChronoDuration::days(30)
+    } else {
+        ChronoDuration::hours(24)
+    };
+    let (token, expires_at) = create_session(pool, user_id, lifetime)
+        .await
+        .map_err(|e| LoginError::Internal(e.to_string()))?;
+    let _ = sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await;
     audit(pool, &rt.cfg, Some(user_id), "login", ip).await;
-    Ok(LoginOk { user_id, username: name, token, expires_at, remember })
+    Ok(LoginOk {
+        user_id,
+        username: name,
+        token,
+        expires_at,
+        remember,
+    })
 }
 
 // ── Password reset / change ─────────────────────────────────────────────────
@@ -691,12 +875,22 @@ pub async fn forgot_password(pool: &PgPool, rt: &AccountRuntime, email: &str, ip
     }
     audit(pool, &rt.cfg, Some(id), "password_reset_requested", ip).await;
     let link = format!("{}/reset-password?token={}", rt.cfg.public_app_url, plain);
-    if let Err(e) = rt.mailer.send(password_reset_mail(email, &name, &link)).await {
+    if let Err(e) = rt
+        .mailer
+        .send(password_reset_mail(email, &name, &link))
+        .await
+    {
         tracing::warn!(error = %e, "password reset mail could not be sent");
     }
 }
 
-pub async fn reset_password(pool: &PgPool, rt: &AccountRuntime, token: &str, new_password: &str, ip: &str) -> Result<bool, String> {
+pub async fn reset_password(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    token: &str,
+    new_password: &str,
+    ip: &str,
+) -> Result<bool, String> {
     let hash = hash_blocking(rt, new_password.to_string()).await?;
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     let row = sqlx::query(
@@ -716,23 +910,38 @@ pub async fn reset_password(pool: &PgPool, rt: &AccountRuntime, token: &str, new
         .await
         .map_err(|e| e.to_string())?;
     // Every other reset link dies with the password, and so does every session.
-    sqlx::query("UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL")
+    sqlx::query(
+        "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1")
         .bind(user_id)
         .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
-    sqlx::query("DELETE FROM sessions WHERE user_id = $1").bind(user_id).execute(&mut *tx).await.map_err(|e| e.to_string())?;
     tx.commit().await.map_err(|e| e.to_string())?;
     audit(pool, &rt.cfg, Some(user_id), "password_reset", ip).await;
     Ok(true)
 }
 
-pub async fn change_password(pool: &PgPool, rt: &AccountRuntime, user_id: Uuid, current: &str, new_password: &str, keep_session: &str, ip: &str) -> Result<bool, String> {
-    let phc: Option<String> = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1 AND has_password_login")
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+pub async fn change_password(
+    pool: &PgPool,
+    rt: &AccountRuntime,
+    user_id: Uuid,
+    current: &str,
+    new_password: &str,
+    keep_session: &str,
+    ip: &str,
+) -> Result<bool, String> {
+    let phc: Option<String> =
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1 AND has_password_login")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
     let Some(phc) = phc else { return Ok(false) };
     let (ok, _) = verify_blocking(rt, current.to_string(), phc).await;
     if !ok {
@@ -745,12 +954,18 @@ pub async fn change_password(pool: &PgPool, rt: &AccountRuntime, user_id: Uuid, 
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    revoke_sessions(pool, user_id, Some(keep_session)).await.map_err(|e| e.to_string())?;
+    revoke_sessions(pool, user_id, Some(keep_session))
+        .await
+        .map_err(|e| e.to_string())?;
     audit(pool, &rt.cfg, Some(user_id), "password_changed", ip).await;
     Ok(true)
 }
 
-pub async fn set_newsletter(pool: &PgPool, user_id: Uuid, subscribe: bool) -> Result<(), sqlx::Error> {
+pub async fn set_newsletter(
+    pool: &PgPool,
+    user_id: Uuid,
+    subscribe: bool,
+) -> Result<(), sqlx::Error> {
     if subscribe {
         // Consent only; marketing mail additionally needs a confirmed double-opt-in (not built yet).
         sqlx::query(
@@ -776,16 +991,43 @@ mod unit_tests {
 
     #[test]
     fn emails_are_normalised_and_validated() {
-        assert_eq!(normalize_email("  Alice@Example.COM ").unwrap(), "alice@example.com");
+        assert_eq!(
+            normalize_email("  Alice@Example.COM ").unwrap(),
+            "alice@example.com"
+        );
         // provider-specific folding must NOT happen
-        assert_eq!(normalize_email("a.l.i.c.e+tag@gmail.com").unwrap(), "a.l.i.c.e+tag@gmail.com");
-        for bad in ["", "no-at", "a@b", "a@@b.com", "a b@c.com", "@c.com", "a@-c.com", "a@c..com", "a@c.c", "ä@c.com", ".a@c.com"] {
+        assert_eq!(
+            normalize_email("a.l.i.c.e+tag@gmail.com").unwrap(),
+            "a.l.i.c.e+tag@gmail.com"
+        );
+        for bad in [
+            "",
+            "no-at",
+            "a@b",
+            "a@@b.com",
+            "a b@c.com",
+            "@c.com",
+            "a@-c.com",
+            "a@c..com",
+            "a@c.c",
+            "ä@c.com",
+            ".a@c.com",
+        ] {
             assert!(normalize_email(bad).is_err(), "{bad}");
         }
-        assert_eq!(normalize_email(&format!("{}@c.com", "a".repeat(70))), Err(FieldError::Invalid));
-        assert_eq!(normalize_email(&format!("{}@c.com", "a".repeat(260))), Err(FieldError::TooLong));
+        assert_eq!(
+            normalize_email(&format!("{}@c.com", "a".repeat(70))),
+            Err(FieldError::Invalid)
+        );
+        assert_eq!(
+            normalize_email(&format!("{}@c.com", "a".repeat(260))),
+            Err(FieldError::TooLong)
+        );
         // synthetic wallet addresses cannot be claimed
-        assert_eq!(normalize_email("x@wallet.local"), Err(FieldError::NotAllowed));
+        assert_eq!(
+            normalize_email("x@wallet.local"),
+            Err(FieldError::NotAllowed)
+        );
     }
 
     #[test]
@@ -793,33 +1035,92 @@ mod unit_tests {
         assert_eq!(validate_username(" Alice_01 ").unwrap(), "Alice_01");
         assert_eq!(validate_username("ab"), Err(FieldError::TooShort));
         assert_eq!(validate_username(&"a".repeat(25)), Err(FieldError::TooLong));
-        assert_eq!(validate_username("_alice"), Err(FieldError::InvalidCharacters));
-        for bad in ["al ice", "ali\u{200b}ce", "alice\u{202e}", "Алиса", "ali.ce", "al<ice>", "al\nice"] {
-            assert_eq!(validate_username(bad), Err(FieldError::InvalidCharacters), "{bad:?}");
+        assert_eq!(
+            validate_username("_alice"),
+            Err(FieldError::InvalidCharacters)
+        );
+        for bad in [
+            "al ice",
+            "ali\u{200b}ce",
+            "alice\u{202e}",
+            "Алиса",
+            "ali.ce",
+            "al<ice>",
+            "al\nice",
+        ] {
+            assert_eq!(
+                validate_username(bad),
+                Err(FieldError::InvalidCharacters),
+                "{bad:?}"
+            );
         }
         // reserved + impersonation variants
-        for bad in ["admin", "Admin", "4dmin", "a_d_m_i_n", "support", "KaspaBattle", "Kaspa_Battle_Team", "Player_ab12cd", "root", "B0T"] {
+        for bad in [
+            "admin",
+            "Admin",
+            "4dmin",
+            "a_d_m_i_n",
+            "support",
+            "KaspaBattle",
+            "Kaspa_Battle_Team",
+            "Player_ab12cd",
+            "root",
+            "B0T",
+        ] {
             assert_eq!(validate_username(bad), Err(FieldError::Reserved), "{bad}");
         }
         assert_eq!(validate_username("xXHitlerXx"), Err(FieldError::NotAllowed));
         // legit names stay usable (no Scunthorpe problem for short substrings)
-        for ok in ["Classic", "Assassin", "Scunthorpe", "Mike_Hunt99", "kaspafan", "Anna-Lena"] {
+        for ok in [
+            "Classic",
+            "Assassin",
+            "Scunthorpe",
+            "Mike_Hunt99",
+            "kaspafan",
+            "Anna-Lena",
+        ] {
             assert!(validate_username(ok).is_ok(), "{ok}");
         }
     }
 
     #[test]
     fn passwords_follow_the_policy() {
-        assert!(validate_password("correct horse battery", Some("alice"), Some("a@b.test")).is_ok());
-        assert_eq!(validate_password("short", None, None), Err(FieldError::TooShort));
-        assert_eq!(validate_password(&"x".repeat(129), None, None), Err(FieldError::TooLong));
+        assert!(
+            validate_password("correct horse battery", Some("alice"), Some("a@b.test")).is_ok()
+        );
+        assert_eq!(
+            validate_password("short", None, None),
+            Err(FieldError::TooShort)
+        );
+        assert_eq!(
+            validate_password(&"x".repeat(129), None, None),
+            Err(FieldError::TooLong)
+        );
         assert_eq!(validate_password("", None, None), Err(FieldError::Required));
-        assert_eq!(validate_password("aaaaaaaaaaaa", None, None), Err(FieldError::TooCommon));
-        assert_eq!(validate_password("Password1234", None, None), Err(FieldError::TooCommon));
-        assert_eq!(validate_password("123456789012", None, None), Err(FieldError::TooCommon));
-        assert_eq!(validate_password("abcdefghijkl", None, None), Err(FieldError::TooCommon));
-        assert_eq!(validate_password("alice-loves-cats", Some("alice"), None), Err(FieldError::ContainsPersonalData));
-        assert_eq!(validate_password("bobby.tables!!!", None, Some("bobby@x.test")), Err(FieldError::ContainsPersonalData));
+        assert_eq!(
+            validate_password("aaaaaaaaaaaa", None, None),
+            Err(FieldError::TooCommon)
+        );
+        assert_eq!(
+            validate_password("Password1234", None, None),
+            Err(FieldError::TooCommon)
+        );
+        assert_eq!(
+            validate_password("123456789012", None, None),
+            Err(FieldError::TooCommon)
+        );
+        assert_eq!(
+            validate_password("abcdefghijkl", None, None),
+            Err(FieldError::TooCommon)
+        );
+        assert_eq!(
+            validate_password("alice-loves-cats", Some("alice"), None),
+            Err(FieldError::ContainsPersonalData)
+        );
+        assert_eq!(
+            validate_password("bobby.tables!!!", None, Some("bobby@x.test")),
+            Err(FieldError::ContainsPersonalData)
+        );
         // no forced special characters
         assert!(validate_password("alllowercasewordsonly", None, None).is_ok());
         // unicode passphrases are fine and length is counted in characters
@@ -841,10 +1142,14 @@ mod unit_tests {
     #[test]
     fn outdated_parameters_trigger_a_rehash() {
         let salt = SaltString::generate(&mut OsRng);
-        let weak = Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::new(8, 1, 1, None).unwrap())
-            .hash_password(b"correct horse battery", &salt)
-            .unwrap()
-            .to_string();
+        let weak = Argon2::new(
+            Algorithm::Argon2id,
+            Version::V0x13,
+            Params::new(8, 1, 1, None).unwrap(),
+        )
+        .hash_password(b"correct horse battery", &salt)
+        .unwrap()
+        .to_string();
         let (ok, rehash) = verify_password("correct horse battery", &weak);
         assert!(ok);
         let new = rehash.expect("weak params must be upgraded");

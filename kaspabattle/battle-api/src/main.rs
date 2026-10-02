@@ -14,16 +14,16 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
 mod account;
-mod api;
-mod free_play;
-mod mail;
-mod episodes;
-mod models;
-mod native_game;
 #[cfg(test)]
 mod account_tests;
+mod api;
+mod episodes;
+mod free_play;
 #[cfg(test)]
 mod free_play_tests;
+mod mail;
+mod models;
+mod native_game;
 #[cfg(test)]
 mod native_tests;
 mod payout_worker;
@@ -447,9 +447,8 @@ async fn main() {
     });
 
     // ── E-mail (SMTP) + account runtime ──────────────────────────────────────
-    let (mailer, mail_config_error) = mail::mailer_from_env(|k| {
-        secrets.get(k).unwrap_or(None).filter(|v| !v.is_empty())
-    });
+    let (mailer, mail_config_error) =
+        mail::mailer_from_env(|k| secrets.get(k).unwrap_or(None).filter(|v| !v.is_empty()));
     if let Some(e) = &mail_config_error {
         tracing::error!("SMTP misconfigured, e-mail disabled: {}", e);
     }

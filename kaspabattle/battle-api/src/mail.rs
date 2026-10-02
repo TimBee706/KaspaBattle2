@@ -13,6 +13,7 @@ use lettre::{
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
+#[cfg(test)]
 use std::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -138,9 +139,7 @@ impl SmtpConfig {
     /// Reads `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`,
     /// `SMTP_FROM_NAME`, `SMTP_TLS_MODE` (`starttls` | `tls` | `none`). Returns `Ok(None)` when no
     /// `SMTP_HOST` is set (mail disabled) and `Err` for a half-configured / unsafe setup.
-    pub fn from_env(
-        get: impl Fn(&str) -> Option<String>,
-    ) -> Result<Option<SmtpConfig>, String> {
+    pub fn from_env(get: impl Fn(&str) -> Option<String>) -> Result<Option<SmtpConfig>, String> {
         let Some(host) = get("SMTP_HOST").filter(|h| !h.trim().is_empty()) else {
             return Ok(None);
         };
@@ -164,7 +163,10 @@ impl SmtpConfig {
             TlsMode::None => 25,
         };
         let port = match get("SMTP_PORT") {
-            Some(p) => p.trim().parse::<u16>().map_err(|_| "invalid SMTP_PORT".to_string())?,
+            Some(p) => p
+                .trim()
+                .parse::<u16>()
+                .map_err(|_| "invalid SMTP_PORT".to_string())?,
             None => default_port,
         };
         let from_email = get("SMTP_FROM_EMAIL")
@@ -195,8 +197,9 @@ pub struct SmtpMailer {
 impl SmtpMailer {
     pub fn new(cfg: &SmtpConfig) -> Result<Self, String> {
         let builder = match cfg.tls {
-            TlsMode::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host)
-                .map_err(|e| e.to_string())?,
+            TlsMode::Tls => {
+                AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(|e| e.to_string())?
+            }
             TlsMode::StartTls => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host)
                 .map_err(|e| e.to_string())?,
             TlsMode::None => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host),
@@ -207,10 +210,17 @@ impl SmtpMailer {
         if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
             builder = builder.credentials(Credentials::new(u.clone(), p.clone()));
         }
-        let from = format!("{} <{}>", cfg.from_name.replace(['<', '>', '"'], ""), cfg.from_email)
-            .parse::<Mailbox>()
-            .map_err(|e| format!("invalid SMTP_FROM_EMAIL: {e}"))?;
-        Ok(Self { transport: builder.build(), from })
+        let from = format!(
+            "{} <{}>",
+            cfg.from_name.replace(['<', '>', '"'], ""),
+            cfg.from_email
+        )
+        .parse::<Mailbox>()
+        .map_err(|e| format!("invalid SMTP_FROM_EMAIL: {e}"))?;
+        Ok(Self {
+            transport: builder.build(),
+            from,
+        })
     }
 }
 
@@ -225,14 +235,23 @@ impl Mailer for SmtpMailer {
             .to
             .parse()
             .map_err(|e| MailError::Invalid(format!("recipient: {e}")))?;
-        let builder = Message::builder().from(self.from.clone()).to(to).subject(mail.subject);
+        let builder = Message::builder()
+            .from(self.from.clone())
+            .to(to)
+            .subject(mail.subject);
         let message = match mail.html {
             Some(html) => builder.multipart(
                 MultiPart::alternative()
                     .singlepart(
-                        SinglePart::builder().header(ContentType::TEXT_PLAIN).body(mail.text),
+                        SinglePart::builder()
+                            .header(ContentType::TEXT_PLAIN)
+                            .body(mail.text),
                     )
-                    .singlepart(SinglePart::builder().header(ContentType::TEXT_HTML).body(html)),
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(ContentType::TEXT_HTML)
+                            .body(html),
+                    ),
             ),
             None => builder.header(ContentType::TEXT_PLAIN).body(mail.text),
         }
@@ -262,7 +281,10 @@ pub fn mailer_from_env(
 // ── Templates ───────────────────────────────────────────────────────────────
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 pub fn verification_mail(to: &str, username: &str, link: &str) -> OutgoingMail {
@@ -315,15 +337,19 @@ mod tests {
     use std::collections::HashMap;
 
     fn env(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
-        let m: HashMap<String, String> =
-            pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let m: HashMap<String, String> = pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
         move |k| m.get(k).cloned()
     }
 
     #[test]
     fn no_host_means_mail_disabled() {
         assert!(SmtpConfig::from_env(env(&[])).unwrap().is_none());
-        assert!(SmtpConfig::from_env(env(&[("SMTP_HOST", "  ")])).unwrap().is_none());
+        assert!(SmtpConfig::from_env(env(&[("SMTP_HOST", "  ")]))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -390,10 +416,20 @@ mod tests {
 
     #[test]
     fn templates_escape_html_and_carry_the_link() {
-        let m = verification_mail("x@y.test", "<b>evil</b>", "https://app.test/verify-email?token=abc&x=1");
+        let m = verification_mail(
+            "x@y.test",
+            "<b>evil</b>",
+            "https://app.test/verify-email?token=abc&x=1",
+        );
         assert!(m.html.as_ref().unwrap().contains("&lt;b&gt;evil&lt;/b&gt;"));
-        assert!(m.text.contains("https://app.test/verify-email?token=abc&x=1"));
-        let r = password_reset_mail("x@y.test", "alice", "https://app.test/reset-password?token=t");
+        assert!(m
+            .text
+            .contains("https://app.test/verify-email?token=abc&x=1"));
+        let r = password_reset_mail(
+            "x@y.test",
+            "alice",
+            "https://app.test/reset-password?token=t",
+        );
         assert!(r.subject.contains("Passwort"));
     }
 
@@ -406,7 +442,9 @@ mod tests {
         let store = inbox.clone();
         tokio::spawn(async move {
             loop {
-                let Ok((sock, _)) = listener.accept().await else { break };
+                let Ok((sock, _)) = listener.accept().await else {
+                    break;
+                };
                 let store = store.clone();
                 tokio::spawn(async move {
                     let (r, mut w) = sock.into_split();
@@ -416,7 +454,9 @@ mod tests {
                     let mut line = String::new();
                     loop {
                         line.clear();
-                        if r.read_line(&mut line).await.unwrap_or(0) == 0 { break; }
+                        if r.read_line(&mut line).await.unwrap_or(0) == 0 {
+                            break;
+                        }
                         if in_data {
                             if line == ".\r\n" {
                                 in_data = false;
@@ -428,10 +468,17 @@ mod tests {
                             continue;
                         }
                         let cmd = line.to_ascii_uppercase();
-                        let reply: &[u8] = if cmd.starts_with("EHLO") || cmd.starts_with("HELO") { b"250 fake\r\n" }
-                            else if cmd.starts_with("DATA") { in_data = true; b"354 go\r\n" }
-                            else if cmd.starts_with("QUIT") { w.write_all(b"221 bye\r\n").await.unwrap(); break; }
-                            else { b"250 ok\r\n" };
+                        let reply: &[u8] = if cmd.starts_with("EHLO") || cmd.starts_with("HELO") {
+                            b"250 fake\r\n"
+                        } else if cmd.starts_with("DATA") {
+                            in_data = true;
+                            b"354 go\r\n"
+                        } else if cmd.starts_with("QUIT") {
+                            w.write_all(b"221 bye\r\n").await.unwrap();
+                            break;
+                        } else {
+                            b"250 ok\r\n"
+                        };
                         w.write_all(reply).await.unwrap();
                     }
                 });
@@ -454,19 +501,48 @@ mod tests {
         .unwrap();
         let mailer = SmtpMailer::new(&cfg).unwrap();
         assert!(mailer.is_configured());
-        mailer.send(verification_mail("alice@example.test", "Alice", "https://app.test/verify-email?token=abc")).await.unwrap();
+        mailer
+            .send(verification_mail(
+                "alice@example.test",
+                "Alice",
+                "https://app.test/verify-email?token=abc",
+            ))
+            .await
+            .unwrap();
         let got = inbox.lock().unwrap().clone();
         assert_eq!(got.len(), 1);
-        assert!(got[0].contains("Subject: ") && got[0].contains("<info@kaspabattle.test>") && got[0].contains("Kaspa Battle"), "{}", got[0]);
+        assert!(
+            got[0].contains("Subject: ")
+                && got[0].contains("<info@kaspabattle.test>")
+                && got[0].contains("Kaspa Battle"),
+            "{}",
+            got[0]
+        );
         assert!(got[0].contains("To: alice@example.test"));
-        assert!(got[0].contains("multipart/alternative"), "text + html alternative");
+        assert!(
+            got[0].contains("multipart/alternative"),
+            "text + html alternative"
+        );
         // an unreachable server is reported, not silently swallowed
         let dead = SmtpConfig::from_env(env(&[
-            ("SMTP_HOST", "127.0.0.1"), ("SMTP_PORT", "1"), ("SMTP_TLS_MODE", "none"), ("SMTP_FROM_EMAIL", "a@b.test"),
-        ])).unwrap().unwrap();
-        let err = SmtpMailer::new(&dead).unwrap().send(verification_mail("a@b.test", "A", "https://x")).await;
+            ("SMTP_HOST", "127.0.0.1"),
+            ("SMTP_PORT", "1"),
+            ("SMTP_TLS_MODE", "none"),
+            ("SMTP_FROM_EMAIL", "a@b.test"),
+        ]))
+        .unwrap()
+        .unwrap();
+        let err = SmtpMailer::new(&dead)
+            .unwrap()
+            .send(verification_mail("a@b.test", "A", "https://x"))
+            .await;
         assert!(matches!(err, Err(MailError::Transport(_))));
         // invalid recipient is rejected before any network traffic
-        assert!(matches!(mailer.send(verification_mail("not an address", "A", "https://x")).await, Err(MailError::Invalid(_))));
+        assert!(matches!(
+            mailer
+                .send(verification_mail("not an address", "A", "https://x"))
+                .await,
+            Err(MailError::Invalid(_))
+        ));
     }
 }

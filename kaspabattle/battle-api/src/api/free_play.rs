@@ -24,27 +24,71 @@ impl From<FpError> for ApiError {
     fn from(e: FpError) -> Self {
         match e {
             FpError::NotFound => err(StatusCode::NOT_FOUND, "game_not_found", "Game not found."),
-            FpError::NotParticipant => err(StatusCode::FORBIDDEN, "not_participant", "Only the players of this game may do that."),
-            FpError::WrongStatus(code) => err(StatusCode::CONFLICT, code, "The game is not in a state that allows this."),
+            FpError::NotParticipant => err(
+                StatusCode::FORBIDDEN,
+                "not_participant",
+                "Only the players of this game may do that.",
+            ),
+            FpError::WrongStatus(code) => err(
+                StatusCode::CONFLICT,
+                code,
+                "The game is not in a state that allows this.",
+            ),
             FpError::VersionConflict { current_version } => ApiError(
                 StatusCode::CONFLICT,
                 serde_json::json!({ "error": "version_conflict", "message": "The game changed; reload the state.", "currentVersion": current_version }),
             ),
-            FpError::Move(MoveError::Unauthorized) => err(StatusCode::FORBIDDEN, "not_participant", "You are not a player of this game."),
-            FpError::Move(MoveError::GameOver) => err(StatusCode::CONFLICT, "game_over", "The game is already finished."),
-            FpError::Move(MoveError::NotYourTurn) => err(StatusCode::CONFLICT, "not_your_turn", "It is not your turn."),
-            FpError::Move(MoveError::InvalidColumn(_)) => err(StatusCode::BAD_REQUEST, "invalid_column", "Column must be between 0 and 6."),
-            FpError::Move(MoveError::ColumnFull(_)) => err(StatusCode::UNPROCESSABLE_ENTITY, "column_full", "That column is full."),
+            FpError::Move(MoveError::Unauthorized) => err(
+                StatusCode::FORBIDDEN,
+                "not_participant",
+                "You are not a player of this game.",
+            ),
+            FpError::Move(MoveError::GameOver) => err(
+                StatusCode::CONFLICT,
+                "game_over",
+                "The game is already finished.",
+            ),
+            FpError::Move(MoveError::NotYourTurn) => err(
+                StatusCode::CONFLICT,
+                "not_your_turn",
+                "It is not your turn.",
+            ),
+            FpError::Move(MoveError::InvalidColumn(_)) => err(
+                StatusCode::BAD_REQUEST,
+                "invalid_column",
+                "Column must be between 0 and 6.",
+            ),
+            FpError::Move(MoveError::ColumnFull(_)) => err(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "column_full",
+                "That column is full.",
+            ),
             FpError::BadRequest(m) => err(StatusCode::BAD_REQUEST, "bad_request", m),
-            FpError::Conflict(code) => err(StatusCode::CONFLICT, code, "This is not possible right now."),
-            FpError::TooMany(code) => err(StatusCode::TOO_MANY_REQUESTS, code, "You have too many games open. Finish or close one first."),
+            FpError::Conflict(code) => err(
+                StatusCode::CONFLICT,
+                code,
+                "This is not possible right now.",
+            ),
+            FpError::TooMany(code) => err(
+                StatusCode::TOO_MANY_REQUESTS,
+                code,
+                "You have too many games open. Finish or close one first.",
+            ),
             FpError::Db(e) => {
                 tracing::error!(error = %e, "free play: database error");
-                err(StatusCode::INTERNAL_SERVER_ERROR, "db_error", "Internal error.")
+                err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "db_error",
+                    "Internal error.",
+                )
             }
             FpError::Internal(m) => {
                 tracing::error!(error = %m, "free play: internal error");
-                err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal error.")
+                err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    "Internal error.",
+                )
             }
         }
     }
@@ -61,14 +105,28 @@ fn respond(state: &AppState, out: Outcome, viewer: Uuid) -> Json<serde_json::Val
 }
 
 /// `you` + live presence of the players (derived from WebSocket connections).
-fn attach_viewer(state: &AppState, body: &mut serde_json::Value, snap: &free_play::FpSnapshot, viewer: Uuid) {
-    let slot = snap.players.iter().find(|p| p.user_id == Some(viewer)).map(|p| p.slot);
+fn attach_viewer(
+    state: &AppState,
+    body: &mut serde_json::Value,
+    snap: &free_play::FpSnapshot,
+    viewer: Uuid,
+) {
+    let slot = snap
+        .players
+        .iter()
+        .find(|p| p.user_id == Some(viewer))
+        .map(|p| p.slot);
     body["you"] = serde_json::json!({ "userId": viewer, "slot": slot });
     let presence: serde_json::Map<String, serde_json::Value> = snap
         .players
         .iter()
         .filter_map(|p| p.user_id)
-        .map(|u| (u.to_string(), serde_json::json!(state.presence.is_connected(snap.id, u))))
+        .map(|u| {
+            (
+                u.to_string(),
+                serde_json::json!(state.presence.is_connected(snap.id, u)),
+            )
+        })
         .collect();
     body["presence"] = serde_json::Value::Object(presence);
 }
@@ -85,10 +143,18 @@ pub struct CreateBody {
 }
 
 fn throttle(state: &AppState, key: String, limit: usize, secs: u64) -> Result<(), ApiError> {
-    if state.account.throttle.allow(&key, limit, Duration::from_secs(secs)) {
+    if state
+        .account
+        .throttle
+        .allow(&key, limit, Duration::from_secs(secs))
+    {
         Ok(())
     } else {
-        Err(err(StatusCode::TOO_MANY_REQUESTS, "rate_limited", "Too many requests. Please slow down."))
+        Err(err(
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate_limited",
+            "Too many requests. Please slow down.",
+        ))
     }
 }
 
@@ -98,27 +164,57 @@ pub async fn create_game(
     Json(b): Json<CreateBody>,
 ) -> Res {
     throttle(&state, format!("fp:create:{}", user.id), 20, 600)?;
-    if b.game.as_deref().map(|g| g != "connect_four").unwrap_or(false) {
-        return Err(err(StatusCode::BAD_REQUEST, "unsupported_game", "Only connect_four is available."));
+    if b.game
+        .as_deref()
+        .map(|g| g != "connect_four")
+        .unwrap_or(false)
+    {
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            "unsupported_game",
+            "Only connect_four is available.",
+        ));
     }
     let opponent = match (b.opponent.as_str(), b.bot_difficulty.as_deref()) {
         ("human", None) => Opponent::Human,
         ("bot", d) => {
-            let d = Difficulty::parse(d.unwrap_or("easy"))
-                .ok_or_else(|| err(StatusCode::BAD_REQUEST, "invalid_difficulty", "Difficulty must be easy, medium or hard."))?;
+            let d = Difficulty::parse(d.unwrap_or("easy")).ok_or_else(|| {
+                err(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_difficulty",
+                    "Difficulty must be easy, medium or hard.",
+                )
+            })?;
             Opponent::Bot(d)
         }
-        ("human", Some(_)) => return Err(err(StatusCode::BAD_REQUEST, "bad_request", "botDifficulty only applies to bot games.")),
-        _ => return Err(err(StatusCode::BAD_REQUEST, "invalid_opponent", "opponent must be human or bot.")),
+        ("human", Some(_)) => {
+            return Err(err(
+                StatusCode::BAD_REQUEST,
+                "bad_request",
+                "botDifficulty only applies to bot games.",
+            ))
+        }
+        _ => {
+            return Err(err(
+                StatusCode::BAD_REQUEST,
+                "invalid_opponent",
+                "opponent must be human or bot.",
+            ))
+        }
     };
     let out = free_play::create_game(&state.pool, user.id, opponent).await?;
     Ok(respond(&state, out, user.id))
 }
 
-pub async fn lobbies(State(state): State<AppState>, SessionUserNoWallet(user): SessionUserNoWallet) -> Res {
+pub async fn lobbies(
+    State(state): State<AppState>,
+    SessionUserNoWallet(user): SessionUserNoWallet,
+) -> Res {
     let items = free_play::list_open(&state.pool, user.id).await?;
     let active = free_play::list_active(&state.pool, user.id).await?;
-    Ok(Json(serde_json::json!({ "lobbies": items, "active": active })))
+    Ok(Json(
+        serde_json::json!({ "lobbies": items, "active": active }),
+    ))
 }
 
 pub async fn get_game(
@@ -169,7 +265,11 @@ pub async fn post_move(
         &state.pool,
         id,
         user.id,
-        MoveRequest { column: b.column, expected_version: b.expected_version, client_nonce: b.client_nonce },
+        MoveRequest {
+            column: b.column,
+            expected_version: b.expected_version,
+            client_nonce: b.client_nonce,
+        },
     )
     .await?;
     Ok(respond(&state, out, user.id))
@@ -199,7 +299,10 @@ pub async fn history(
     Ok(Json(serde_json::json!({ "games": items })))
 }
 
-pub async fn stats(State(state): State<AppState>, SessionUserNoWallet(user): SessionUserNoWallet) -> Res {
+pub async fn stats(
+    State(state): State<AppState>,
+    SessionUserNoWallet(user): SessionUserNoWallet,
+) -> Res {
     let s = free_play::stats(&state.pool, user.id).await?;
     Ok(Json(serde_json::to_value(s).unwrap_or_default()))
 }
