@@ -6,7 +6,7 @@ const base = { isAuthenticated: true, walletConnected: true, isFaceitConnected: 
 describe('deriveAccess', () => {
     it('logged-out visitors can play nothing', () => {
         const a = deriveAccess({ isAuthenticated: false, walletConnected: false, isFaceitConnected: false });
-        expect(a).toEqual({ isAuthenticated: false, hasWallet: false, hasFaceit: false, canPlayNative: false, canPlayFaceit: false });
+        expect(a).toEqual({ isAuthenticated: false, hasWallet: false, hasFaceit: false, canPlayNative: false, canPlayFaceit: false, canPlayFreePlay: false });
     });
 
     it('native games need login + wallet but NOT FACEIT', () => {
@@ -48,5 +48,14 @@ describe('deriveAccess', () => {
         expect(getAccessBlocker(deriveAccess({ isAuthenticated: true, walletConnected: false, isFaceitConnected: false }), 'NATIVE')).toBe('wallet');
         expect(getAccessBlocker(deriveAccess(base), 'NATIVE')).toBeNull();
         expect(getAccessBlocker(deriveAccess(base), 'FACEIT')).toBe('faceit');
+    });
+});
+
+describe('free play access', () => {
+    it('needs only a login: no wallet, no FACEIT', () => {
+        const a = deriveAccess({ isAuthenticated: true, walletConnected: false, isFaceitConnected: false });
+        expect(a.canPlayFreePlay).toBe(true);
+        expect(a.canPlayNative).toBe(false);
+        expect(a.canPlayFaceit).toBe(false);
     });
 });

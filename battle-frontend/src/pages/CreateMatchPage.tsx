@@ -4,6 +4,7 @@ import { CreateChallengeForm } from '../components/match/CreateChallengeForm';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/common/PageHeader';
+import { TestnetComingSoon } from '../components/common/TestnetComingSoon';
 import { KaspaCoin } from '../components/native/ConnectFourCell';
 import { useNativeGamesEnabled } from '../hooks/useNativeGamesEnabled';
 import type { MatchProvider } from '../api/types';
@@ -29,6 +30,7 @@ export function CreateMatchPage() {
             <PageHeader icon="bolt" title={t('create_match.title')} subtitle={t('create_match.subtitle')} />
 
             <div className="max-w-lg mx-auto">
+                <TestnetComingSoon className="mb-4" />
                 <div role="group" aria-label={t('create_match.provider.label')} className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {options.map((opt) => (
                         <button

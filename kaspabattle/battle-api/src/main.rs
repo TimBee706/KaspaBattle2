@@ -13,8 +13,15 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
+mod account;
+#[cfg(test)]
+mod account_tests;
 mod api;
 mod episodes;
+mod free_play;
+#[cfg(test)]
+mod free_play_tests;
+mod mail;
 mod models;
 mod native_game;
 #[cfg(test)]
@@ -439,6 +446,30 @@ async fn main() {
         Arc::new(watcher)
     });
 
+    // ── E-mail (SMTP) + account runtime ──────────────────────────────────────
+    let (mailer, mail_config_error) =
+        mail::mailer_from_env(|k| secrets.get(k).unwrap_or(None).filter(|v| !v.is_empty()));
+    if let Some(e) = &mail_config_error {
+        tracing::error!("SMTP misconfigured, e-mail disabled: {}", e);
+    }
+    let mail_available = mailer.is_configured();
+    let account_cfg = account::AccountConfig::from_env(mail_available, |k| {
+        std::env::var(k).ok().filter(|v| !v.is_empty())
+    });
+    if mail_available {
+        tracing::info!("✅ SMTP mail delivery configured");
+    } else {
+        tracing::warn!("⚠️ SMTP not configured: no verification / reset mails can be sent");
+    }
+    if account_cfg.require_email_verification && !mail_available {
+        tracing::error!("REQUIRE_EMAIL_VERIFICATION=true but SMTP is not configured: new e-mail accounts cannot log in");
+    }
+    if !account_cfg.require_email_verification {
+        tracing::warn!("⚠️ E-mail verification is NOT required (temporary fallback; set REQUIRE_EMAIL_VERIFICATION=true once SMTP works)");
+    }
+    let account_runtime = account::AccountRuntime::new(account_cfg, mailer);
+    free_play::spawn_worker(pool.clone(), tx.clone());
+
     let state = api::AppState {
         pool,
         tx,
@@ -451,6 +482,8 @@ async fn main() {
         payout_service,
         blockchain_watcher,
         multisig_service,
+        account: account_runtime,
+        presence: free_play::Presence::default(),
     };
 
     // ── CORS: Multi-Origin Support (SEC-02) ───────────────────────────────────

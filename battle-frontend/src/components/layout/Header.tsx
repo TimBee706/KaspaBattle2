@@ -9,7 +9,8 @@ import { publicLinks } from '../../config/publicLinks';
 
 export function Header() {
     const navigate = useNavigate();
-    const { testMode, setTestMode } = useAuthStore();
+    const { testMode, setTestMode, isAuthenticated, user, logout } = useAuthStore();
+    const accountName = user?.username || user?.display_name || '';
     const { t } = useTranslation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -26,6 +27,7 @@ export function Header() {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6">
+                        <Link to="/free-play" className="text-sm font-bold text-kaspa-primary hover:text-white transition-colors">{t('navigation.free_play')}</Link>
                         <Link to="/lobby" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.lobby')}</Link>
                         <Link to="/lobby/create" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">{t('navigation.create_challenge')}</Link>
                         {testMode && (
@@ -69,6 +71,23 @@ export function Header() {
                         <Icon name="github" className="w-4 h-4" />
                     </a>
 
+                    {isAuthenticated ? (
+                        <div className="flex items-center gap-2">
+                            <Link to="/account" data-testid="header-account" className="glass-button px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                                <Icon name="user" className="w-4 h-4" />
+                                <span className="max-w-[10rem] truncate">{accountName}</span>
+                            </Link>
+                            <button type="button" onClick={() => void logout().then(() => navigate('/'))} className="text-sm font-semibold text-gray-400 hover:text-white">
+                                {t('account.logout')}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <Link to="/login" className="text-sm font-semibold text-gray-300 hover:text-white px-2">{t('auth.login.submit')}</Link>
+                            <Link to="/register" className="btn-primary px-4 py-2 text-sm">{t('auth.register.submit_short')}</Link>
+                        </div>
+                    )}
+                    <div className="w-px h-6 bg-kaspa-border hidden sm:block" />
                     <button
                         onClick={() => navigate('/wallet/import')}
                         className="glass-button px-5 py-2 text-sm font-semibold flex items-center gap-2"
@@ -76,7 +95,6 @@ export function Header() {
                         <Icon name="wallet" className="w-4 h-4" />
                         {t('navigation.wallet')}
                     </button>
-                    <div className="w-px h-6 bg-kaspa-border hidden sm:block" />
                     <FaceitLoginButton />
                 </div>
 
@@ -104,6 +122,15 @@ export function Header() {
                 <div className="md:hidden bg-kaspa-dark/95 backdrop-blur-glass border-b border-white/5 absolute w-full left-0 top-16 shadow-glow-card">
                     <div className="flex flex-col p-4 gap-4">
                         <nav className="flex flex-col gap-4 pb-4 border-b border-kaspa-border/50">
+                            <Link to="/free-play" onClick={closeMenu} className="text-kaspa-primary font-bold">{t('navigation.free_play')}</Link>
+                            {isAuthenticated ? (
+                                <Link to="/account" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{accountName}</Link>
+                            ) : (
+                                <>
+                                    <Link to="/login" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('auth.login.submit')}</Link>
+                                    <Link to="/register" onClick={closeMenu} className="text-kaspa-primary font-bold">{t('auth.register.submit_short')}</Link>
+                                </>
+                            )}
                             <Link to="/lobby" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.lobby')}</Link>
                             <Link to="/lobby/create" onClick={closeMenu} className="text-gray-300 hover:text-white font-bold">{t('navigation.create_challenge')}</Link>
                             {testMode && (

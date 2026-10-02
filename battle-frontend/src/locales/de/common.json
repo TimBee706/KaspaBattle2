@@ -19,7 +19,8 @@
         "wallet": "Wallet",
         "faceit_login": "Login mit FACEIT",
         "back_to_lobby": "ZUR LOBBY",
-        "profile": "Profil"
+        "profile": "Profil",
+        "free_play": "Free Play"
     },
     "footer_links": {
         "whitepaper": "Whitepaper",
@@ -801,6 +802,195 @@
             "wallet_locked": "Dein Wallet ist gesperrt. Verbinde es erneut (Recovery-Phrase) und versuche es noch einmal – dein Schlüssel verlässt nie den Browser.",
             "failed": "Die Auszahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
             "waiting_winner": "Warte darauf, dass der Gewinner die Auszahlung anfordert."
+        }
+    },
+    "auth": {
+        "email": "E-Mail-Adresse",
+        "username": "Benutzername",
+        "password": "Passwort",
+        "password_new": "Neues Passwort",
+        "password_confirm": "Passwort bestätigen",
+        "username_hint": "3–24 Zeichen: Buchstaben, Zahlen, _ und -",
+        "password_hint": "Mindestens 12 Zeichen – ein langer Satz funktioniert am besten.",
+        "register": {
+            "title": "Kostenlos registrieren",
+            "subtitle": "Konto erstellen und sofort Vier gewinnt spielen – ohne Wallet, Einsatz oder FACEIT-Konto.",
+            "submit": "Konto erstellen",
+            "submit_short": "Kostenlos registrieren",
+            "have_account": "Schon ein Konto?",
+            "accept_terms_prefix": "Ich akzeptiere die",
+            "terms_link": "Nutzungsbedingungen und Datenschutzhinweise",
+            "newsletter": "Ich möchte gelegentlich Neuigkeiten zu Kaspa Battle per E-Mail erhalten (optional, jederzeit widerrufbar).",
+            "done_title": "Konto erstellt",
+            "done_verify": "Fast geschafft! Wir haben dir eine E-Mail geschickt. Bitte bestätige deine E-Mail-Adresse, um dich anzumelden.",
+            "done_login": "Dein Konto wurde erstellt. Du kannst dich jetzt anmelden."
+        },
+        "login": {
+            "title": "Anmelden",
+            "subtitle": "Melde dich mit E-Mail-Adresse und Passwort an.",
+            "submit": "Anmelden",
+            "remember": "Angemeldet bleiben",
+            "forgot": "Passwort vergessen?",
+            "no_account": "Noch kein Konto?"
+        },
+        "forgot": {
+            "title": "Passwort vergessen",
+            "subtitle": "Wir senden dir einen Link zum Zurücksetzen, falls ein Konto mit dieser Adresse existiert.",
+            "submit": "Link anfordern",
+            "sent": "Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir dir einen Link zum Zurücksetzen geschickt.",
+            "unavailable": "Das Zurücksetzen per E-Mail ist derzeit nicht verfügbar. Bitte versuche es später erneut oder schreib uns."
+        },
+        "reset": {
+            "title": "Neues Passwort festlegen",
+            "subtitle": "Nach der Änderung werden alle bestehenden Anmeldungen beendet.",
+            "submit": "Passwort speichern",
+            "done": "Dein Passwort wurde geändert. Bitte melde dich neu an.",
+            "invalid_token": "Dieser Link ist ungültig oder abgelaufen. Fordere einen neuen an."
+        },
+        "verify": {
+            "title": "E-Mail-Adresse bestätigen",
+            "ok": "Danke! Deine E-Mail-Adresse ist bestätigt.",
+            "failed": "Der Bestätigungslink ist ungültig oder abgelaufen.",
+            "resend": "Bestätigungs-E-Mail erneut senden",
+            "resent": "Falls ein unbestätigtes Konto mit dieser Adresse existiert, haben wir eine neue E-Mail geschickt."
+        },
+        "errors": {
+            "generic": "Das hat leider nicht geklappt. Bitte versuche es erneut.",
+            "invalid_credentials": "E-Mail-Adresse oder Passwort ist nicht korrekt.",
+            "email_not_verified": "Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir dazu eine E-Mail geschickt.",
+            "rate_limited": "Zu viele Versuche. Bitte warte einen Moment."
+        },
+        "field_error": {
+            "required": "Pflichtfeld",
+            "too_short": "Zu kurz",
+            "too_long": "Zu lang",
+            "invalid_characters": "Enthält nicht erlaubte Zeichen",
+            "reserved": "Dieser Name ist reserviert",
+            "not_allowed": "Nicht erlaubt",
+            "invalid": "Ungültig",
+            "too_common": "Zu leicht zu erraten",
+            "contains_personal_data": "Darf deinen Namen oder deine E-Mail nicht enthalten",
+            "mismatch": "Stimmt nicht überein",
+            "taken": "Bereits vergeben"
+        }
+    },
+    "account": {
+        "title": "Mein Konto",
+        "details": "Kontodaten",
+        "email_status": "E-Mail-Status",
+        "verified": "Bestätigt",
+        "not_verified": "E-Mail noch nicht bestätigt",
+        "member_since": "Mitglied seit",
+        "stats": "Free-Play-Statistik",
+        "played": "Gespielt",
+        "wins": "Siege",
+        "losses": "Niederlagen",
+        "draws": "Unentschieden",
+        "vs_humans": "Gegen Spieler",
+        "vs_bots": "Gegen Bots",
+        "history": "Letzte Spiele",
+        "no_games": "Noch keine Spiele.",
+        "outcome": {
+            "win": "Sieg",
+            "loss": "Niederlage",
+            "draw": "Unentschieden",
+            "abandoned": "Abgebrochen"
+        },
+        "newsletter": "Newsletter",
+        "newsletter_text": "Ich möchte Neuigkeiten zu Kaspa Battle per E-Mail erhalten. Es werden keine Werbe-E-Mails ohne bestätigte Einwilligung versendet.",
+        "change_password": "Passwort ändern",
+        "current_password": "Aktuelles Passwort",
+        "password_changed": "Passwort geändert. Andere Geräte wurden abgemeldet.",
+        "wrong_password": "Das aktuelle Passwort ist nicht korrekt.",
+        "optional_links": "Optionale Verknüpfungen",
+        "optional_links_text": "Wallet und FACEIT sind optional und werden für Free Play nicht benötigt. Sie gehören zum kommenden Kaspa-Testnet-Modus.",
+        "logout": "Abmelden"
+    },
+    "freeplay": {
+        "title": "Free Play",
+        "subtitle": "Vier gewinnt – kostenlos",
+        "free_badge": "Kostenlos · ohne Wallet · ohne Einsatz",
+        "explainer": "Spiele Vier gewinnt kostenlos – ohne Wallet, Einsatz oder FACEIT-Konto.",
+        "landing_pitch": "Spiele Vier gewinnt kostenlos – ohne Wallet, Einsatz oder FACEIT-Konto.",
+        "register_cta": "Kostenlos registrieren",
+        "cta_play": "Kostenlos spielen",
+        "login_required": "Bitte melde dich an, um Free Play zu spielen.",
+        "vs_player": "Gegen Spieler",
+        "vs_player_text": "Erstelle eine kostenlose Lobby und warte auf einen Gegner – oder tritt einer offenen Lobby bei.",
+        "vs_bot": "Gegen Bot",
+        "vs_bot_text": "Spiele sofort gegen den Computer – in drei Schwierigkeitsstufen.",
+        "create_lobby": "Kostenlose Lobby erstellen",
+        "start_bot": "Bot-Spiel starten",
+        "difficulty": "Schwierigkeit",
+        "diff": {
+            "easy": "Einfach",
+            "medium": "Mittel",
+            "hard": "Schwer"
+        },
+        "bot": "Bot",
+        "bot_label": "Bot ({{level}})",
+        "open_lobbies": "Offene Lobbys",
+        "no_lobbies": "Gerade keine offenen Lobbys – erstelle die erste!",
+        "join": "Spiel beitreten",
+        "waiting_for_opponent": "Warte auf einen Gegner…",
+        "open": "Öffnen",
+        "my_games": "Meine laufenden Spiele",
+        "continue": "Weiterspielen",
+        "moves": "{{count}} Züge",
+        "your_turn": "Du bist am Zug",
+        "opponent_turn": "Gegner ist am Zug",
+        "turn_of": "{{name}} ist am Zug",
+        "time_left": "Noch {{seconds}} Sekunden für diesen Zug",
+        "open_hint": "Teile diese Seite nicht – deine Lobby erscheint für alle angemeldeten Spieler in der Free-Play-Lobby.",
+        "lobby_closed": "Lobby geschlossen",
+        "not_found": "Dieses Spiel gibt es nicht.",
+        "back": "Zur Free-Play-Lobby",
+        "leave": "Lobby verlassen",
+        "leave_confirm": "Ja, Spiel verlassen (Aufgabe)",
+        "close_lobby": "Lobby schließen",
+        "rematch": "Revanche",
+        "rematch_waiting": "Warte auf Zusage des Gegners…",
+        "rematch_accept": "Revanche annehmen",
+        "rematch_go": "Zur Revanche",
+        "opponent_connected": "Gegner verbunden",
+        "opponent_disconnected": "Gegner getrennt",
+        "disconnect_rule": "Regel: Wer {{seconds}} Sekunden lang nicht zieht, verliert. Innerhalb dieser Zeit kannst du dich jederzeit wieder verbinden – der Spielstand bleibt erhalten.",
+        "result": {
+            "draw": "Unentschieden",
+            "abandoned": "Spiel abgebrochen",
+            "you_won": "Du hast gewonnen!",
+            "you_lost": "Du hast verloren",
+            "won_by": "{{name}} hat gewonnen"
+        },
+        "reason": {
+            "connect_four": "Vier in einer Reihe.",
+            "draw": "Das Spielfeld ist voll.",
+            "resignation": "Aufgabe.",
+            "timeout": "Zeitüberschreitung.",
+            "left": "Ein Spieler hat das Spiel verlassen."
+        },
+        "errors": {
+            "generic": "Das hat leider nicht geklappt. Bitte versuche es erneut.",
+            "not_your_turn": "Du bist nicht am Zug.",
+            "version_conflict": "Das Spiel hat sich geändert – das Spielfeld wurde aktualisiert.",
+            "column_full": "Diese Spalte ist voll.",
+            "invalid_column": "Ungültige Spalte.",
+            "game_over": "Das Spiel ist bereits beendet.",
+            "game_not_running": "Das Spiel läuft gerade nicht.",
+            "rate_limited": "Zu viele Anfragen. Bitte warte einen Moment.",
+            "too_many_open_lobbies": "Du hast bereits drei offene Lobbys.",
+            "too_many_active_games": "Du hast schon viele laufende Spiele. Beende erst eines.",
+            "lobby_not_open": "Diese Lobby ist nicht mehr offen.",
+            "own_lobby": "Du kannst nicht deiner eigenen Lobby beitreten."
+        },
+        "banner": {
+            "title": "Kostenloser Free-Play-Modus verfügbar",
+            "text": "Kaspa Battle befindet sich in der öffentlichen Beta. Der kostenlose Free-Play-Modus ist bereits verfügbar. Für den kommenden Kaspa-Testnet-Modus suchen wir Unterstützung beim Betrieb einer zuverlässigen Kaspa-Node.",
+            "help": "Du möchtest helfen? Schreib uns an"
+        },
+        "testnet": {
+            "status": "Kaspa-Testnet-Modus – demnächst verfügbar",
+            "help_short": "Wir suchen Unterstützung für eine zuverlässige Testnet-Node:"
         }
     }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../components/Icon';
+import { TestnetComingSoon } from '../components/common/TestnetComingSoon';
 
 export function WalletPage() {
     const {
@@ -38,6 +39,8 @@ export function WalletPage() {
                         <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">{t('wallet.import_subtitle')}</p>
                     </div>
                 </div>
+
+                <TestnetComingSoon className="mb-6" />
 
                 {/* Section box — same style as LobbyTable */}
                 <div className="max-w-lg mx-auto mb-8 p-6 glass-panel rounded-2xl border border-kaspa-primary/20 shadow-glow-primary">

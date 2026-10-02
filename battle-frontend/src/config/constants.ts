@@ -41,6 +41,10 @@ export const LOBBY_POLL_INTERVAL_MS = 10_000;
 // Public contact (landing page / footer) — only rendered when set.
 export const PUBLIC_CONTACT_EMAIL = import.meta.env.VITE_PUBLIC_CONTACT_EMAIL?.trim() || '';
 
+// Contact for "help us run a Kaspa testnet node". Single definition: the configured public address
+// (VITE_PUBLIC_CONTACT_EMAIL), falling back to the project's info@ address from the production setup.
+export const NODE_HELP_CONTACT_EMAIL = PUBLIC_CONTACT_EMAIL || 'info@kaspabattle.com';
+
 // Unterstützte Spiele
 export const SUPPORTED_GAMES = [
     { id: 'cs2', name: 'Counter-Strike 2', icon: '/game_logo_cs2.svg', platform: 'FACEIT' },

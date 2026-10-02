@@ -11,6 +11,7 @@ import { RecruitmentSection } from '../components/landing/RecruitmentSection';
 import { publicLinks } from '../config/publicLinks';
 import { KaspaCoin } from '../components/native/ConnectFourCell';
 import { useNativeGamesEnabled } from '../hooks/useNativeGamesEnabled';
+import { NodeHelpNotice } from '../components/freeplay/NodeHelpNotice';
 
 export function LandingPage() {
     const { isAuthenticated, isFullyConnected, testMode } = useAuthStore();
@@ -88,6 +89,24 @@ export function LandingPage() {
                         {t('hero.status.contributors_welcome')}
                     </span>
                 </div>
+            </section>
+
+            {/* Free Play: live now, no wallet / FACEIT / node required – plus the node call-for-help */}
+            <section id="free-play" className="pb-16 px-4">
+                <div className="mx-auto mb-6 max-w-3xl text-center">
+                    <p className="text-lg font-semibold text-gray-300">{t('freeplay.landing_pitch')}</p>
+                    <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        {isAuthenticated ? (
+                            <Link to="/free-play" className="btn-primary flex h-12 items-center justify-center px-8 font-black">{t('freeplay.cta_play')}</Link>
+                        ) : (
+                            <>
+                                <Link to="/register" className="btn-primary flex h-12 items-center justify-center px-8 font-black">{t('freeplay.register_cta')}</Link>
+                                <Link to="/login" className="glass-button flex h-12 items-center justify-center px-8 font-bold">{t('auth.login.submit')}</Link>
+                            </>
+                        )}
+                    </div>
+                </div>
+                <NodeHelpNotice />
             </section>
 
             {/* Was ist KaspaBattle? */}

@@ -6,6 +6,7 @@
 //! record, `rollback` restores the exact previous state.
 
 pub mod connect_four;
+pub mod connect_four_bot;
 
 use sha2::{Digest, Sha256};
 
