@@ -84,6 +84,29 @@ pub struct TournamentResponse {
     pub registration_deadline: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Maps a `tournaments` row (optionally joined with a `team_count`) to the API shape.
+/// Missing mandatory columns surface as a database error (HTTP 500) instead of a handler panic.
+fn tournament_from_row(row: &sqlx::postgres::PgRow) -> Result<TournamentResponse, sqlx::Error> {
+    Ok(TournamentResponse {
+        id: row.try_get("id")?,
+        title: row.try_get("title")?,
+        game_type: row.try_get("game_type")?,
+        max_teams: row.try_get("max_teams")?,
+        buy_in_sompi: row.try_get("buy_in_sompi")?,
+        prize_winner_pct: row.try_get("prize_winner_pct")?,
+        prize_runner_up_pct: row.try_get("prize_runner_up_pct")?,
+        platform_fee_pct: row.try_get("platform_fee_pct")?,
+        escrow_address: row.try_get("escrow_address").unwrap_or(None),
+        total_prize_pool_sompi: row.try_get("total_prize_pool_sompi").unwrap_or(0),
+        status: row.try_get("status")?,
+        organizer_user_id: row.try_get("organizer_user_id")?,
+        created_at: row.try_get("created_at")?,
+        // Absent on the INSERT ... RETURNING row of a brand-new tournament.
+        team_count: row.try_get::<i64, _>("team_count").unwrap_or(0),
+        registration_deadline: row.try_get("registration_deadline").unwrap_or(None),
+    })
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RegisterTeamReq {
     pub name: String,
@@ -277,23 +300,7 @@ pub async fn create_tournament(
 
     Ok((
         StatusCode::CREATED,
-        Json(TournamentResponse {
-            id: row.try_get("id").unwrap(),
-            title: row.try_get("title").unwrap(),
-            game_type: row.try_get("game_type").unwrap(),
-            max_teams: row.try_get("max_teams").unwrap(),
-            buy_in_sompi: row.try_get("buy_in_sompi").unwrap(),
-            prize_winner_pct: row.try_get("prize_winner_pct").unwrap(),
-            prize_runner_up_pct: row.try_get("prize_runner_up_pct").unwrap(),
-            platform_fee_pct: row.try_get("platform_fee_pct").unwrap(),
-            escrow_address: row.try_get("escrow_address").unwrap_or(None),
-            total_prize_pool_sompi: row.try_get("total_prize_pool_sompi").unwrap_or(0),
-            status: row.try_get("status").unwrap(),
-            organizer_user_id: row.try_get("organizer_user_id").unwrap(),
-            created_at: row.try_get("created_at").unwrap(),
-            team_count: 0,
-            registration_deadline: row.try_get("registration_deadline").unwrap_or(None),
-        }),
+        Json(tournament_from_row(&row).map_err(db_err)?),
     ))
 }
 
@@ -321,24 +328,9 @@ pub async fn list_tournaments(
 
     let result = rows
         .iter()
-        .map(|r| TournamentResponse {
-            id: r.try_get("id").unwrap(),
-            title: r.try_get("title").unwrap(),
-            game_type: r.try_get("game_type").unwrap(),
-            max_teams: r.try_get("max_teams").unwrap(),
-            buy_in_sompi: r.try_get("buy_in_sompi").unwrap(),
-            prize_winner_pct: r.try_get("prize_winner_pct").unwrap(),
-            prize_runner_up_pct: r.try_get("prize_runner_up_pct").unwrap(),
-            platform_fee_pct: r.try_get("platform_fee_pct").unwrap(),
-            escrow_address: r.try_get("escrow_address").unwrap_or(None),
-            total_prize_pool_sompi: r.try_get("total_prize_pool_sompi").unwrap_or(0),
-            status: r.try_get("status").unwrap(),
-            organizer_user_id: r.try_get("organizer_user_id").unwrap(),
-            created_at: r.try_get("created_at").unwrap(),
-            team_count: r.try_get::<i64, _>("team_count").unwrap_or(0),
-            registration_deadline: r.try_get("registration_deadline").unwrap_or(None),
-        })
-        .collect();
+        .map(tournament_from_row)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
 
     Ok(Json(result))
 }
@@ -366,23 +358,7 @@ pub async fn get_tournament(
     .map_err(db_err)?
     .ok_or_else(not_found)?;
 
-    Ok(Json(TournamentResponse {
-        id: row.try_get("id").unwrap(),
-        title: row.try_get("title").unwrap(),
-        game_type: row.try_get("game_type").unwrap(),
-        max_teams: row.try_get("max_teams").unwrap(),
-        buy_in_sompi: row.try_get("buy_in_sompi").unwrap(),
-        prize_winner_pct: row.try_get("prize_winner_pct").unwrap(),
-        prize_runner_up_pct: row.try_get("prize_runner_up_pct").unwrap(),
-        platform_fee_pct: row.try_get("platform_fee_pct").unwrap(),
-        escrow_address: row.try_get("escrow_address").unwrap_or(None),
-        total_prize_pool_sompi: row.try_get("total_prize_pool_sompi").unwrap_or(0),
-        status: row.try_get("status").unwrap(),
-        organizer_user_id: row.try_get("organizer_user_id").unwrap(),
-        created_at: row.try_get("created_at").unwrap(),
-        team_count: row.try_get::<i64, _>("team_count").unwrap_or(0),
-        registration_deadline: row.try_get("registration_deadline").unwrap_or(None),
-    }))
+    Ok(Json(tournament_from_row(&row).map_err(db_err)?))
 }
 
 // ─── POST /tournaments/:id/teams ─────────────────────────────────────────────
