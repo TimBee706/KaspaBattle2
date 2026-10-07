@@ -312,6 +312,11 @@ async fn main() {
         addr_str
     } else {
         std::env::var("TREASURY_ADDRESS").unwrap_or_else(|_| {
+            tracing::warn!(
+                "⚠️ Neither TREASURY_MNEMONIC nor TREASURY_ADDRESS is set: falling back to the \
+                 built-in TESTNET treasury address. Set TREASURY_ADDRESS explicitly in any \
+                 environment where fees/remainders matter."
+            );
             "kaspatest:qpqehja8q7549wkjjrxl3qkc63a252v9c9pu8zp5rtrc8efll8dhyh9qep0q2".to_string()
         })
     };
