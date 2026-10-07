@@ -1112,3 +1112,102 @@ async fn new_migrations_leave_existing_users_and_matches_untouched() {
     assert!(bad.is_err());
     db.teardown().await;
 }
+
+// ── Session token hashing (audit F-07) ───────────────────────────────────────
+
+#[tokio::test]
+async fn session_tokens_are_stored_hashed_and_the_database_value_is_not_a_credential() {
+    let Some(db) = TestDb::new().await else {
+        return;
+    };
+    let app = router(state_with(db.pool.clone(), Arc::new(DisabledMailer), false));
+    register(&app, "Hashy", "hashy@example.test").await;
+    let token = login(&app, "hashy@example.test", PW)
+        .await
+        .session_cookie()
+        .unwrap();
+
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM sessions")
+        .fetch_all(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(ids.len(), 1);
+    assert_ne!(ids[0], token, "the raw token must never be persisted");
+    assert_eq!(
+        ids[0],
+        battle_core::auth::AuthService::hash_session_token(&token)
+    );
+
+    // presenting the stored hash as a cookie must NOT authenticate (a DB leak is not a login)
+    let leaked = send(&app, "GET", "/auth/me", Some(&ids[0]), None).await;
+    assert_eq!(leaked.status, StatusCode::UNAUTHORIZED);
+    // the real token still works, and logout removes exactly that row
+    assert_eq!(
+        send(&app, "GET", "/auth/me", Some(&token), None)
+            .await
+            .status,
+        StatusCode::OK
+    );
+    send(&app, "POST", "/auth/logout", Some(&token), None).await;
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sessions")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+}
+
+#[tokio::test]
+async fn hash_migration_keeps_existing_sessions_valid_and_is_idempotent() {
+    let Some(db) = TestDb::new().await else {
+        return;
+    };
+    let app = router(state_with(db.pool.clone(), Arc::new(DisabledMailer), false));
+    register(&app, "Legacy", "legacy@example.test").await;
+    let uid: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = 'legacy@example.test'")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+
+    // a session created before the migration: the raw token is the primary key
+    let raw = battle_core::auth::AuthService::generate_session_token();
+    sqlx::query(
+        "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1,$2, NOW() + INTERVAL '1 day')",
+    )
+    .bind(&raw)
+    .bind(uid)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        send(&app, "GET", "/auth/me", Some(&raw), None).await.status,
+        StatusCode::UNAUTHORIZED,
+        "unmigrated raw rows are not accepted by the hashing code"
+    );
+
+    let sql = include_str!("../../migrations/202610070001_hash_session_tokens.sql");
+    sqlx::raw_sql(sql).execute(&db.pool).await.unwrap();
+    let stored: String = sqlx::query_scalar("SELECT id FROM sessions WHERE user_id = $1")
+        .bind(uid)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        stored,
+        battle_core::auth::AuthService::hash_session_token(&raw),
+        "SQL sha256 must equal the Rust hash"
+    );
+    assert_eq!(
+        send(&app, "GET", "/auth/me", Some(&raw), None).await.status,
+        StatusCode::OK,
+        "users stay logged in across the migration"
+    );
+
+    // re-running must not hash the hash
+    sqlx::raw_sql(sql).execute(&db.pool).await.unwrap();
+    let again: String = sqlx::query_scalar("SELECT id FROM sessions WHERE user_id = $1")
+        .bind(uid)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(again, stored);
+}

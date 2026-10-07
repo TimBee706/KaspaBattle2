@@ -81,10 +81,16 @@ pub struct Throttle {
 }
 
 impl Throttle {
+    /// A panic while holding the lock must not turn every later login attempt into a panic too
+    /// (the map only holds counters, so recovering the inner value is safe).
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<String, Vec<Instant>>> {
+        self.hits.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Records a hit and returns whether it is within `limit` per `window`.
     pub fn allow(&self, key: &str, limit: usize, window: Duration) -> bool {
         let now = Instant::now();
-        let mut map = self.hits.lock().unwrap();
+        let mut map = self.map();
         if map.len() > 20_000 {
             map.retain(|_, v| {
                 v.last()
@@ -104,7 +110,7 @@ impl Throttle {
     /// Number of hits currently inside the window (without recording one).
     pub fn count(&self, key: &str, window: Duration) -> usize {
         let now = Instant::now();
-        let map = self.hits.lock().unwrap();
+        let map = self.map();
         map.get(key)
             .map(|v| {
                 v.iter()
@@ -115,16 +121,14 @@ impl Throttle {
     }
 
     pub fn record(&self, key: &str) {
-        self.hits
-            .lock()
-            .unwrap()
+        self.map()
             .entry(key.to_string())
             .or_default()
             .push(Instant::now());
     }
 
     pub fn clear(&self, key: &str) {
-        self.hits.lock().unwrap().remove(key);
+        self.map().remove(key);
     }
 }
 
@@ -528,7 +532,7 @@ pub async fn create_session(
     let token = battle_core::auth::AuthService::generate_session_token();
     let expires_at = Utc::now() + lifetime;
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-        .bind(&token)
+        .bind(battle_core::auth::AuthService::hash_session_token(&token))
         .bind(user_id)
         .bind(expires_at)
         .execute(pool)
@@ -552,7 +556,7 @@ pub async fn revoke_sessions(
     Ok(
         sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)")
             .bind(user_id)
-            .bind(keep)
+            .bind(keep.map(battle_core::auth::AuthService::hash_session_token))
             .execute(pool)
             .await?
             .rows_affected(),
