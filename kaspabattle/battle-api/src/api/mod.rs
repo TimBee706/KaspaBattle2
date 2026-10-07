@@ -1993,7 +1993,7 @@ fn ws_should_forward(
     v["gameId"]
         .as_str()
         .and_then(|g| Uuid::parse_str(g).ok())
-        .map(|g| subscribed.lock().unwrap().contains(&g))
+        .map(|g| subscribed.lock().unwrap_or_else(|e| e.into_inner()).contains(&g))
         .unwrap_or(false)
 }
 
@@ -2071,7 +2071,7 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_i
                                 let _ = out_tx.send("{\"type\":\"subscribe_denied\"}".into()).await;
                                 continue;
                             }
-                            if sub_for_recv.lock().unwrap().insert(game_id)
+                            if sub_for_recv.lock().unwrap_or_else(|e| e.into_inner()).insert(game_id)
                                 && presence.join(game_id, uid)
                             {
                                 crate::free_play::publish(
@@ -2088,7 +2088,7 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_i
                         }
                         WsClientMsg::Unsubscribe { game_id } => {
                             if let Some(uid) = user_id {
-                                if sub_for_recv.lock().unwrap().remove(&game_id)
+                                if sub_for_recv.lock().unwrap_or_else(|e| e.into_inner()).remove(&game_id)
                                     && presence.leave(game_id, uid)
                                 {
                                     crate::free_play::publish(
@@ -2120,7 +2120,7 @@ async fn websocket(stream: axum::extract::ws::WebSocket, state: AppState, user_i
     // Whichever side ended first: tell opponents this player's connection is gone (the documented
     // reconnect window then applies before a timeout forfeit).
     if let Some(uid) = user_id {
-        let games: Vec<Uuid> = subscribed.lock().unwrap().drain().collect();
+        let games: Vec<Uuid> = subscribed.lock().unwrap_or_else(|e| e.into_inner()).drain().collect();
         for g in games {
             if state.presence.leave(g, uid) {
                 crate::free_play::publish(

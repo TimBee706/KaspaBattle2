@@ -81,10 +81,16 @@ pub struct Throttle {
 }
 
 impl Throttle {
+    /// A panic while holding the lock must not turn every later login attempt into a panic too
+    /// (the map only holds counters, so recovering the inner value is safe).
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<String, Vec<Instant>>> {
+        self.hits.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Records a hit and returns whether it is within `limit` per `window`.
     pub fn allow(&self, key: &str, limit: usize, window: Duration) -> bool {
         let now = Instant::now();
-        let mut map = self.hits.lock().unwrap();
+        let mut map = self.map();
         if map.len() > 20_000 {
             map.retain(|_, v| {
                 v.last()
@@ -104,7 +110,7 @@ impl Throttle {
     /// Number of hits currently inside the window (without recording one).
     pub fn count(&self, key: &str, window: Duration) -> usize {
         let now = Instant::now();
-        let map = self.hits.lock().unwrap();
+        let map = self.map();
         map.get(key)
             .map(|v| {
                 v.iter()
@@ -115,16 +121,14 @@ impl Throttle {
     }
 
     pub fn record(&self, key: &str) {
-        self.hits
-            .lock()
-            .unwrap()
+        self.map()
             .entry(key.to_string())
             .or_default()
             .push(Instant::now());
     }
 
     pub fn clear(&self, key: &str) {
-        self.hits.lock().unwrap().remove(key);
+        self.map().remove(key);
     }
 }
 
