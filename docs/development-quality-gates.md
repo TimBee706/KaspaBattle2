@@ -5,7 +5,7 @@ Run these before opening a PR. They mirror `.github/workflows/ci.yml`; where CI 
 ## Rust (`kaspabattle/`)
 
 ```bash
-cargo fmt --all -- --check                                          # not yet enforced in CI (audit A-06)
+cargo fmt --all -- --check                                          # enforced in CI
 cargo clippy --workspace --all-targets --all-features -- -D warnings # CI uses the moving `stable` toolchain
 cargo test --workspace --all-features
 cargo build --release -p battle-api

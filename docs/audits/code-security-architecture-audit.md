@@ -40,7 +40,7 @@ Stack: Rust-Workspace (Axum 0.7, sqlx 0.8, PostgreSQL 16, tokio), React 18/Vite/
 
 ## 5. Build und Deployment
 
-CI (`ci.yml`): fmt-Check **fehlt** (siehe A-06), `clippy -D warnings`, `cargo test --workspace --all-features`, Frontend-Lint/Test, Docker-Build des Prod-Frontends, `docker compose config`, Security-Job (cargo-audit/npm-audit/TruffleHog, alle `continue-on-error`). `release.yml` baut/pusht das Image, Trivy-Scan, SBOM. Deployment manuell per Compose + Caddy (`DEPLOYMENT_IONOS_DOCKER.md`); Migrationen laufen beim Start (`sqlx::migrate!`).
+CI (`ci.yml`): fmt-Check (neu, A-06), `clippy -D warnings`, `cargo test --workspace --all-features`, Frontend-Lint/Test, Docker-Build des Prod-Frontends, `docker compose config`, Security-Job (cargo-audit/npm-audit/TruffleHog, alle `continue-on-error`). `release.yml` baut/pusht das Image, Trivy-Scan, SBOM. Deployment manuell per Compose + Caddy (`DEPLOYMENT_IONOS_DOCKER.md`); Migrationen laufen beim Start (`sqlx::migrate!`).
 
 ## 6. Befunde
 
@@ -72,7 +72,7 @@ Status: **behoben** (Commit in diesem Branch) · **offen** · **akzeptiert**.
 
 ### A-06 — CI: kein `cargo fmt --check`, ungepinnte Toolchain und Actions
 - **Priorität:** LOW/MEDIUM · **Datei:** `.github/workflows/*.yml`
-- **Beobachtung:** `dtolnay/rust-toolchain@stable`, `actions/*@v4`, `docker/*@v3/v5`, `Swatinem/rust-cache@v2`, `anchore/sbom-action@v0` per beweglichem Tag (nur Trivy/TruffleHog sind per SHA gepinnt); Security-Jobs `continue-on-error`. **Maßnahme:** *nicht umgesetzt* — SHAs lassen sich in dieser Umgebung nicht verifizieren (GitHub-Zugriff nur für dieses Repo). **Status:** offen. Empfehlung: SHA-Pinning + Dependabot für Actions, `cargo fmt --check` als Job, `rust-toolchain.toml`.
+- **Beobachtung:** `dtolnay/rust-toolchain@stable`, `actions/*@v4`, `docker/*@v3/v5`, `Swatinem/rust-cache@v2`, `anchore/sbom-action@v0` per beweglichem Tag (nur Trivy/TruffleHog sind per SHA gepinnt); Security-Jobs `continue-on-error`. **Maßnahme:** `cargo fmt --check` als CI-Schritt ergänzt (Baum ist formatiert). SHA-Pinning/Toolchain-Pin *nicht umgesetzt* — SHAs lassen sich in dieser Umgebung nicht verifizieren (GitHub-Zugriff nur für dieses Repo). **Status:** teilweise behoben (fmt-Check); offen: SHA-Pinning + Dependabot für Actions, `rust-toolchain.toml`.
 
 ### A-07 — Hartkodierte Fallback-Treasury-Adresse
 - **Priorität:** LOW (Adresse ist öffentlich/Testnet) · **Datei:** `battle-api/src/main.rs:~315`
