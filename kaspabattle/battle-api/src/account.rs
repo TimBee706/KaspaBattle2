@@ -532,7 +532,7 @@ pub async fn create_session(
     let token = battle_core::auth::AuthService::generate_session_token();
     let expires_at = Utc::now() + lifetime;
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-        .bind(&token)
+        .bind(battle_core::auth::AuthService::hash_session_token(&token))
         .bind(user_id)
         .bind(expires_at)
         .execute(pool)
@@ -556,7 +556,7 @@ pub async fn revoke_sessions(
     Ok(
         sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)")
             .bind(user_id)
-            .bind(keep)
+            .bind(keep.map(battle_core::auth::AuthService::hash_session_token))
             .execute(pool)
             .await?
             .rows_affected(),
