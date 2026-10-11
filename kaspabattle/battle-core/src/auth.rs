@@ -7,6 +7,7 @@ use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use regex::Regex;
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -70,6 +71,14 @@ impl AuthService {
         general_purpose::URL_SAFE_NO_PAD.encode(random_bytes)
     }
 
+    /// Value stored in `sessions.id` for a cookie/bearer token: lowercase hex SHA-256.
+    ///
+    /// The token itself has 256 bits of entropy, so an unsalted fast hash is sufficient; a database
+    /// read (backup, SQL injection, logs) no longer yields usable session tokens.
+    pub fn hash_session_token(token: &str) -> String {
+        hex_lower(&Sha256::digest(token.as_bytes()))
+    }
+
     pub async fn register(&self, req: RegisterRequest) -> Result<AuthResponse> {
         let email = Self::validate_email(&req.email)?;
         Self::validate_password(&req.password)?;
@@ -99,7 +108,7 @@ impl AuthService {
         let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-            .bind(&session_token)
+            .bind(Self::hash_session_token(&session_token))
             .bind(user_id)
             .bind(expires_at)
             .execute(&self.db)
@@ -149,7 +158,7 @@ impl AuthService {
         let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-            .bind(&session_token)
+            .bind(Self::hash_session_token(&session_token))
             .bind(user_id)
             .bind(expires_at)
             .execute(&self.db)
@@ -170,7 +179,7 @@ impl AuthService {
              JOIN users u ON s.user_id = u.id 
              WHERE s.id = $1 AND s.expires_at > CURRENT_TIMESTAMP"
         )
-        .bind(token)
+        .bind(Self::hash_session_token(token))
         .fetch_optional(&self.db)
         .await?;
 
@@ -198,7 +207,7 @@ impl AuthService {
 
     pub async fn logout(&self, token: &str) -> Result<()> {
         sqlx::query("DELETE FROM sessions WHERE id = $1")
-            .bind(token)
+            .bind(Self::hash_session_token(token))
             .execute(&self.db)
             .await?;
         Ok(())
@@ -367,7 +376,7 @@ impl AuthService {
         let expires_at = Utc::now() + Duration::days(session_lifetime_days());
 
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
-            .bind(&session_token)
+            .bind(Self::hash_session_token(&session_token))
             .bind(user_id)
             .bind(expires_at)
             .execute(&self.db)
@@ -436,5 +445,35 @@ impl AuthService {
         let session_token = self.issue_session_for_user(&user_id).await?;
 
         Ok((user_id.to_string(), session_token))
+    }
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        })
+}
+
+#[cfg(test)]
+mod session_hash_tests {
+    use super::AuthService;
+
+    #[test]
+    fn session_token_hash_is_stable_hex_sha256_and_not_the_token() {
+        let h = AuthService::hash_session_token("abc");
+        // SHA-256("abc"), RFC 6234 test vector
+        assert_eq!(
+            h,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let t = AuthService::generate_session_token();
+        assert_ne!(AuthService::hash_session_token(&t), t);
+        assert_eq!(AuthService::hash_session_token(&t).len(), 64);
+        // raw tokens (43 chars, base64url) can never be mistaken for a stored hash (64 chars)
+        assert_eq!(t.len(), 43);
     }
 }

@@ -60,14 +60,14 @@ pub struct Presence(Arc<Mutex<HashMap<Uuid, HashMap<Uuid, usize>>>>);
 impl Presence {
     /// Returns true if this is the user's first connection to the game.
     pub fn join(&self, game: Uuid, user: Uuid) -> bool {
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let c = m.entry(game).or_default().entry(user).or_insert(0);
         *c += 1;
         *c == 1
     }
     /// Returns true if that was the user's last connection.
     pub fn leave(&self, game: Uuid, user: Uuid) -> bool {
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let Some(g) = m.get_mut(&game) else {
             return false;
         };

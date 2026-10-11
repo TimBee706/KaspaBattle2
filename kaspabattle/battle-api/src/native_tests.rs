@@ -108,7 +108,7 @@ async fn make_session(pool: &PgPool, user: Uuid) -> String {
     sqlx::query(
         "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1,$2, NOW() + INTERVAL '1 day')",
     )
-    .bind(&token)
+    .bind(battle_core::auth::AuthService::hash_session_token(&token))
     .bind(user)
     .execute(pool)
     .await

@@ -22,7 +22,8 @@
 | ⚡ | **Oracle Verification** | Results are verified through authorized Oracles fetching FACEIT data |
 | 🚀 | **Instant Settlement** | Payout lands in your wallet as soon as the DAG confirms |
 | 🌐 | **Multi-Game Support** | Counter-Strike 2, Valorant, Rocket League, Dota 2, League of Legends |
-| 🔐 | **Secure Auth** | FACEIT OAuth with PKCE, session management, rate limiting |
+| 🔐 | **Secure Auth** | FACEIT OAuth with PKCE, e-mail + password (Argon2id), hashed session tokens, rate limiting |
+| 🆓 | **Free Play** | Wallet-free Connect Four against another player or a bot — no stake, no escrow, no Kaspa node needed. Details: [Free Play launch report](docs/FREE_PLAY_LAUNCH_REPORT.md) |
 
 ---
 
@@ -111,6 +112,8 @@ npm run dev
 | [KaspaBattle Integration](docs/06-KASPA-BATTLE-INTEGRATION.md) | Wager flow, Oracle, payout, FACEIT integration |
 | [API Reference](docs/07-API-REFERENCE.md) | REST endpoints, WebSocket events, data models |
 | [Contributing](docs/08-CONTRIBUTING.md) | Development setup, code style, PR process |
+| [Quality gates](docs/development-quality-gates.md) | Exact local commands that mirror CI |
+| [Code & security audit](docs/audits/code-security-architecture-audit.md) | Findings, decisions, open risks (2026-10-07) |
 
 ---
 
